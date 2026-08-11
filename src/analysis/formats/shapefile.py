@@ -12,7 +12,7 @@ NULL_GEOMETRY_SAMPLE = 2000
 
 
 def analyze_zip_shapefile(path: Path, ctx: dict) -> dict:
-    from ..checks import looks_like_html
+    from ..checks import looks_like_html, read_ogc_exception
 
     # URLs que apuntan a un directorio/landing devuelven HTML, no un ZIP.
     if looks_like_html(path):
@@ -22,7 +22,27 @@ def analyze_zip_shapefile(path: Path, ctx: dict) -> dict:
                             "label": "El recurso SHP apunta a un directorio/página, no a un ZIP descargable",
                             "severity": "error", "count": 1}])
 
+    # GeoServer contesta 200 con un informe de excepción cuando la capa que
+    # pide la URL del catálogo ya no existe. Decir «ZIP inválido» ahí escondía
+    # el motivo real, que es que el recurso publicado apunta a una capa muerta.
+    exception = read_ogc_exception(path)
+    if exception is not None:
+        return _normalize(path, ctx, False, 0,
+                          f"SHP: el servicio cartográfico devolvió un error en lugar del archivo ({exception})", {},
+                          [{"code": "servicio-error",
+                            "label": "El servicio de origen rechaza la petición del shapefile",
+                            "severity": "error", "count": 1, "detail": exception}])
+
     if not zipfile.is_zipfile(path):
+        # Un ZIP se valida por su final: si la descarga se cortó por el tope de
+        # tamaño, el archivo de origen puede estar perfectamente y el fallo es
+        # nuestro. Confundir las dos cosas culpaba al publicador sin motivo.
+        if ctx.get("truncated"):
+            return _normalize(path, ctx, False, 0,
+                              "SHP: no se pudo comprobar el paquete porque la descarga se cortó por el tope de tamaño", {},
+                              [{"code": "descarga-truncada",
+                                "label": "El paquete no se pudo verificar: la descarga se cortó por tamaño",
+                                "severity": "warning", "count": 1}])
         return _normalize(path, ctx, False, 0, "SHP: el archivo no es un ZIP válido", {}, [
             {"code": "zip-invalido", "label": "El paquete shapefile no es un ZIP válido", "severity": "error", "count": 1},
         ])

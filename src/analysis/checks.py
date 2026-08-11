@@ -1,6 +1,7 @@
 """Utilidades de bajo nivel compartidas por los analizadores."""
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 MAGIC_ECW = b"ECW\x00"
@@ -27,6 +28,32 @@ def looks_like_html(path: Path) -> bool:
     except Exception:
         return False
     return head.startswith(b"<!doctype html") or head.startswith(b"<html")
+
+
+def read_ogc_exception(path: Path) -> str | None:
+    """
+    Texto del error si el archivo es un informe de excepción OGC.
+
+    Varias distribuciones del catálogo apuntan a un GetFeature de GeoServer que
+    responde HTTP 200 con un `ExceptionReport` diciendo que la capa ya no
+    existe. Sin mirar dentro, eso se confundía con un archivo corrupto.
+    """
+    try:
+        head = path.read_bytes()[:8192]
+    except Exception:
+        return None
+    if b"ExceptionReport" not in head and b"ServiceException" not in head:
+        return None
+
+    text = head.decode("utf-8", errors="replace")
+    match = re.search(r"<(?:\w+:)?ExceptionText[^>]*>(.*?)</(?:\w+:)?ExceptionText>", text, re.S)
+    if match is None:
+        match = re.search(
+            r"<(?:\w+:)?ServiceException(?![A-Za-z])[^>]*>(.*?)</(?:\w+:)?ServiceException>", text, re.S
+        )
+    if match is None:
+        return "El servicio devolvió un error sin descripción"
+    return " ".join(match.group(1).split())
 
 
 def detect_encoding(data: bytes, default: str = "utf-8") -> str:

@@ -62,7 +62,12 @@ export default async function RootLayout({
           <Suspense fallback={null}>
             <Sidebar stats={catalog.stats} />
           </Suspense>
-          <main id="contenido-principal" tabIndex={-1} className="flex-1 overflow-y-auto p-4 sm:p-6 focus:outline-none">
+          {/* Sin `overflow-y-auto`: el contenedor no tiene alto fijo, así que
+              nunca llegaba a hacer scroll propio, pero sí convertía a `main` en
+              contenedor de desplazamiento y eso desactivaba cualquier
+              `position: sticky` de dentro (la barra de recorrido del
+              explorador). Quien hace scroll es la página. */}
+          <main id="contenido-principal" tabIndex={-1} className="min-w-0 flex-1 p-4 sm:p-6 focus:outline-none">
             {children}
           </main>
         </div>

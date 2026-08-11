@@ -8,7 +8,11 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "check:contrast": "node scripts/check-contrast.mjs"
+    "check:contrast": "node scripts/check-contrast.mjs",
+    "check:xlsx": "vite-node scripts/check-xlsx-read.mts",
+    "check:json": "vite-node scripts/check-json-records.mts",
+    "check:shp": "vite-node scripts/check-shapefile.mts",
+    "check:geo": "vite-node scripts/check-geo-pipeline.mts"
   },
   "dependencies": {
     "@radix-ui/react-accordion": "^1.2.20",

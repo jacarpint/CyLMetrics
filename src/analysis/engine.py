@@ -253,7 +253,10 @@ def run_item(item: dict, ctx: dict) -> dict:
         # se marcan como "skipped" para no penalizar al proveedor ni al score.
         if not analysis.get("ok"):
             codes = {i.get("code") for i in analysis.get("issues", [])}
-            if codes & {"dependencia-faltante", "no-es-archivo", "no-es-imagen"}:
+            # `descarga-truncada` entra aquí porque el archivo no se pudo
+            # comprobar por NUESTRO tope de descarga, no porque esté mal: darlo
+            # por roto acusaba al publicador de algo que no había pasado.
+            if codes & {"dependencia-faltante", "no-es-archivo", "no-es-imagen", "descarga-truncada"}:
                 result["status"] = "skipped"
             else:
                 result["status"] = "error"

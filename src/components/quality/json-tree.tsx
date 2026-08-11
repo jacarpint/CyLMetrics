@@ -2,15 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Copy, Check, ExternalLink, AlertTriangle, Loader2, ChevronRight,
-  Search, FoldVertical, UnfoldVertical, Link2, X,
+  Copy, Check, ChevronRight, Search, FoldVertical, UnfoldVertical, Link2, X,
 } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
-import { formatBytes } from '@/lib/quality-labels';
 
-const SIZE_CAP = 3 * 1024 * 1024; // 3 MB: por encima no auto-descargamos en cliente.
-const FETCH_TIMEOUT_MS = 15000;
 /** Hijos que se pintan de golpe en un nodo; el resto se revela bajo demanda. */
 const CHUNK = 100;
 /** Tope de nodos visitados al buscar, para no colgar el hilo en ficheros enormes. */
@@ -20,13 +15,6 @@ const RAW_LINE_CAP = 3000;
 
 type Json = unknown;
 type JsonType = 'object' | 'array' | 'string' | 'number' | 'boolean' | 'null';
-type Status = 'idle' | 'loading' | 'loaded' | 'error' | 'too-big';
-type FailureKind = 'http' | 'parse' | 'network';
-
-interface JsonViewerProps {
-  url: string;
-  sizeBytes?: number | null;
-}
 
 function typeOf(v: Json): JsonType {
   if (v === null) return 'null';
@@ -49,13 +37,6 @@ function entriesOf(v: Json): [string, Json][] {
 function childPath(parent: string, key: string, parentIsArray: boolean): string {
   if (parentIsArray) return `${parent}[${key}]`;
   return parent ? `${parent}.${key}` : key;
-}
-
-function rootSummary(data: Json): string {
-  const t = typeOf(data);
-  if (t === 'array') return `Array · ${(data as Json[]).length.toLocaleString('es-ES')} elementos`;
-  if (t === 'object') return `Objeto · ${Object.keys(data as object).length.toLocaleString('es-ES')} claves`;
-  return `Valor ${t}`;
 }
 
 /* ── Búsqueda ─────────────────────────────────────────────────────────────
@@ -93,15 +74,14 @@ function searchTree(data: Json, query: string): { matches: Set<string>; open: Se
   return { matches, open, count: matches.size, capped };
 }
 
-/* ── Componente ── */
-
-export function JsonViewer({ url, sizeBytes }: JsonViewerProps) {
-  const tooBig = sizeBytes != null && sizeBytes > SIZE_CAP;
-  /** Sube al pulsar «cargar de todos modos» o «reintentar»: relanza la descarga. */
-  const [attempt, setAttempt] = useState(0);
-  const [status, setStatus] = useState<Status>(tooBig ? 'too-big' : 'loading');
-  const [failure, setFailure] = useState<{ kind: FailureKind; detail?: string } | null>(null);
-  const [data, setData] = useState<Json>(null);
+/**
+ * Árbol navegable del documento JSON, con búsqueda, plegado y modo crudo.
+ *
+ * Recibe el JSON ya parseado: la descarga y los estados de error los gestiona
+ * quien lo usa (hoy, el explorador de archivos), que es el mismo camino que
+ * siguen CSV y XLSX.
+ */
+export function JsonTree({ data, url }: { data: Json; url: string }) {
   const [mode, setMode] = useState<'tree' | 'raw'>('tree');
   const [copied, setCopied] = useState(false);
   const [query, setQuery] = useState('');
@@ -110,71 +90,16 @@ export function JsonViewer({ url, sizeBytes }: JsonViewerProps) {
   const [treeEpoch, setTreeEpoch] = useState(0);
   const [allOpen, setAllOpen] = useState(false);
 
-  const retry = () => {
-    setStatus('loading');
-    setFailure(null);
-    setAttempt((n) => n + 1);
-  };
-
-  // El estado solo se toca tras un `await`: el efecto no dispara renders en
-  // cascada, y el «cargando» ya es el valor inicial.
-  useEffect(() => {
-    if (tooBig && attempt === 0) return;
-    let cancelled = false;
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-
-    (async () => {
-      try {
-        const res = await fetch(`/api/proxy?url=${encodeURIComponent(url)}`, { signal: controller.signal });
-        if (cancelled) return;
-        if (!res.ok) {
-          setFailure({ kind: 'http', detail: `HTTP ${res.status}` });
-          setStatus('error');
-          return;
-        }
-        const text = await res.text();
-        if (cancelled) return;
-        let parsed: Json;
-        try {
-          parsed = JSON.parse(text) as Json;
-        } catch {
-          setFailure({ kind: 'parse' });
-          setStatus('error');
-          return;
-        }
-        setData(parsed);
-        setStatus('loaded');
-      } catch {
-        if (!cancelled) {
-          setFailure({ kind: 'network' });
-          setStatus('error');
-        }
-      } finally {
-        clearTimeout(timer);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-      controller.abort();
-    };
-  }, [url, attempt, tooBig]);
-
-  const rawText = useMemo(() => (status === 'loaded' ? JSON.stringify(data, null, 2) : ''), [status, data]);
+  const rawText = useMemo(() => (mode === 'raw' ? JSON.stringify(data, null, 2) : ''), [mode, data]);
 
   const copyRaw = () => {
-    navigator.clipboard.writeText(rawText).then(() => {
+    navigator.clipboard.writeText(JSON.stringify(data, null, 2)).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     });
   };
 
-  const search = useMemo(
-    () => (status === 'loaded' && query.trim() ? searchTree(data, query) : null),
-    [status, data, query]
-  );
+  const search = useMemo(() => (query.trim() ? searchTree(data, query) : null), [data, query]);
 
   // Con búsqueda activa manda el conjunto de ramas con resultados; se deriva
   // en el render en lugar de copiarlo a estado desde un efecto.
@@ -199,100 +124,62 @@ export function JsonViewer({ url, sizeBytes }: JsonViewerProps) {
     setTreeEpoch((n) => n + 1);
   };
 
-  /* ── Estados no cargados ── */
-
-  if (status === 'too-big') {
-    return (
-      <Card tone="warn">
-        <CardContent className="flex items-start gap-3 p-4">
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warn" aria-hidden />
-          <div className="text-sm leading-relaxed text-body">
-            El archivo ocupa {formatBytes(sizeBytes)}; no se previsualiza automáticamente para no
-            saturar el navegador.
-            <div className="mt-2 flex flex-wrap items-center gap-3">
-              <button
-                onClick={retry}
-                className="font-medium text-link underline-offset-2 hover:underline"
-              >
-                Cargar de todos modos
-              </button>
-              <a
-                href={url}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1 font-medium text-link underline-offset-2 hover:underline"
-              >
-                <ExternalLink className="h-3 w-3" aria-hidden /> Abrir en pestaña
-              </a>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  if (status === 'loading') {
-    return (
-      <div className="flex items-center gap-2 rounded-xl border border-border bg-fill p-4 text-sm text-faint">
-        <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> Descargando y analizando el JSON…
-      </div>
-    );
-  }
-
-  if (status === 'error') {
-    // Distinguir la causa: no es lo mismo que el origen no deje descargar el
-    // recurso que que el recurso exista pero no sea JSON válido.
-    const message =
-      failure?.kind === 'parse'
-        ? 'El recurso se descargó pero su contenido no es JSON válido. La incidencia debería aparecer también en el análisis de esta distribución.'
-        : failure?.kind === 'http'
-        ? `El servidor de origen respondió con un error (${failure.detail}) al pedir el archivo.`
-        : 'No se pudo contactar con el origen del archivo (sin respuesta o demasiado lento).';
-    return (
-      <Card tone="bad">
-        <CardContent className="flex items-start gap-3 p-4">
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-bad" aria-hidden />
-          <div className="text-sm leading-relaxed text-body">
-            {message}
-            <div className="mt-2 flex flex-wrap items-center gap-3">
-              <button
-                onClick={retry}
-                className="font-medium text-link underline-offset-2 hover:underline"
-              >
-                Reintentar
-              </button>
-              <a
-                href={url}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1 font-medium text-link underline-offset-2 hover:underline"
-              >
-                <ExternalLink className="h-3 w-3" aria-hidden /> Abrir el archivo
-              </a>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  if (status !== 'loaded') return null;
-
   const rawLines = mode === 'raw' ? rawText.split('\n') : [];
   const rawTruncated = rawLines.length > RAW_LINE_CAP;
 
   return (
-    <div className="overflow-hidden rounded-xl border border-border bg-card">
-      {/* Resumen */}
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-fill px-3 py-2">
-        <div className="flex min-w-0 items-center gap-2">
-          <span className="text-xs font-semibold text-strong">{rootSummary(data)}</span>
-          {sizeBytes != null && sizeBytes > 0 && (
-            <span className="text-[11px] text-faint">· {formatBytes(sizeBytes)}</span>
-          )}
-        </div>
+    <>
+      <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2">
+        {mode === 'tree' && (
+          <>
+            <div className="relative min-w-0 flex-1 sm:max-w-xs">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-faint" aria-hidden />
+              <input
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Buscar clave o valor…"
+                aria-label="Buscar dentro del JSON"
+                className="h-8 w-full rounded-lg border border-field bg-card pl-8 pr-7 text-xs text-body placeholder:text-faint focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+              />
+              {query && (
+                <button
+                  onClick={() => setQuery('')}
+                  aria-label="Limpiar búsqueda"
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-0.5 text-faint hover:text-body"
+                >
+                  <X className="h-3.5 w-3.5" aria-hidden />
+                </button>
+              )}
+            </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+            {search && (
+              <span className="text-[11px] text-faint" role="status">
+                {search.count === 0
+                  ? 'Sin coincidencias'
+                  : `${search.count.toLocaleString('es-ES')} coincidencia${search.count === 1 ? '' : 's'}`}
+                {search.capped && ' (búsqueda parcial: archivo muy grande)'}
+              </span>
+            )}
+
+            <div className="flex items-center gap-1">
+              <button
+                onClick={unfoldAll}
+                className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] text-faint transition-colors hover:bg-fill hover:text-body"
+              >
+                <UnfoldVertical className="h-3.5 w-3.5" aria-hidden /> Desplegar
+              </button>
+              <button
+                onClick={foldAll}
+                className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] text-faint transition-colors hover:bg-fill hover:text-body"
+              >
+                <FoldVertical className="h-3.5 w-3.5" aria-hidden /> Plegar
+              </button>
+            </div>
+          </>
+        )}
+
+        <div className="ml-auto flex items-center gap-2">
           <div
             className="flex items-center gap-1 rounded-lg border border-border bg-card p-0.5"
             role="group"
@@ -322,58 +209,7 @@ export function JsonViewer({ url, sizeBytes }: JsonViewerProps) {
         </div>
       </div>
 
-      {/* Barra de herramientas del árbol */}
-      {mode === 'tree' && (
-        <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2">
-          <div className="relative min-w-0 flex-1 sm:max-w-xs">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-faint" aria-hidden />
-            <input
-              type="search"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Buscar clave o valor…"
-              aria-label="Buscar dentro del JSON"
-              className="h-8 w-full rounded-lg border border-field bg-card pl-8 pr-7 text-xs text-body placeholder:text-faint focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
-            />
-            {query && (
-              <button
-                onClick={() => setQuery('')}
-                aria-label="Limpiar búsqueda"
-                className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-0.5 text-faint hover:text-body"
-              >
-                <X className="h-3.5 w-3.5" aria-hidden />
-              </button>
-            )}
-          </div>
-
-          {search && (
-            <span className="text-[11px] text-faint" role="status">
-              {search.count === 0
-                ? 'Sin coincidencias'
-                : `${search.count.toLocaleString('es-ES')} coincidencia${search.count === 1 ? '' : 's'}`}
-              {search.capped && ' (búsqueda parcial: archivo muy grande)'}
-            </span>
-          )}
-
-          <div className="ml-auto flex items-center gap-1">
-            <button
-              onClick={unfoldAll}
-              className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] text-faint transition-colors hover:bg-fill hover:text-body"
-            >
-              <UnfoldVertical className="h-3.5 w-3.5" aria-hidden /> Desplegar
-            </button>
-            <button
-              onClick={foldAll}
-              className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] text-faint transition-colors hover:bg-fill hover:text-body"
-            >
-              <FoldVertical className="h-3.5 w-3.5" aria-hidden /> Plegar
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Contenido */}
-      <div className="max-h-[30rem] overflow-auto p-3 font-mono text-xs leading-relaxed">
+      <div className="max-h-[36rem] overflow-auto p-3 font-mono text-xs leading-relaxed">
         {mode === 'tree' ? (
           <JsonNode
             key={treeEpoch}
@@ -407,7 +243,7 @@ export function JsonViewer({ url, sizeBytes }: JsonViewerProps) {
           </div>
         )}
       </div>
-    </div>
+    </>
   );
 }
 

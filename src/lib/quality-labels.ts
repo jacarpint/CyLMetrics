@@ -168,7 +168,17 @@ const AVAILABILITY_ISSUES: Record<string, true> = {
   'no-es-archivo': true,
   'archivo-vacio': true,
   'servicio-no-disponible': true,
+  // El origen contesta, pero con un error OGC en vez del archivo: el recurso
+  // publicado apunta a una capa que ya no existe en el servidor.
+  'servicio-error': true,
 };
+
+/**
+ * `descarga-truncada` no entra en ninguna categoría a propósito: no es un fallo
+ * del recurso sino del tope de descarga del analizador, y clasificarlo como
+ * problema de disponibilidad o de formato penalizaría al publicador por una
+ * limitación nuestra.
+ */
 
 const FORMAT_ISSUES: Record<string, true> = {
   'formato-no-esperado': true,
@@ -212,6 +222,8 @@ export const ISSUE_LABELS: Record<string, string> = {
   'error-unico': 'Valores duplicados en una columna única',
   'error-esquema': 'Problemas al inferir el esquema de datos',
   'zip-invalido': 'El archivo no es un ZIP válido',
+  'servicio-error': 'El servicio de origen rechaza la petición del archivo',
+  'descarga-truncada': 'No se pudo verificar: la descarga se cortó por tamaño',
   'json-invalido': 'JSON no válido (no se puede parsear)',
   'xlsx-invalido': 'XLSX no válido',
   'formato-no-esperado': 'El contenido no coincide con el formato declarado',

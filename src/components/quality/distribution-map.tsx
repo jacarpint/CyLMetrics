@@ -3,29 +3,41 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
-import { MapPin, ExternalLink, Layers, Info, Loader2, AlertTriangle, RefreshCw, Image as ImageIcon } from 'lucide-react';
+import {
+  MapPin, ExternalLink, Info, Loader2, AlertTriangle, RefreshCw,
+  Image as ImageIcon, Layers, ServerCrash, Package,
+} from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
+import { TableExplorer } from '@/components/quality/table-explorer';
 import { getSpatialCoords, GEO_FORMAT_NAMES } from '@/lib/geo';
+import { readShapefile, describeZip, ShapefileError } from '@/lib/shapefile-read';
+import { ZipError } from '@/lib/zip-read';
+import { diagnose, sniff, ogcException, type Diagnosis } from '@/lib/geo-diagnose';
+import { formatBytes } from '@/lib/quality-labels';
 import { cn } from '@/lib/utils';
-import type { Bbox, GeoSpec } from '@/components/quality/geo-preview-map';
+import type { Bbox, GeoSpec, MapFeature } from '@/components/quality/geo-preview-map';
 
 const GeoPreviewMap = dynamic(() => import('@/components/quality/geo-preview-map'), {
   ssr: false,
-  loading: () => <div className="w-full h-[420px] rounded-xl border border-border bg-fill animate-pulse" />,
+  loading: () => <div className="h-[460px] w-full animate-pulse rounded-xl border border-border bg-fill" />,
 });
 
 type OgcLayer = { name: string; title: string; bbox?: Bbox | null; queryable?: boolean; crs?: string };
 
 /**
- * Nº de entidades que se piden al WFS en la primera carga.
- *
- * Deliberadamente bajo: en los servicios del IDECyL una capa de polígonos con
- * 500 entidades tarda más de dos minutos, muy por encima del timeout del proxy,
- * y el visor acababa cayendo al marcador orientativo sin explicar por qué.
- * Esto es una previsualización, no una descarga.
+ * Por encima de esto no se descarga sin preguntar: son megas que hay que
+ * parsear en el navegador. Está por debajo del tope del proxy (32 MB) y por
+ * encima del shapefile más grande que se lee bien (20,3 MB).
  */
-const WFS_PREVIEW_COUNT = 50;
-const WFS_RETRY_COUNT = 10;
+const AUTOLOAD_CAP = 24 * 1024 * 1024;
+/**
+ * Escalera de reserva cuando la capa entera no llega.
+ *
+ * Hay capas del IDECyL cuyas entidades son polígonos enormes —200 de ellas
+ * ocupan 27 MB y tardan medio minuto—, así que un único plan B de 200 tampoco
+ * sirve: se va bajando hasta poder enseñar algo.
+ */
+const WFS_FALLBACK_COUNTS = [200, 25];
 
 interface DistributionMapProps {
   format: string;
@@ -33,10 +45,49 @@ interface DistributionMapProps {
   datasetId: string;
   spatial?: string;
   dead?: boolean;
+  sizeBytes?: number | null;
   serviceSiblings?: { format: string; idx: number; slug: string }[];
 }
 
-/* ── KML → GeoJSON (mínimo, con DOMParser del navegador) ── */
+/* ── Utilidades ───────────────────────────────────────────────────────── */
+
+/** El proxy solo alcanza los dominios de la Junta recogidos en la allowlist. */
+class OutsideDomain extends Error {}
+
+/** El proxy respondió, pero no con el recurso: su código dice por qué. */
+class ProxyFailure extends Error {
+  constructor(readonly status: number) {
+    super(`proxy ${status}`);
+  }
+}
+
+/** Propiedades de una entidad a texto plano, que es lo que pinta la tabla. */
+function toProperties(input: unknown): Record<string, string> {
+  if (input === null || typeof input !== 'object') return {};
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(input as Record<string, unknown>)) {
+    out[key] =
+      value === null || value === undefined ? ''
+      : typeof value === 'object' ? JSON.stringify(value)
+      : String(value);
+  }
+  return out;
+}
+
+/** Campos de una colección, en el orden en que aparecen por primera vez. */
+function fieldsOf(features: MapFeature[]): string[] {
+  const seen = new Set<string>();
+  const fields: string[] = [];
+  for (const f of features) {
+    for (const key of Object.keys(f.properties)) {
+      if (!seen.has(key)) { seen.add(key); fields.push(key); }
+    }
+  }
+  return fields;
+}
+
+/* ── KML → entidades (mínimo, con DOMParser del navegador) ── */
+
 function parseCoordString(text: string | null): [number, number][] {
   if (!text) return [];
   return text
@@ -49,53 +100,77 @@ function parseCoordString(text: string | null): [number, number][] {
     .filter(([lon, lat]) => Number.isFinite(lon) && Number.isFinite(lat));
 }
 
-function kmlToGeoJSON(xmlText: string): { type: 'FeatureCollection'; features: unknown[] } {
+function kmlToFeatures(xmlText: string): MapFeature[] {
   const doc = new DOMParser().parseFromString(xmlText, 'text/xml');
-  const features: unknown[] = [];
-  const placemarks = Array.from(doc.getElementsByTagName('Placemark'));
-  for (const pm of placemarks) {
-    const name = pm.getElementsByTagName('name')[0]?.textContent ?? '';
-    const props = { name };
+  const features: MapFeature[] = [];
+
+  for (const pm of Array.from(doc.getElementsByTagName('Placemark'))) {
+    const properties: Record<string, string> = {
+      nombre: pm.getElementsByTagName('name')[0]?.textContent?.trim() ?? '',
+      descripcion: pm.getElementsByTagName('description')[0]?.textContent?.trim() ?? '',
+    };
+    // Los datos extendidos del KML son el equivalente a los campos del .dbf.
+    for (const data of Array.from(pm.getElementsByTagName('Data'))) {
+      const name = data.getAttribute('name');
+      const value = data.getElementsByTagName('value')[0]?.textContent?.trim();
+      if (name) properties[name] = value ?? '';
+    }
+    for (const data of Array.from(pm.getElementsByTagName('SimpleData'))) {
+      const name = data.getAttribute('name');
+      if (name) properties[name] = data.textContent?.trim() ?? '';
+    }
+
     const coordsText = (el: Element) => el.getElementsByTagName('coordinates')[0]?.textContent ?? null;
 
     for (const pt of Array.from(pm.getElementsByTagName('Point'))) {
       const c = parseCoordString(coordsText(pt));
-      if (c[0]) features.push({ type: 'Feature', properties: props, geometry: { type: 'Point', coordinates: c[0] } });
+      if (c[0]) features.push({ geometry: { type: 'Point', coordinates: c[0] }, properties });
     }
     for (const ls of Array.from(pm.getElementsByTagName('LineString'))) {
       const c = parseCoordString(coordsText(ls));
-      if (c.length >= 2) features.push({ type: 'Feature', properties: props, geometry: { type: 'LineString', coordinates: c } });
+      if (c.length >= 2) features.push({ geometry: { type: 'LineString', coordinates: c }, properties });
     }
     for (const poly of Array.from(pm.getElementsByTagName('Polygon'))) {
-      const outer = poly.getElementsByTagName('outerBoundaryIs')[0]?.getElementsByTagName('coordinates')[0]?.textContent
-        ?? poly.getElementsByTagName('coordinates')[0]?.textContent ?? null;
+      const outer =
+        poly.getElementsByTagName('outerBoundaryIs')[0]?.getElementsByTagName('coordinates')[0]?.textContent ??
+        coordsText(poly);
       const ring = parseCoordString(outer);
-      if (ring.length >= 3) features.push({ type: 'Feature', properties: props, geometry: { type: 'Polygon', coordinates: [ring] } });
+      if (ring.length >= 3) features.push({ geometry: { type: 'Polygon', coordinates: [ring] }, properties });
     }
   }
-  return { type: 'FeatureCollection', features };
+  return features;
 }
 
-/* ── Capacidades del servicio ── */
+/* ── Fuente del recurso ───────────────────────────────────────────────── */
 
-type Caps =
+interface VectorLayer {
+  name: string;
+  features: MapFeature[];
+  fields: string[];
+  crs?: string | null;
+  /** false = venía en una proyección que no sabemos convertir. */
+  projected?: boolean;
+  nullGeometries?: number;
+}
+
+type Source =
   | { kind: 'wms'; getMapUrl: string; version: string; format: string; layers: OgcLayer[]; bbox: Bbox | null }
   | { kind: 'wfs'; getFeatureUrl: string; version: string; featureTypes: OgcLayer[] }
-  /** Geometrías ya resueltas en la propia carga (KML convertido en el cliente). */
-  | { kind: 'inline'; data: unknown; count: number }
-  | { kind: 'none'; note?: string };
+  | { kind: 'vector'; layers: VectorLayer[]; note?: string }
+  | { kind: 'too-big'; size: number }
+  | { kind: 'none'; diagnosis?: Diagnosis; note?: string };
 
-/* ── Piezas de UI ── */
+/* ── Piezas de UI ─────────────────────────────────────────────────────── */
 
 function MapNote({ children }: { children: React.ReactNode }) {
-  return <p className="text-[11px] text-faint leading-relaxed">{children}</p>;
+  return <p className="text-[11px] leading-relaxed text-faint">{children}</p>;
 }
 
 function LayerPicker({
   label, layers, value, onChange,
 }: {
   label: string;
-  layers: OgcLayer[];
+  layers: { name: string; title?: string }[];
   value: string;
   onChange: (name: string) => void;
 }) {
@@ -109,9 +184,7 @@ function LayerPicker({
         className="min-w-0 flex-1 rounded-lg border border-field bg-card px-2 py-1.5 text-xs text-body focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-canvas sm:max-w-[22rem]"
       >
         {layers.map((l) => (
-          <option key={l.name} value={l.name}>
-            {l.title || l.name}
-          </option>
+          <option key={l.name} value={l.name}>{l.title || l.name}</option>
         ))}
       </select>
     </label>
@@ -154,7 +227,14 @@ function WmsLegend({ getMapUrl, version, layer }: { getMapUrl: string; version: 
   );
 }
 
-function Banner({ tone, icon: Icon, children }: { tone: 'warn' | 'bad' | 'info'; icon: typeof Info; children: React.ReactNode }) {
+function Banner({
+  tone, icon: Icon, title, children,
+}: {
+  tone: 'warn' | 'bad' | 'info';
+  icon: typeof Info;
+  title?: string;
+  children: React.ReactNode;
+}) {
   return (
     <Card tone={tone}>
       <CardContent className="flex items-start gap-3 p-4">
@@ -162,16 +242,52 @@ function Banner({ tone, icon: Icon, children }: { tone: 'warn' | 'bad' | 'info';
           className={cn('mt-0.5 h-4 w-4 shrink-0', tone === 'warn' ? 'text-warn' : tone === 'bad' ? 'text-bad' : 'text-info')}
           aria-hidden
         />
-        <div className="text-sm leading-relaxed text-body">{children}</div>
+        <div className="min-w-0 text-sm leading-relaxed text-body">
+          {title && <p className="font-semibold text-strong">{title}</p>}
+          {children}
+        </div>
       </CardContent>
     </Card>
   );
 }
 
-/* ── Componente principal ── */
+/** Explica un fallo diciendo también de quién es, que es la mitad de la información. */
+function DiagnosisBanner({ diagnosis, url }: { diagnosis: Diagnosis; url: string }) {
+  return (
+    <Banner
+      tone={diagnosis.origin === 'portal' ? 'warn' : 'bad'}
+      icon={ServerCrash}
+      title={diagnosis.reason}
+    >
+      {diagnosis.detail && (
+        <p className="mt-1 break-words font-mono text-xs text-faint">{diagnosis.detail}</p>
+      )}
+      <p className="mt-2 text-xs text-faint">
+        {diagnosis.origin === 'publicador'
+          ? 'El fallo está en el origen: el recurso publicado en el catálogo ya no entrega los datos que anuncia.'
+          : diagnosis.origin === 'portal'
+          ? 'El fallo es de este portal, no del archivo publicado.'
+          : 'No ha sido posible determinar el origen del fallo.'}
+        <a
+          href={url}
+          target="_blank"
+          rel="noreferrer"
+          className="ml-1 inline-flex items-center gap-1 font-medium text-link underline-offset-2 hover:underline"
+        >
+          <ExternalLink className="h-3 w-3" aria-hidden /> Comprobar la URL original
+        </a>
+      </p>
+    </Banner>
+  );
+}
 
-export function DistributionMap({ format, url, datasetId, spatial, dead, serviceSiblings = [] }: DistributionMapProps) {
+/* ── Componente principal ─────────────────────────────────────────────── */
+
+export function DistributionMap({
+  format, url, datasetId, spatial, dead, sizeBytes, serviceSiblings = [],
+}: DistributionMapProps) {
   const isService = format === 'WMS' || format === 'WFS';
+  const sourceKey = `${format}|${url}`;
 
   /**
    * Los resultados asíncronos se guardan junto a la clave de la petición que
@@ -179,47 +295,54 @@ export function DistributionMap({ format, url, datasetId, spatial, dead, service
    * de un `await` (nada de renders en cascada) y un resultado que llega tarde
    * nunca se pinta sobre una selección que ya cambió.
    */
-  const capsKey = `${format}|${url}`;
-  const [capsResult, setCapsResult] = useState<{ key: string; caps: Caps } | null>(null);
-  const caps = capsResult?.key === capsKey ? capsResult.caps : null;
-  const capsLoading = caps === null;
+  const [sourceResult, setSourceResult] = useState<{ key: string; source: Source } | null>(null);
+  const source = sourceResult?.key === sourceKey ? sourceResult.source : null;
+  const loading = source === null;
 
+  const [attempt, setAttempt] = useState(0);
   const [opacity, setOpacity] = useState(0.8);
   const [selectedOverride, setSelectedOverride] = useState<{ key: string; name: string } | null>(null);
-  const [wfsCount, setWfsCount] = useState<{ key: string; count: number } | null>(null);
   const [tileFailedFor, setTileFailedFor] = useState<string | null>(null);
+  const [selectedFeature, setSelectedFeature] = useState<{ key: string; index: number } | null>(null);
 
   const coords = useMemo(() => getSpatialCoords(spatial), [spatial]);
 
-  const layerList: OgcLayer[] =
-    caps?.kind === 'wms' ? caps.layers : caps?.kind === 'wfs' ? caps.featureTypes : [];
+  const pickable: { name: string; title?: string }[] =
+    source?.kind === 'wms' ? source.layers
+    : source?.kind === 'wfs' ? source.featureTypes
+    : source?.kind === 'vector' ? source.layers.map((l) => ({ name: l.name, title: l.name }))
+    : [];
+
   // La primera capa es la selección por defecto: se deriva, no se copia a
   // estado, así que cambiar de recurso no deja seleccionada la capa anterior.
-  const selected =
-    selectedOverride?.key === capsKey ? selectedOverride.name : layerList[0]?.name ?? '';
-  const setSelected = (name: string) => setSelectedOverride({ key: capsKey, name });
+  const selected = selectedOverride?.key === sourceKey ? selectedOverride.name : pickable[0]?.name ?? '';
+  const setSelected = (name: string) => {
+    setSelectedOverride({ key: sourceKey, name });
+    setSelectedFeature(null);
+  };
 
-  const featureCount = wfsCount?.key === capsKey ? wfsCount.count : WFS_PREVIEW_COUNT;
-  const featureKey = `${capsKey}|${selected}|${featureCount}`;
-  const [featuresResult, setFeaturesResult] = useState<
-    { key: string; data: unknown; shown: number; matched: number | null } | { key: string; error: true } | null
-  >(null);
-  const featuresFor = featuresResult?.key === featureKey ? featuresResult : null;
-  const features = featuresFor && !('error' in featuresFor) ? featuresFor : null;
-  const wfsFailed = caps?.kind === 'wfs' && !!featuresFor && 'error' in featuresFor;
-  const wfsLoading = caps?.kind === 'wfs' && !!selected && featuresFor === null;
-
-  const tileFailed = tileFailedFor === `${capsKey}|${selected}`;
-
-  /* 1. Capacidades del servicio (o conversión directa para KML). */
+  /* ── 1. Cargar el recurso ── */
   useEffect(() => {
     let cancelled = false;
-    const key = `${format}|${url}`;
+    const key = sourceKey;
+    const controller = new AbortController();
 
-    async function run(): Promise<Caps> {
+    /** Descarga por el proxy conservando el error real del origen. */
+    async function fetchRaw(target: string): Promise<{ buffer: ArrayBuffer; status: number }> {
+      const res = await fetch(`/api/proxy?raw=1&url=${encodeURIComponent(target)}`, { signal: controller.signal });
+      // 400 del proxy = host fuera de la lista permitida, no un fallo del origen.
+      if (res.status === 400) throw new OutsideDomain();
+      if (!res.ok) throw new ProxyFailure(res.status);
+      return {
+        buffer: await res.arrayBuffer(),
+        status: Number(res.headers.get('x-origin-status') ?? 200),
+      };
+    }
+
+    async function run(): Promise<Source> {
       try {
-        if (format === 'WMS' || format === 'WFS') {
-          const res = await fetch(`/api/ogc?service=${format}&url=${encodeURIComponent(url)}`);
+        if (isService) {
+          const res = await fetch(`/api/ogc?service=${format}&url=${encodeURIComponent(url)}`, { signal: controller.signal });
           if (!res.ok) return { kind: 'none', note: `No se pudieron leer las capacidades del servicio ${format}.` };
           const cap = await res.json();
 
@@ -243,122 +366,292 @@ export function DistributionMap({ format, url, datasetId, spatial, dead, service
           return { kind: 'wfs', getFeatureUrl: cap.getFeatureUrl, version: cap.version ?? '2.0.0', featureTypes };
         }
 
-        if (format === 'KML') {
-          const res = await fetch(`/api/proxy?url=${encodeURIComponent(url)}`);
-          if (!res.ok) return { kind: 'none', note: 'El archivo KML no está disponible.' };
-          const gj = kmlToGeoJSON(await res.text());
-          if (!gj.features.length) return { kind: 'none', note: 'No se encontraron geometrías en el KML.' };
-          return { kind: 'inline', data: gj, count: gj.features.length };
+        // Archivos: primero se mira si conviene descargarlos sin preguntar.
+        if (sizeBytes != null && sizeBytes > AUTOLOAD_CAP && attempt === 0) {
+          return { kind: 'too-big', size: sizeBytes };
         }
 
-        // SHP / GML / ECW / GeoJSON remoto: no previsualizables aquí.
-        return { kind: 'none' };
-      } catch {
-        return { kind: 'none', note: 'No se pudo cargar la previsualización.' };
+        const { buffer, status } = await fetchRaw(url);
+        if (cancelled) return { kind: 'none' };
+
+        const kind = sniff(buffer);
+        const expected = format === 'SHP' ? 'un shapefile comprimido' : `un archivo ${format}`;
+
+        // Un ZIP puede traer un shapefile (se pinta) o cualquier otra cosa
+        // (se dice qué es, que ya es más de lo que había).
+        if (kind === 'zip') {
+          try {
+            const shapes = await readShapefile(buffer);
+            return {
+              kind: 'vector',
+              layers: shapes.map((s) => ({
+                name: s.name,
+                features: s.features,
+                fields: s.fields,
+                crs: s.crs,
+                projected: s.projected,
+                nullGeometries: s.nullGeometries,
+              })),
+            };
+          } catch (err) {
+            if (err instanceof ZipError) return { kind: 'none', diagnosis: diagnose(buffer, expected) };
+            if (err instanceof ShapefileError) {
+              const { extensions } = await describeZip(buffer).catch(() => ({ extensions: [] as string[] }));
+              const gpkg = extensions.includes('gpkg');
+              return {
+                kind: 'none',
+                diagnosis: {
+                  reason: gpkg
+                    ? 'El archivo es un GeoPackage comprimido, un formato que el visor todavía no sabe dibujar.'
+                    : 'El archivo comprimido no contiene un shapefile.',
+                  detail: extensions.length ? `Dentro del ZIP hay: ${extensions.join(', ')}.` : err.message,
+                  origin: 'portal',
+                },
+              };
+            }
+            throw err;
+          }
+        }
+
+        if (format === 'KML' && (kind === 'xml' || kind === 'texto')) {
+          const xml = new TextDecoder('utf-8').decode(buffer);
+          const exception = ogcException(xml);
+          if (!exception) {
+            const features = kmlToFeatures(xml);
+            if (features.length) {
+              return { kind: 'vector', layers: [{ name: 'KML', features, fields: fieldsOf(features) }] };
+            }
+          }
+        }
+
+        if (kind === 'json') {
+          const data = JSON.parse(new TextDecoder('utf-8').decode(buffer));
+          const list: unknown[] = Array.isArray(data?.features) ? data.features : [];
+          const features: MapFeature[] = list.map((f) => {
+            const feature = f as { geometry?: GeoJSON.Geometry; properties?: unknown };
+            return { geometry: feature.geometry ?? null, properties: toProperties(feature.properties) };
+          });
+          if (features.length) {
+            return { kind: 'vector', layers: [{ name: 'GeoJSON', features, fields: fieldsOf(features) }] };
+          }
+        }
+
+        // Nada de lo anterior: se explica qué llegó de verdad.
+        return { kind: 'none', diagnosis: diagnose(buffer, expected, status) };
+      } catch (err) {
+        if ((err as Error).name === 'AbortError') return { kind: 'none' };
+        let host = 'otro dominio';
+        try { host = new URL(url).hostname; } catch { /* la URL del catálogo puede venir mal formada */ }
+
+        if (err instanceof OutsideDomain) {
+          return {
+            kind: 'none',
+            diagnosis: {
+              reason: `El recurso está alojado en ${host}, fuera de los dominios que este portal puede consultar.`,
+              detail: 'Solo se descargan recursos de los dominios de la Junta recogidos en el catálogo, para no convertir el portal en un proxy abierto. El archivo puede seguir siendo válido: se abre con el enlace de descarga.',
+              origin: 'portal',
+            },
+          };
+        }
+
+        if (err instanceof ProxyFailure) {
+          if (err.status === 413) {
+            return {
+              kind: 'none',
+              diagnosis: {
+                reason: 'El recurso supera el tamaño que el portal puede descargar para previsualizar.',
+                detail: 'El archivo puede estar perfectamente; simplemente no cabe en el visor. Descárgalo y ábrelo en un SIG.',
+                origin: 'portal',
+              },
+            };
+          }
+          return {
+            kind: 'none',
+            diagnosis: {
+              reason: `No se pudo contactar con ${host}.`,
+              detail: 'El servidor de origen no respondió a tiempo, rechazó la conexión o no existe. El recurso sigue anunciado en el catálogo.',
+              origin: 'publicador',
+            },
+          };
+        }
+
+        return { kind: 'none', note: 'No se pudo cargar la previsualización del recurso.' };
       }
     }
 
     run().then((value) => {
-      if (!cancelled) setCapsResult({ key, caps: value });
+      if (!cancelled) setSourceResult({ key, source: value });
     });
 
-    return () => { cancelled = true; };
-  }, [format, url]);
+    return () => { cancelled = true; controller.abort(); };
+  }, [sourceKey, format, url, isService, sizeBytes, attempt]);
 
-  /* 2. Entidades del WFS para el tipo seleccionado. */
+  /* ── 2. Entidades del WFS: la capa entera siempre que el servicio pueda ── */
+  const wfsKey = source?.kind === 'wfs' && selected ? `${sourceKey}|${selected}|${attempt}` : null;
+  const [wfsResult, setWfsResult] = useState<
+    | { key: string; layer: VectorLayer; matched: number | null; complete: boolean }
+    | { key: string; error: string }
+    | null
+  >(null);
+  const wfsFor = wfsResult?.key === wfsKey ? wfsResult : null;
+  const wfsLayer = wfsFor && !('error' in wfsFor) ? wfsFor : null;
+  const wfsLoading = wfsKey !== null && wfsFor === null;
+
   useEffect(() => {
-    if (!caps || caps.kind !== 'wfs' || !selected) return;
+    if (!source || source.kind !== 'wfs' || !selected || !wfsKey) return;
     let cancelled = false;
     const controller = new AbortController();
-    const key = featureKey;
+    const key = wfsKey;
+    const isV2 = source.version.startsWith('2');
+
+    const request = (extra: Record<string, string>) => {
+      const gf = new URL(source.getFeatureUrl);
+      gf.searchParams.set('service', 'WFS');
+      gf.searchParams.set('version', source.version);
+      gf.searchParams.set('request', 'GetFeature');
+      gf.searchParams.set(isV2 ? 'typeNames' : 'typeName', selected);
+      gf.searchParams.set('srsName', 'EPSG:4326');
+      for (const [k, v] of Object.entries(extra)) gf.searchParams.set(k, v);
+      return `/api/proxy?url=${encodeURIComponent(gf.toString())}`;
+    };
 
     (async () => {
+      // `resultType=hits` devuelve solo el recuento y responde en milisegundos:
+      // sirve para saber de antemano cuántas entidades tiene la capa y para
+      // contrastar después si se han traído todas.
+      let matched: number | null = null;
       try {
-        const isV2 = caps.version.startsWith('2');
-        const gf = new URL(caps.getFeatureUrl);
-        gf.searchParams.set('service', 'WFS');
-        gf.searchParams.set('version', caps.version);
-        gf.searchParams.set('request', 'GetFeature');
-        gf.searchParams.set(isV2 ? 'typeNames' : 'typeName', selected);
-        gf.searchParams.set(isV2 ? 'count' : 'maxFeatures', String(featureCount));
-        gf.searchParams.set('outputFormat', 'application/json');
-        gf.searchParams.set('srsName', 'EPSG:4326');
+        const res = await fetch(request({ resultType: 'hits' }), { signal: controller.signal });
+        const text = await res.text();
+        const hit = /numberMatched="(\d+)"|numberOfFeatures="(\d+)"/.exec(text);
+        if (hit) matched = Number(hit[1] ?? hit[2]);
+      } catch {
+        // El recuento es opcional: si no llega, se sigue igualmente.
+      }
+      if (cancelled) return;
 
-        const res = await fetch(`/api/proxy?url=${encodeURIComponent(gf.toString())}`, { signal: controller.signal });
-        if (cancelled) return;
+      const load = async (extra: Record<string, string>) => {
+        const res = await fetch(request({ outputFormat: 'application/json', ...extra }), { signal: controller.signal });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
-        if (cancelled) return;
-        const shown = Array.isArray(data?.features) ? data.features.length : 0;
-        if (!shown) throw new Error('sin entidades');
-        const matched =
-          typeof data.numberMatched === 'number'
-            ? data.numberMatched
-            : typeof data.totalFeatures === 'number'
-            ? data.totalFeatures
-            : null;
-        setFeaturesResult({ key, data, shown, matched });
-      } catch (err) {
-        if (cancelled || (err as Error).name === 'AbortError') return;
-        setFeaturesResult({ key, error: true });
+        const list: unknown[] = Array.isArray(data?.features) ? data.features : [];
+        if (!list.length) throw new Error('sin entidades');
+        const features: MapFeature[] = list.map((f) => {
+          const feature = f as { geometry?: GeoJSON.Geometry; properties?: unknown };
+          return { geometry: feature.geometry ?? null, properties: toProperties(feature.properties) };
+        });
+        return features;
+      };
+
+      // Primero la capa completa; esa es la idea. Si el servicio no puede, se
+      // baja el listón hasta poder enseñar algo, diciendo que es una parte.
+      let lastError = 'sin respuesta';
+      for (const count of [null, ...WFS_FALLBACK_COUNTS]) {
+        try {
+          const features = await load(count === null ? {} : { [isV2 ? 'count' : 'maxFeatures']: String(count) });
+          if (cancelled) return;
+          setWfsResult({
+            key,
+            layer: { name: selected, features, fields: fieldsOf(features) },
+            matched,
+            complete: count === null && (matched === null || features.length >= matched),
+          });
+          return;
+        } catch (err) {
+          if (cancelled || (err as Error).name === 'AbortError') return;
+          lastError = (err as Error).message;
+        }
       }
+      if (!cancelled) setWfsResult({ key, error: lastError });
     })();
 
-    return () => {
-      cancelled = true;
-      controller.abort();
-    };
-  }, [caps, selected, featureCount, featureKey]);
+    return () => { cancelled = true; controller.abort(); };
+  }, [source, selected, wfsKey]);
 
-  /* 3. Qué se pinta en el mapa. */
-  const inlineData = caps?.kind === 'inline' ? caps.data : null;
+  /* ── 3. Qué se pinta ── */
+  const activeLayer: VectorLayer | null =
+    source?.kind === 'vector'
+      ? source.layers.find((l) => l.name === selected) ?? source.layers[0] ?? null
+      : wfsLayer?.layer ?? null;
+
+  const featureIndex = selectedFeature?.key === `${sourceKey}|${selected}` ? selectedFeature.index : null;
+  const selectFeature = useCallback(
+    (index: number | null) => {
+      setSelectedFeature(index === null ? null : { key: `${sourceKey}|${selected}`, index });
+    },
+    [sourceKey, selected]
+  );
+
   const spec: GeoSpec | null = useMemo(() => {
-    if (caps?.kind === 'wms' && selected) {
-      const layer = caps.layers.find((l) => l.name === selected);
+    if (source?.kind === 'wms' && selected) {
+      const layer = source.layers.find((l) => l.name === selected);
       return {
         kind: 'wms',
-        getMapUrl: caps.getMapUrl,
+        getMapUrl: source.getMapUrl,
         layers: selected,
-        version: caps.version,
-        format: caps.format,
-        bbox: layer?.bbox ?? caps.bbox,
+        version: source.version,
+        format: source.format,
+        bbox: layer?.bbox ?? source.bbox,
         opacity,
       };
     }
-    if (inlineData) return { kind: 'geojson', data: inlineData };
-    if (features) return { kind: 'geojson', data: features.data };
+    if (activeLayer && activeLayer.projected !== false && activeLayer.features.length) {
+      return { kind: 'features', features: activeLayer.features, selected: featureIndex };
+    }
     if (coords) {
       return { kind: 'locator', lat: coords[0], lng: coords[1], label: spatial ?? 'Cobertura declarada', hasError: dead };
     }
     return null;
-  }, [caps, selected, opacity, inlineData, features, coords, spatial, dead]);
+  }, [source, selected, opacity, activeLayer, featureIndex, coords, spatial, dead]);
 
-  const tileKey = `${capsKey}|${selected}`;
+  const tileKey = `${sourceKey}|${selected}`;
   const onTileError = useCallback(() => setTileFailedFor(tileKey), [tileKey]);
+  const tileFailed = tileFailedFor === tileKey;
 
-  if (capsLoading) {
+  if (loading) {
     return (
       <div className="flex items-center gap-2 rounded-xl border border-border bg-fill p-4 text-sm text-faint">
-        <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> Cargando la previsualización del recurso…
+        <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> Cargando y dibujando el recurso completo…
       </div>
     );
   }
 
-  const selectedTitle = layerList.find((l) => l.name === selected)?.title;
-  const inlineCount = caps?.kind === 'inline' ? caps.count : null;
+  if (source.kind === 'too-big') {
+    return (
+      <Banner tone="warn" icon={AlertTriangle} title={`El recurso ocupa ${formatBytes(source.size)}`}>
+        <p className="mt-1">
+          No se descarga solo para no cargar tantos datos en el navegador sin avisar.
+        </p>
+        <div className="mt-2 flex flex-wrap items-center gap-3">
+          <button
+            onClick={() => setAttempt((n) => n + 1)}
+            className="font-medium text-link underline-offset-2 hover:underline"
+          >
+            Dibujarlo de todos modos
+          </button>
+          <a href={url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-medium text-link underline-offset-2 hover:underline">
+            <ExternalLink className="h-3 w-3" aria-hidden /> Descargar el recurso
+          </a>
+        </div>
+      </Banner>
+    );
+  }
+
+  const selectedTitle = pickable.find((l) => l.name === selected)?.title;
+  const shownFeatures = activeLayer?.features.length ?? 0;
 
   return (
     <div className="space-y-3">
-      {/* Controles del servicio */}
-      {layerList.length > 0 && (
+      {/* Controles */}
+      {(pickable.length > 1 || source.kind === 'wms') && (
         <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-3 sm:flex-row sm:items-center sm:justify-between">
           <LayerPicker
-            label={caps?.kind === 'wms' ? 'Capa' : 'Entidad'}
-            layers={layerList}
+            label={source.kind === 'wms' ? 'Capa' : source.kind === 'wfs' ? 'Entidad' : 'Capa'}
+            layers={pickable}
             value={selected}
             onChange={setSelected}
           />
-          {caps?.kind === 'wms' && (
+          {source.kind === 'wms' && (
             <label className="flex items-center gap-2 text-xs text-faint">
               Opacidad
               <input
@@ -379,19 +672,19 @@ export function DistributionMap({ format, url, datasetId, spatial, dead, service
 
       {/* Mapa */}
       {wfsLoading ? (
-        <div className="flex h-[420px] w-full items-center justify-center gap-2 rounded-xl border border-border bg-fill text-sm text-faint">
+        <div className="flex h-[460px] w-full items-center justify-center gap-2 rounded-xl border border-border bg-fill text-sm text-faint">
           <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-          Descargando entidades del servicio…
+          Descargando la capa completa del servicio…
         </div>
       ) : spec ? (
-        <GeoPreviewMap spec={spec} onTileError={onTileError} />
-      ) : (
+        <GeoPreviewMap spec={spec} onTileError={onTileError} onSelectFeature={selectFeature} />
+      ) : source.kind === 'none' && source.diagnosis ? null : (
         <Card tone="muted">
           <CardContent className="flex items-start gap-3 p-4">
             <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-faint" aria-hidden />
             <p className="text-sm text-body">
               No se puede previsualizar la geometría de este recurso ni situarlo en el mapa
-              {caps?.kind === 'none' && caps.note ? <> — {caps.note.toLowerCase()}</> : '.'}
+              {source.kind === 'none' && source.note ? <> — {source.note.toLowerCase()}</> : '.'}
             </p>
           </CardContent>
         </Card>
@@ -404,19 +697,36 @@ export function DistributionMap({ format, url, datasetId, spatial, dead, service
           {selectedTitle ? <> — capa <strong className="text-body">{selectedTitle}</strong></> : null}, superpuesta al mapa base.
         </MapNote>
       )}
-      {spec?.kind === 'geojson' && (features || inlineCount != null) && (
+      {spec?.kind === 'features' && activeLayer && (
         <MapNote>
-          {(features?.shown ?? inlineCount ?? 0).toLocaleString('es-ES')} entidades representadas
-          {features && features.matched && features.matched > features.shown ? (
-            <> de {features.matched.toLocaleString('es-ES')} disponibles (muestra)</>
-          ) : null}
-          {format === 'KML' ? ' desde el KML' : caps?.kind === 'wfs' ? ' desde el servicio WFS' : ''}. Pulsa una para ver sus atributos.
+          {shownFeatures.toLocaleString('es-ES')} entidades dibujadas
+          {wfsLayer && !wfsLayer.complete && wfsLayer.matched
+            ? <> de {wfsLayer.matched.toLocaleString('es-ES')} que tiene la capa — el servicio no pudo entregarla entera</>
+            : <> · el recurso completo</>}
+          {activeLayer.crs ? <> · origen en {activeLayer.crs}, reproyectado a WGS84</> : null}
+          {activeLayer.nullGeometries ? <> · {activeLayer.nullGeometries.toLocaleString('es-ES')} sin geometría</> : null}
+          . Pulsa una entidad en el mapa o una fila de la tabla y se resaltan a la vez.
         </MapNote>
       )}
       {spec?.kind === 'locator' && (
         <MapNote>
-          Ubicación orientativa según la cobertura declarada{spatial ? ` (${spatial})` : ''}; no es la geometría real del recurso.
+          Ubicación orientativa según la cobertura declarada{spatial ? ` (${spatial})` : ''}; no es la geometría real
+          del recurso, que no se ha podido dibujar.
         </MapNote>
+      )}
+
+      {/* Por qué no se ve el recurso */}
+      {source.kind === 'none' && source.diagnosis && <DiagnosisBanner diagnosis={source.diagnosis} url={url} />}
+
+      {/* La geometría existe pero no sabemos dónde ponerla */}
+      {activeLayer && activeLayer.projected === false && (
+        <Banner tone="warn" icon={AlertTriangle} title="No se puede situar la geometría en el mapa">
+          <p className="mt-1">
+            El shapefile usa el sistema de referencia{' '}
+            <strong className="text-body">{activeLayer.crs ?? 'no declarado'}</strong>, que el visor no sabe
+            convertir a coordenadas geográficas. Los atributos sí se pueden consultar abajo.
+          </p>
+        </Banner>
       )}
 
       {/* El servicio respondió, pero no pintó nada */}
@@ -424,87 +734,76 @@ export function DistributionMap({ format, url, datasetId, spatial, dead, service
         <Banner tone="warn" icon={AlertTriangle}>
           El servicio no devolvió la cartografía de esta capa. Puede estar temporalmente
           caído o no admitir el sistema de referencia del visor.
-          {layerList.length > 1 && ' Prueba con otra capa del desplegable.'}
+          {pickable.length > 1 && ' Prueba con otra capa del desplegable.'}
         </Banner>
       )}
 
       {/* El WFS no entregó las entidades */}
-      {wfsFailed && (
-        <Banner tone="warn" icon={AlertTriangle}>
-          El servicio WFS tardó demasiado o no devolvió GeoJSON para{' '}
-          <strong className="text-body">{selectedTitle || selected}</strong>. Es habitual en capas de
-          polígonos muy pesadas.
+      {wfsFor && 'error' in wfsFor && (
+        <Banner tone="warn" icon={AlertTriangle} title="El servicio WFS no entregó esta capa">
+          <p className="mt-1">
+            <strong className="text-body">{selectedTitle || selected}</strong> no llegó ni completa ni
+            en muestra ({wfsFor.error}). Es habitual en capas de polígonos muy pesadas.
+          </p>
           <div className="mt-2 flex flex-wrap items-center gap-3">
-            {featureCount !== WFS_RETRY_COUNT && (
-              <button
-                type="button"
-                onClick={() => setWfsCount({ key: capsKey, count: WFS_RETRY_COUNT })}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-field px-2.5 py-1 text-xs font-medium text-body transition-colors hover:bg-fill"
+            <button
+              type="button"
+              onClick={() => setAttempt((n) => n + 1)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-field px-2.5 py-1 text-xs font-medium text-body transition-colors hover:bg-fill"
+            >
+              <RefreshCw className="h-3 w-3" aria-hidden /> Reintentar
+            </button>
+            {serviceSiblings.filter((s) => s.format === 'WMS').map((s) => (
+              <Link
+                key={s.idx}
+                href={`/catalogo/${datasetId}/${s.slug}`}
+                className="text-xs font-medium text-link underline-offset-2 hover:underline"
               >
-                <RefreshCw className="h-3 w-3" aria-hidden /> Reintentar con {WFS_RETRY_COUNT} entidades
-              </button>
-            )}
-            {serviceSiblings
-              .filter((s) => s.format === 'WMS')
-              .map((s) => (
-                <Link
-                  key={s.idx}
-                  href={`/catalogo/${datasetId}/${s.slug}`}
-                  className="text-xs font-medium text-link underline-offset-2 hover:underline"
-                >
-                  Ver esta cartografía por WMS
-                </Link>
-              ))}
+                Ver esta cartografía por WMS
+              </Link>
+            ))}
           </div>
         </Banner>
       )}
 
-      {/* Leyenda + modelo del servicio */}
-      {caps?.kind === 'wms' && selected && (
-        <WmsLegend getMapUrl={caps.getMapUrl} version={caps.version} layer={selected} />
+      {/* Leyenda del WMS */}
+      {source.kind === 'wms' && selected && (
+        <WmsLegend getMapUrl={source.getMapUrl} version={source.version} layer={selected} />
       )}
 
-      {isService && layerList.length > 0 && (
-        <Card>
-          <CardContent className="p-4">
-            <div className="mb-2 flex items-center gap-2">
-              <Layers className="h-4 w-4 text-ok" aria-hidden />
-              <h3 className="text-sm font-semibold text-strong">
-                Modelo del servicio {format}
-                {caps?.kind === 'wms' || caps?.kind === 'wfs' ? ` · v${caps.version}` : ''}
-              </h3>
-              <span className="text-xs text-faint">
-                {layerList.length} {caps?.kind === 'wms' ? 'capas' : 'tipos de entidad'}
-              </span>
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {layerList.slice(0, 24).map((l) => (
-                <button
-                  key={l.name}
-                  type="button"
-                  onClick={() => setSelected(l.name)}
-                  title={l.name}
-                  aria-pressed={l.name === selected}
-                  className={cn(
-                    'rounded-md border px-2 py-1 text-[11px] transition-colors',
-                    l.name === selected
-                      ? 'border-primary bg-primary text-primary-fg'
-                      : 'border-border bg-fill text-body hover:border-border-strong hover:bg-fill-strong'
-                  )}
-                >
-                  {l.title || l.name}
-                </button>
-              ))}
-              {layerList.length > 24 && (
-                <span className="px-2 py-1 text-[11px] text-faint">+{layerList.length - 24} más</span>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+      {/* ── Atributos de las entidades ──────────────────────────────────
+          Antes esto solo existía como globo al pulsar en el mapa, y la lista
+          de capas se repetía en una tarjeta aparte. Ahora los atributos se
+          exploran como cualquier otro formato tabular y la selección va en los
+          dos sentidos: del mapa a la tabla y de la tabla al mapa. */}
+      {activeLayer && activeLayer.features.length > 0 && (
+        <section className="pt-1">
+          <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-strong">
+            <Layers className="h-4 w-4 text-faint" aria-hidden />
+            Entidades y sus atributos
+          </h3>
+          <TableExplorer
+            header={activeLayer.fields}
+            rows={activeLayer.features.map((f) => activeLayer.fields.map((k) => f.properties[k] ?? ''))}
+            voice="record"
+            dataLabel="Entidades"
+            downloadUrl={url}
+            selectedRow={featureIndex}
+            onSelectRow={selectFeature}
+            summary={
+              <>
+                {shownFeatures.toLocaleString('es-ES')} entidades
+                {wfsLayer && !wfsLayer.complete && wfsLayer.matched
+                  ? ` de ${wfsLayer.matched.toLocaleString('es-ES')}`
+                  : ' · recurso completo'}
+              </>
+            }
+          />
+        </section>
       )}
 
-      {/* Servicios hermanos para formatos no previsualizables */}
-      {!isService && spec?.kind !== 'geojson' && serviceSiblings.length > 0 && (
+      {/* Servicios hermanos cuando este recurso no se puede dibujar */}
+      {!isService && spec?.kind !== 'features' && serviceSiblings.length > 0 && (
         <Card tone="ok">
           <CardContent className="flex flex-wrap items-center gap-2 p-4 text-sm text-body">
             <Info className="h-4 w-4 shrink-0 text-ok" aria-hidden />
@@ -525,7 +824,8 @@ export function DistributionMap({ format, url, datasetId, spatial, dead, service
       {/* Nota + enlace al recurso */}
       <Card tone="muted">
         <CardContent className="flex items-start gap-3 p-4">
-          <Info className="mt-0.5 h-4 w-4 shrink-0 text-faint" aria-hidden />
+          {isService ? <Info className="mt-0.5 h-4 w-4 shrink-0 text-faint" aria-hidden />
+            : <Package className="mt-0.5 h-4 w-4 shrink-0 text-faint" aria-hidden />}
           <div className="text-sm leading-relaxed text-body">
             {isService
               ? 'Puedes añadir la URL del servicio en tu SIG (QGIS, ArcGIS) o visor web.'

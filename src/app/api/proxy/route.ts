@@ -10,10 +10,18 @@ const TIMEOUT_MS = 25000;
 /**
  * Proxy de solo lectura para recursos de *.jcyl.es. Evita el bloqueo CORS del
  * navegador al previsualizar JSON o consumir servicios OGC (WFS GeoJSON, KML…).
- * GET /api/proxy?url=<url absoluta en jcyl.es>
+ * GET /api/proxy?url=<url absoluta en jcyl.es>[&raw=1]
+ *
+ * Con `raw=1` se devuelve la respuesta del origen tal cual, con su código de
+ * estado y su cuerpo. Lo necesita el visor geográfico: buena parte de los
+ * recursos rotos contestan un error legible (un `ExceptionReport` de GeoServer
+ * diciendo qué capa falta, un listado de directorio…) y convertirlo en un 502
+ * genérico tira justo la información que hay que enseñar.
  */
 export async function GET(request: Request) {
-  const url = new URL(request.url).searchParams.get("url");
+  const params = new URL(request.url).searchParams;
+  const url = params.get("url");
+  const raw = params.get("raw") === "1";
   if (!url || !isAllowedHost(url)) {
     return new Response(JSON.stringify({ error: "URL no permitida" }), {
       status: 400,
@@ -29,7 +37,7 @@ export async function GET(request: Request) {
       headers: { "user-agent": "JCyL-DataQuality-Portal/1.0", accept: "*/*" },
       redirect: "follow",
     });
-    if (!upstream.ok) {
+    if (!upstream.ok && !raw) {
       return new Response(JSON.stringify({ error: `Origen respondió ${upstream.status}` }), {
         status: 502,
         headers: { "content-type": "application/json" },
@@ -54,10 +62,14 @@ export async function GET(request: Request) {
 
     const contentType = upstream.headers.get("content-type") ?? "application/octet-stream";
     return new Response(buf, {
+      // En modo `raw` la respuesta sigue siendo 200 para que el cuerpo llegue
+      // al cliente; el estado real del origen viaja en una cabecera propia.
       status: 200,
       headers: {
         "content-type": contentType,
         "cache-control": "public, max-age=3600",
+        "x-origin-status": String(upstream.status),
+        "x-origin-url": upstream.url,
       },
     });
   } catch {

@@ -43,6 +43,7 @@ const BLOCKING_ISSUE_CODES = new Set<string>([
   'no-es-archivo',
   'archivo-vacio',
   'servicio-no-disponible',
+  'servicio-error',
   'no-es-imagen',
   'formato-no-esperado',
   'json-invalido',

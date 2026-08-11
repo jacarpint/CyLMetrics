@@ -6,12 +6,9 @@ import {
   CheckCircle2,
   XCircle,
   AlertTriangle,
-  FileSearch,
   Globe,
-  Hash,
   Layers,
   ChevronLeft,
-  Braces,
   Table2,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -24,8 +21,7 @@ import { ScoreGauge } from "@/components/quality/score-gauge";
 import { IssueExplorer } from "@/components/quality/issue-explorer";
 import { SchemaExplorer } from "@/components/quality/schema-explorer";
 import { DistributionMap } from "@/components/quality/distribution-map";
-import { JsonViewer } from "@/components/quality/json-viewer";
-import { TableViewer } from "@/components/quality/table-viewer";
+import { FileExplorer, type FileKind } from "@/components/quality/file-explorer";
 import { isGeoFormat } from "@/lib/geo";
 import { distributionSlugs, resolveDistributionIndex } from "@/lib/distribution-slug";
 
@@ -74,12 +70,21 @@ export default async function DistributionPage({
   const schema = dist?.analysis?.schema ?? null;
 
   const fmt = distMeta.format;
-  const isGeo = isGeoFormat(fmt);
-  const isJson = fmt === "JSON";
-  const isRecordShaped = isJson || fmt === "GeoJSON";
-  // Formatos separados por comas o tabulaciones que el navegador puede leer.
-  const isTabular = ["CSV", "TSV", "TXT"].includes(fmt);
+  // «OTRO» pasa también por el visor geográfico: las 7 distribuciones que hay
+  // son paquetes comprimidos con cartografía dentro, y el visor sabe abrirlos
+  // o, como mínimo, decir qué contienen.
+  const isGeo = isGeoFormat(fmt) || fmt === "OTRO";
+  const isRecordShaped = fmt === "JSON" || fmt === "GeoJSON";
   const fetchSize = dist?.fetch?.size ?? null;
+
+  // Formatos que el explorador sabe abrir en el navegador y reducir a filas y
+  // columnas. Los geográficos se quedan con su mapa.
+  const EXPLORABLE: Record<string, FileKind> = {
+    CSV: "csv", TSV: "csv", TXT: "csv",
+    XLSX: "xlsx", XLS: "xlsx",
+    JSON: "json",
+  };
+  const explorerKind = isGeo ? undefined : EXPLORABLE[fmt];
 
   const metrics = dist?.analysis?.metrics ?? {};
   // El analizador nombra estas métricas según el formato; el helper traduce.
@@ -90,6 +95,19 @@ export default async function DistributionPage({
   // las incidencias del catálogo) enmascaraba los fallos que sí bloquean.
   const errorTotal = issues.filter((i) => i.severity === "error").reduce((n, i) => n + i.count, 0);
   const warningTotal = issues.filter((i) => i.severity === "warning").reduce((n, i) => n + i.count, 0);
+
+  // Filas que registró el analizador, para que el explorador avise si el
+  // archivo de hoy no cuadra con el análisis. En un XLSX de varias hojas
+  // `total_rows` las suma todas, así que ahí no hay comparación posible.
+  const sheetCount = typeof metrics.sheet_count === "number" ? metrics.sheet_count : 1;
+  const reportedRows =
+    explorerKind === "xlsx"
+      ? sheetCount === 1 && typeof metrics.total_rows === "number"
+        ? metrics.total_rows
+        : null
+      : typeof metrics.rows === "number"
+      ? metrics.rows
+      : null;
 
   const prevIdx = idx > 0 ? idx - 1 : null;
   const nextIdx = ds.distributionUrls[idx + 1] ? idx + 1 : null;
@@ -112,12 +130,15 @@ export default async function DistributionPage({
     .filter((d) => d.idx !== idx && (d.format === "WMS" || d.format === "WFS"))
     .map((d) => ({ ...d, slug: slugs[d.idx] }));
 
-  const stats = [
-    primary && { icon: Hash, label: primary.label, value: primary.value.toLocaleString("es-ES") },
-    secondary && { icon: Layers, label: secondary.label, value: secondary.value.toLocaleString("es-ES") },
-    encoding && { icon: FileSearch, label: "Codificación", value: encoding },
-    fetchSize ? { icon: Globe, label: "Tamaño", value: formatBytes(fetchSize) } : null,
-  ].filter(Boolean) as { icon: typeof Hash; label: string; value: string }[];
+  /** Todo lo que hay dentro del archivo, condensado en una sola línea. */
+  const facts = [
+    primary && { label: primary.label.toLowerCase(), value: primary.value.toLocaleString("es-ES"), tone: "text-strong" },
+    secondary && { label: secondary.label.toLowerCase(), value: secondary.value.toLocaleString("es-ES"), tone: "text-strong" },
+    encoding && { label: "codificación", value: encoding, tone: "text-strong" },
+    fetchSize ? { label: "descargados", value: formatBytes(fetchSize), tone: "text-strong" } : null,
+    errorTotal > 0 && { label: errorTotal === 1 ? "error" : "errores", value: errorTotal.toLocaleString("es-ES"), tone: "text-bad" },
+    warningTotal > 0 && { label: warningTotal === 1 ? "aviso" : "avisos", value: warningTotal.toLocaleString("es-ES"), tone: "text-warn" },
+  ].filter(Boolean) as { label: string; value: string; tone: string }[];
 
   return (
     <div className="mx-auto max-w-5xl space-y-8">
@@ -181,136 +202,94 @@ export default async function DistributionPage({
         </Card>
       )}
 
-      {/* ── URL ── */}
-      <Card>
-        <CardContent className="p-4">
-          <p className="eyebrow mb-1.5">URL de acceso</p>
-          <div className="flex items-center gap-2 rounded-lg border border-border bg-fill px-3 py-2 text-sm">
-            <Globe className="h-3.5 w-3.5 shrink-0 text-faint" aria-hidden />
-            <span className="flex-1 truncate font-mono text-xs text-body">{distMeta.url}</span>
-            <a
-              href={distMeta.url}
-              target="_blank"
-              rel="noreferrer"
-              className="shrink-0 rounded p-1 text-faint transition-colors hover:bg-card hover:text-body"
-              aria-label="Abrir la URL del recurso en una pestaña nueva"
-            >
-              <ExternalLink className="h-3.5 w-3.5" aria-hidden />
-            </a>
-          </div>
-        </CardContent>
-      </Card>
+      {/* ── Una sola línea con lo que hay dentro del archivo ──────────────
+          Antes eran cuatro tarjetas grandes más una de incidencias: mucho alto
+          de página para cinco cifras cortas. */}
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-2 rounded-xl border border-border bg-card px-4 py-3 text-sm">
+        {facts.map((f, i) => (
+          <span key={f.label} className="inline-flex items-baseline gap-1.5">
+            {i > 0 && <span className="mr-1 text-border" aria-hidden>·</span>}
+            <span className={cn("font-semibold tabular-nums", f.tone)}>{f.value}</span>
+            <span className="text-xs text-faint">{f.label}</span>
+          </span>
+        ))}
+        <a
+          href={distMeta.url}
+          target="_blank"
+          rel="noreferrer"
+          className="ml-auto inline-flex min-w-0 items-center gap-1.5 text-xs text-faint transition-colors hover:text-body"
+          title={distMeta.url}
+        >
+          <ExternalLink className="h-3.5 w-3.5 shrink-0" aria-hidden />
+          <span className="max-w-[24rem] truncate font-mono">{distMeta.url}</span>
+        </a>
+      </div>
 
-      {/* ── Volumen analizado ── */}
-      {(stats.length > 0 || issues.length > 0) && (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {stats.map(({ icon: Icon, label, value }) => (
-            <Card key={label}>
-              <CardContent className="p-4">
-                <p className="eyebrow mb-1 flex items-center gap-1.5">
-                  <Icon className="h-3.5 w-3.5" aria-hidden />
-                  {label}
-                </p>
-                <p className="text-xl font-bold tabular-nums text-strong">{value}</p>
-              </CardContent>
-            </Card>
-          ))}
-          <Card tone={errorTotal > 0 ? "bad" : warningTotal > 0 ? "warn" : "ok"}>
-            <CardContent className="p-4">
-              <p className="eyebrow mb-1 flex items-center gap-1.5">
-                <AlertTriangle className="h-3.5 w-3.5" aria-hidden />
-                Incidencias
-              </p>
-              {errorTotal === 0 && warningTotal === 0 ? (
-                <p className="text-xl font-bold tabular-nums text-ok">0</p>
-              ) : (
-                <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
-                  {errorTotal > 0 && (
-                    <p className="text-xl font-bold tabular-nums text-bad">
-                      {errorTotal.toLocaleString("es-ES")}
-                      <span className="ml-1 text-[11px] font-medium">
-                        {errorTotal === 1 ? "error" : "errores"}
-                      </span>
-                    </p>
-                  )}
-                  {warningTotal > 0 && (
-                    <p className="text-sm font-semibold tabular-nums text-warn">
-                      {warningTotal.toLocaleString("es-ES")}
-                      <span className="ml-1 text-[11px] font-medium">
-                        {warningTotal === 1 ? "aviso" : "avisos"}
-                      </span>
-                    </p>
-                  )}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
-      {/* ── Vista previa (mapa / JSON / tabla) ──────────────────────────────
-          La tabla descarga el fichero real, no las 10 filas del informe: aquí
-          se explora el archivo entero. Solo se ofrece si el recurso se pudo
-          abrir; con un enlace roto no hay nada que enseñar. */}
-      {(isGeo || isJson || (isTabular && delivery === "ok")) && (
+      {/* ── Explorador del archivo ───────────────────────────────────────────
+          Datos, columnas e incidencias eran tres secciones apiladas que
+          hablaban del mismo fichero, y la de incidencias solo enseñaba las
+          cinco muestras del informe. Ahora es un único explorador que descarga
+          el archivo y recalcula sobre él, así que se puede recorrer caso por
+          caso. CSV, XLSX y JSON comparten explorador; cada uno aporta solo cómo
+          se lee el fichero. */}
+      {explorerKind && delivery === "ok" ? (
         <section>
           <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-strong">
-            {isGeo ? (
-              <Globe className="h-4 w-4 text-faint" aria-hidden />
-            ) : isJson ? (
-              <Braces className="h-4 w-4 text-faint" aria-hidden />
-            ) : (
-              <Table2 className="h-4 w-4 text-faint" aria-hidden />
-            )}
-            Vista previa {isGeo ? "geoespacial" : isJson ? "del JSON" : "de los datos"}
+            <Table2 className="h-4 w-4 text-faint" aria-hidden />
+            Explorador del archivo
           </h2>
-          {isGeo ? (
-            <DistributionMap
-              format={fmt}
-              url={distMeta.url}
-              datasetId={datasetId}
-              spatial={ds.spatial}
-              dead={status === "error"}
-              serviceSiblings={serviceSiblings}
-            />
-          ) : isJson ? (
-            <JsonViewer url={distMeta.url} sizeBytes={fetchSize} />
-          ) : (
-            <TableViewer
-              url={distMeta.url}
-              sizeBytes={fetchSize}
-              reportedRows={typeof metrics.rows === "number" ? metrics.rows : null}
-              reportTruncated={Boolean(dist?.analysis?.truncated)}
-            />
-          )}
-        </section>
-      )}
-
-      {/* ── Incidencias ── */}
-      {issues.length > 0 && (
-        <section>
-          <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-strong">
-            <AlertTriangle className="h-4 w-4 text-faint" aria-hidden />
-            Incidencias detectadas
-          </h2>
-          {/* El formato decide la presentación: tabla solo para lo tabular. */}
-          <IssueExplorer issues={issues} totalCells={totalCells} format={fmt} />
-        </section>
-      )}
-
-      {/* ── Esquema ── */}
-      {schema && schema.length > 0 && (
-        <section>
-          <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-strong">
-            <Layers className="h-4 w-4 text-faint" aria-hidden />
-            {isRecordShaped ? "Campos detectados" : "Esquema de columnas"}
-          </h2>
-          <SchemaExplorer
-            schema={schema}
-            unit={isRecordShaped ? "record" : "row"}
-            truncated={Boolean(dist?.analysis?.truncated)}
+          <FileExplorer
+            url={distMeta.url}
+            kind={explorerKind}
+            sizeBytes={fetchSize}
+            reportedRows={reportedRows}
+            reportTruncated={Boolean(dist?.analysis?.truncated)}
           />
         </section>
+      ) : (
+        <>
+          {isGeo && (
+            <section>
+              <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-strong">
+                <Globe className="h-4 w-4 text-faint" aria-hidden />
+                Vista previa geoespacial
+              </h2>
+              <DistributionMap
+                format={fmt}
+                url={distMeta.url}
+                datasetId={datasetId}
+                spatial={ds.spatial}
+                dead={status === "error"}
+                sizeBytes={fetchSize}
+                serviceSiblings={serviceSiblings}
+              />
+            </section>
+          )}
+
+          {issues.length > 0 && (
+            <section>
+              <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-strong">
+                <AlertTriangle className="h-4 w-4 text-faint" aria-hidden />
+                Incidencias detectadas
+              </h2>
+              <IssueExplorer issues={issues} totalCells={totalCells} format={fmt} />
+            </section>
+          )}
+
+          {schema && schema.length > 0 && (
+            <section>
+              <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-strong">
+                <Layers className="h-4 w-4 text-faint" aria-hidden />
+                {isRecordShaped ? "Campos detectados" : "Esquema de columnas"}
+              </h2>
+              <SchemaExplorer
+                schema={schema}
+                unit={isRecordShaped ? "record" : "row"}
+                truncated={Boolean(dist?.analysis?.truncated)}
+              />
+            </section>
+          )}
+        </>
       )}
 
       {/* ── Navegación entre distribuciones ── */}
