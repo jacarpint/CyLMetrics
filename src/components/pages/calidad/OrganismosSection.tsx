@@ -3,7 +3,7 @@ import { Building2, TrendingUp, TrendingDown, CheckCircle2, AlertTriangle, XCirc
 import { Card } from "@/components/ui/card";
 import { toDatasetLite } from "@/lib/quality-report";
 import { datasetSlug, cn } from "@/lib/utils";
-import { combineScore, getScoreColor } from "@/lib/quality";
+import { scoreForDataset, getScoreColor } from "@/lib/quality";
 import type { CatalogData } from "@/lib/types";
 import type { QualityReport } from "@/lib/quality-report";
 
@@ -31,6 +31,7 @@ export function OrganismosSection({ catalog, report }: { catalog: CatalogData; r
     ? Object.fromEntries(report.datasets.map((ds) => [datasetSlug(ds.dataset_id), toDatasetLite(ds)]))
     : {};
 
+  const reportBySlug = new Map((report?.datasets ?? []).map((d) => [datasetSlug(d.dataset_id), d]));
   const byPublisher = new Map<string, PublisherStats>();
 
   for (const ds of catalog.datasets) {
@@ -65,7 +66,14 @@ export function OrganismosSection({ catalog, report }: { catalog: CatalogData; r
       if (analysis?.score != null) contentScores.push(analysis.score);
     }
     p.avgContentScore = contentScores.length > 0 ? Math.round(contentScores.reduce((a, b) => a + b, 0) / contentScores.length) : null;
-    p.avgComposite = combineScore(p.avgMetaScore, p.avgContentScore);
+    // Media de los compuestos, no compuesto de las medias: si se promedia cada
+    // eje por separado, los datasets con todos los archivos rotos se diluyen.
+    const composites = pDatasets
+      .map((d) => scoreForDataset(d.qualityScore, reportBySlug.get(datasetSlug(d.id))))
+      .filter((s): s is number => s != null);
+    p.avgComposite = composites.length > 0
+      ? Math.round(composites.reduce((a, b) => a + b, 0) / composites.length)
+      : null;
   }
 
   const publishers = Array.from(byPublisher.values()).sort(

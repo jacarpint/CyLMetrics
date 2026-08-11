@@ -131,7 +131,7 @@ export default async function HomePage() {
             </Link>
           </Button>
           <Button asChild variant="secondary">
-            <Link href="/catalogo?vista=ficheros">Ver los archivos con problemas</Link>
+            <Link href="/calidad?vista=reparar">Ver los archivos con problemas</Link>
           </Button>
         </div>
 
@@ -195,7 +195,7 @@ export default async function HomePage() {
                   de {delivery.totalDatasets.toLocaleString("es-ES")} datasets.
                 </p>
                 <Link
-                  href="/catalogo?vista=ficheros"
+                  href="/calidad?vista=reparar"
                   className="mt-auto inline-flex w-fit items-center gap-1.5 pt-4 text-sm font-medium text-link underline-offset-2 hover:underline"
                 >
                   Ver los archivos con problemas <ArrowRight className="h-4 w-4" aria-hidden />
@@ -363,7 +363,7 @@ export default async function HomePage() {
               </p>
               <div className="mt-auto flex flex-wrap gap-3 pt-5">
                 <Button asChild size="sm">
-                  <Link href="/catalogo?vista=ficheros">
+                  <Link href="/calidad?vista=reparar">
                     Qué arreglar primero <ArrowRight className="h-4 w-4" aria-hidden />
                   </Link>
                 </Button>

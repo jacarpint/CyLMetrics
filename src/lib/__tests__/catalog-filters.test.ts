@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { applyFilters, sortDatasets, buildFilterUrl } from '../catalog-filters';
+import { applyFilters, sortDatasets, buildFilterUrl, DEFAULT_SORT, parseActiveFilters } from '../catalog-filters';
 import type { ActiveFilters } from '../catalog-filters';
 import type { Dataset } from '../types';
 
@@ -32,7 +32,7 @@ const baseFilters: ActiveFilters = {
   hasta: undefined,
   page: 1,
   limit: 24,
-  sort: 'quality-desc',
+  sort: DEFAULT_SORT,
 };
 
 const datasets = [
@@ -70,8 +70,8 @@ describe('applyFilters', () => {
 
   it('filters by analisis status when analysisBySlug is provided', () => {
     const analysisBySlug = {
-      '1': { status: 'ok', score: 90, distributions: 1, analyzed: 1, failed: 0, skipped: 0, coverage_pct: 100, issues_by_code: {}, dataset_index: 0, dataset_title: '', max_rows: null, max_cols: null, error_issues: 0, warning_issues: 0 },
-      '2': { status: 'error', score: 30, distributions: 1, analyzed: 0, failed: 1, skipped: 0, coverage_pct: 0, issues_by_code: {}, dataset_index: 1, dataset_title: '', max_rows: null, max_cols: null, error_issues: 1, warning_issues: 0 },
+      '1': { status: 'ok', score: 90, distributions: 1, analyzed: 1, failed: 0, skipped: 0, coverage_pct: 100, issues_by_code: {}, dataset_index: 0, dataset_title: '', max_rows: null, max_cols: null, error_issues: 0, warning_issues: 0, availability_pct: 100, format_states: {} },
+      '2': { status: 'error', score: 30, distributions: 1, analyzed: 0, failed: 1, skipped: 0, coverage_pct: 0, issues_by_code: {}, dataset_index: 1, dataset_title: '', max_rows: null, max_cols: null, error_issues: 1, warning_issues: 0, availability_pct: 0, format_states: {} },
     } as const;
     const result = applyFilters(datasets, { ...baseFilters, analisis: 'ok' }, analysisBySlug);
     expect(result).toHaveLength(1);
@@ -112,6 +112,14 @@ describe('sortDatasets', () => {
 describe('buildFilterUrl', () => {
   it('returns /catalogo with empty filters', () => {
     expect(buildFilterUrl(baseFilters)).toBe('/catalogo');
+  });
+
+  // El catálogo ordena por fecha de publicación descendente si no se pide otra
+  // cosa: solo se serializa el orden cuando difiere de ese.
+  it('omite el orden por defecto y serializa el resto', () => {
+    expect(DEFAULT_SORT).toBe('date-desc');
+    expect(parseActiveFilters({}).sort).toBe(DEFAULT_SORT);
+    expect(buildFilterUrl({ ...baseFilters, sort: 'quality-desc' })).toBe('/catalogo?sort=quality-desc');
   });
 
   it('includes category param', () => {

@@ -3,7 +3,7 @@ import {
   TrendingUp, TrendingDown, Minus, Sparkles, AlertTriangle, Award, ClipboardList, CheckCircle2,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { combineScore } from "@/lib/quality";
+import { scoreForDataset } from "@/lib/quality";
 import { datasetSlug } from "@/lib/utils";
 import { TrendLine, Sparkline } from "@/components/quality/trend-chart";
 import type { CatalogData } from "@/lib/types";
@@ -49,7 +49,7 @@ export function EvolucionSection({
 
   const metadataBySlug = new Map(catalog.datasets.map((d) => [datasetSlug(d.id), d.qualityScore]));
   const composites = (report?.datasets ?? []).map((ds) =>
-    combineScore(metadataBySlug.get(datasetSlug(ds.dataset_id)) ?? null, ds.score)
+    scoreForDataset(metadataBySlug.get(datasetSlug(ds.dataset_id)) ?? null, ds)
   );
   const withScore = composites.filter((s): s is number => s != null);
   const hist = BUCKETS.map((b) => ({ ...b, count: withScore.filter((s) => s >= b.min && s <= b.max).length }));

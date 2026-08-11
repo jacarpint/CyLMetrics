@@ -33,7 +33,7 @@ interface DistributionMapProps {
   datasetId: string;
   spatial?: string;
   dead?: boolean;
-  serviceSiblings?: { format: string; idx: number }[];
+  serviceSiblings?: { format: string; idx: number; slug: string }[];
 }
 
 /* ── KML → GeoJSON (mínimo, con DOMParser del navegador) ── */
@@ -449,7 +449,7 @@ export function DistributionMap({ format, url, datasetId, spatial, dead, service
               .map((s) => (
                 <Link
                   key={s.idx}
-                  href={`/catalogo/${datasetId}/${s.idx}`}
+                  href={`/catalogo/${datasetId}/${s.slug}`}
                   className="text-xs font-medium text-link underline-offset-2 hover:underline"
                 >
                   Ver esta cartografía por WMS
@@ -512,7 +512,7 @@ export function DistributionMap({ format, url, datasetId, spatial, dead, service
             {serviceSiblings.map((s) => (
               <Link
                 key={s.idx}
-                href={`/catalogo/${datasetId}/${s.idx}`}
+                href={`/catalogo/${datasetId}/${s.slug}`}
                 className="inline-flex items-center gap-1 rounded-md border border-ok-line px-2 py-0.5 font-medium text-ok transition-colors hover:bg-ok-surface"
               >
                 {s.format}

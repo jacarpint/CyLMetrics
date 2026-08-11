@@ -9,6 +9,7 @@
  */
 
 import type { DataFormat } from '@/lib/types';
+import { spatialLabel } from '@/lib/vocabularies';
 
 /** Formatos considerados geoespaciales dentro del catálogo. */
 export const GEO_FORMATS: DataFormat[] = ['SHP', 'KML', 'GML', 'WMS', 'WFS', 'GeoJSON', 'ECW'];
@@ -69,12 +70,31 @@ export function normalizeText(input: string): string {
     .replace(/[̀-ͯ]/g, '');
 }
 
-/** Coordenadas orientativas a partir de la cobertura espacial declarada. */
+/**
+ * Coordenadas orientativas a partir de la cobertura espacial declarada.
+ *
+ * El catálogo declara la cobertura como URI del vocabulario NTI-RISP
+ * (`…/territorio/Autonomia/Castilla-Leon`), no como texto libre. Buscar
+ * subcadenas sobre eso hacía que `castilla-leon` casara antes con la clave
+ * `leon` que con `castilla y leon`, y TODOS los mapas de respaldo acababan
+ * en la ciudad de León en vez de en el centro de la comunidad.
+ *
+ * Ahora se resuelve primero la URI a su etiqueta y, sobre texto libre, se
+ * prueban las claves de más larga a más corta para que gane la más específica.
+ */
 export function getSpatialCoords(spatial: string | undefined): [number, number] | null {
   if (!spatial) return null;
-  const lower = normalizeText(spatial);
-  for (const [key, coords] of Object.entries(SPATIAL_COORDS)) {
-    if (lower.includes(key)) return coords;
+
+  const label = spatialLabel(spatial);
+  const haystack = normalizeText(label ?? spatial);
+  if (!haystack) return null;
+
+  const exact = SPATIAL_COORDS[haystack];
+  if (exact) return exact;
+
+  const keys = Object.keys(SPATIAL_COORDS).sort((a, b) => b.length - a.length);
+  for (const key of keys) {
+    if (haystack.includes(key)) return SPATIAL_COORDS[key];
   }
   return null;
 }

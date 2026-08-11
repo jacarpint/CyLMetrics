@@ -42,7 +42,7 @@ function toCsv(rows: BrokenFileRow[]): string {
     [
       DELIVERY_SHORT[r.state], r.format, r.datasetTitle, r.publisher, r.category,
       r.causeLabel, r.causeCode, r.httpStatus ?? '', r.url,
-      `/catalogo/${r.datasetSlug}/${r.distIdx}`,
+      `/catalogo/${r.datasetSlug}/${r.distSlug}`,
     ].map(esc).join(';')
   );
   // BOM para que Excel en castellano no rompa los acentos.
@@ -318,7 +318,7 @@ export function BrokenFilesView({ rows, formatTotals, totalDistributions }: Brok
               </thead>
               <tbody>
                 {shown.map((r) => {
-                  const id = `${r.datasetSlug}-${r.distIdx}`;
+                  const id = `${r.datasetSlug}-${r.distSlug}`;
                   const tone = STATE_TONE[r.state];
                   const isOpen = expanded === id;
                   return (
@@ -334,7 +334,7 @@ export function BrokenFilesView({ rows, formatTotals, totalDistributions }: Brok
                       </td>
                       <td className="max-w-[26rem] px-3 py-2">
                         <Link
-                          href={`/catalogo/${r.datasetSlug}/${r.distIdx}`}
+                          href={`/catalogo/${r.datasetSlug}/${r.distSlug}`}
                           className="line-clamp-2 font-medium text-body underline-offset-2 hover:text-link hover:underline"
                         >
                           {r.datasetTitle}

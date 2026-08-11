@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 
-/** La calidad geoespacial vive ahora dentro del Catálogo (vista de mapa + filtro geoespacial). */
+/** La calidad geoespacial vive ahora dentro del Catálogo, tras su filtro propio. */
 export default function GisRedirect() {
-  redirect("/catalogo?geo=1&vista=mapa");
+  redirect("/catalogo?geo=1");
 }

@@ -321,7 +321,11 @@ def _append_quality_issues(
 
 _SAMPLE_ROW_LIMIT = 10
 _SCHEMA_COLUMN_LIMIT = 100
-_DISTINCT_CAP = 1000
+# Sin tope: antes se cortaba en 1.000 y la ficha mostraba "1000+" en 1.201
+# campos, así que el recuento de valores distintos no era el real. El coste es
+# memoria proporcional a los distintos de la columna, aceptable para columnas
+# de datos abiertos.
+_DISTINCT_CAP: int | None = None
 
 _TYPE_DISPLAY = {"number": "number", "date": "date", "bool": "boolean", "str": "string", "any": "string", "empty": "string"}
 _DATE_FORMATS = ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y", "%d/%m/%y", "%Y/%m/%d")
@@ -351,8 +355,10 @@ def _try_parse_date(value) -> datetime.date | None:
 def _build_schema_and_sample(header: list[str] | None, data_rows: list[list]) -> tuple[list[dict], list[list]]:
     """Perfil de esquema (tipo, nulos, distintos, rango) y muestra de filas.
 
-    Se calcula sobre la muestra ya leída (≤5 MB), no sobre el fichero completo:
-    los valores son orientativos para la ficha del dataset, no el perfil exacto.
+    Se calcula sobre TODAS las filas descargadas. Mientras la descarga no se
+    trunque (ver `--size-cap`), las cifras de nulos, distintos y rango son las
+    del fichero completo, no una estimación. Si `analysis.truncated` es cierto,
+    la descarga sí se cortó y la interfaz debe advertirlo.
     """
     if not data_rows:
         return [], []
@@ -383,14 +389,12 @@ def _build_schema_and_sample(header: list[str] | None, data_rows: list[list]) ->
             winner = "empty"
 
         null_count = nrows - len(col)
-        distinct = 0
         seen: set = set()
         for v in col:
-            if v not in seen:
-                seen.add(v)
-                distinct += 1
-                if distinct > _DISTINCT_CAP:
-                    break
+            seen.add(v)
+            if _DISTINCT_CAP is not None and len(seen) > _DISTINCT_CAP:
+                break
+        distinct = len(seen)
 
         entry: dict = {
             "name": name[:80],
@@ -464,7 +468,7 @@ def analyze_csv(path: Path, ctx: dict) -> dict:
     score, ok = _score_from_issues(issues)
 
     # Comprobaciones propias (Frictionless v5 no reporta tipos incoherentes ni
-    # celdas vacías). El fichero real está acotado a la muestra (5 MB).
+    # celdas vacías). Se recorren todas las filas descargadas.
     type_errors, missing_cells = 0, 0
     schema: list[dict] = []
     sample_rows: list[list] = []

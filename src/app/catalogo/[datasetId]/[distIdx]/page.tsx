@@ -12,6 +12,7 @@ import {
   Layers,
   ChevronLeft,
   Braces,
+  Table2,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -24,7 +25,9 @@ import { IssueExplorer } from "@/components/quality/issue-explorer";
 import { SchemaExplorer } from "@/components/quality/schema-explorer";
 import { DistributionMap } from "@/components/quality/distribution-map";
 import { JsonViewer } from "@/components/quality/json-viewer";
+import { TableViewer } from "@/components/quality/table-viewer";
 import { isGeoFormat } from "@/lib/geo";
+import { distributionSlugs, resolveDistributionIndex } from "@/lib/distribution-slug";
 
 export const revalidate = 3600;
 
@@ -32,12 +35,11 @@ export async function generateStaticParams() {
   const report = getQualityReport();
   if (!report) return [];
 
-  return report.datasets.flatMap((rDs) =>
-    rDs.distribution_results.map((_, idx) => ({
-      datasetId: datasetSlug(rDs.dataset_id),
-      distIdx: String(idx),
-    }))
-  );
+  // La URL usa el formato (/csv, /json, /csv-2) en vez de la posición.
+  return report.datasets.flatMap((rDs) => {
+    const slugs = distributionSlugs(rDs.distribution_results.map((d) => d.format));
+    return slugs.map((slug) => ({ datasetId: datasetSlug(rDs.dataset_id), distIdx: slug }));
+  });
 }
 
 export default async function DistributionPage({
@@ -46,14 +48,19 @@ export default async function DistributionPage({
   params: Promise<{ datasetId: string; distIdx: string }>;
 }) {
   const { datasetId, distIdx } = await params;
-  const idx = parseInt(distIdx, 10);
-  if (isNaN(idx) || idx < 0) notFound();
 
   const catalog = await getCatalog();
   const report = getQualityReport();
 
   const ds = catalog.datasets.find((d) => datasetSlug(d.id) === datasetId);
   if (!ds) notFound();
+
+  // Acepta el slug nuevo (/csv, /csv-2) y el índice numérico de los enlaces
+  // publicados antes del cambio.
+  const formats = ds.distributionUrls.map((d) => d.format);
+  const slugs = distributionSlugs(formats);
+  const idx = resolveDistributionIndex(formats, distIdx);
+  if (idx < 0) notFound();
 
   const distMeta = ds.distributionUrls[idx];
   if (!distMeta) notFound();
@@ -65,12 +72,13 @@ export default async function DistributionPage({
   const status = dist?.status ?? null;
   const issues = dist?.analysis?.issues ?? [];
   const schema = dist?.analysis?.schema ?? null;
-  const sampleRows = dist?.analysis?.sample_rows ?? [];
 
   const fmt = distMeta.format;
   const isGeo = isGeoFormat(fmt);
   const isJson = fmt === "JSON";
   const isRecordShaped = isJson || fmt === "GeoJSON";
+  // Formatos separados por comas o tabulaciones que el navegador puede leer.
+  const isTabular = ["CSV", "TSV", "TXT"].includes(fmt);
   const fetchSize = dist?.fetch?.size ?? null;
 
   const metrics = dist?.analysis?.metrics ?? {};
@@ -101,7 +109,8 @@ export default async function DistributionPage({
   // actual (p. ej. SHP) no es previsualizable en el navegador.
   const serviceSiblings = ds.distributionUrls
     .map((d, i) => ({ format: d.format, idx: i }))
-    .filter((d) => d.idx !== idx && (d.format === "WMS" || d.format === "WFS"));
+    .filter((d) => d.idx !== idx && (d.format === "WMS" || d.format === "WFS"))
+    .map((d) => ({ ...d, slug: slugs[d.idx] }));
 
   const stats = [
     primary && { icon: Hash, label: primary.label, value: primary.value.toLocaleString("es-ES") },
@@ -128,7 +137,7 @@ export default async function DistributionPage({
         <div className="min-w-0 flex-1">
           <div className="mb-2 flex flex-wrap items-center gap-2">
             <Badge variant="format">{distMeta.format}</Badge>
-            {delivery && (
+            {delivery && delivery !== "ok" && (
               <span className={cn("inline-flex items-center gap-1 text-xs font-medium", statusColor)}>
                 <StatusIcon className="h-3.5 w-3.5" aria-hidden />
                 {DELIVERY_LABELS[delivery]}
@@ -239,12 +248,21 @@ export default async function DistributionPage({
         </div>
       )}
 
-      {/* ── Vista previa (mapa / JSON) ── */}
-      {(isGeo || isJson) && (
+      {/* ── Vista previa (mapa / JSON / tabla) ──────────────────────────────
+          La tabla descarga el fichero real, no las 10 filas del informe: aquí
+          se explora el archivo entero. Solo se ofrece si el recurso se pudo
+          abrir; con un enlace roto no hay nada que enseñar. */}
+      {(isGeo || isJson || (isTabular && delivery === "ok")) && (
         <section>
           <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-strong">
-            {isGeo ? <Globe className="h-4 w-4 text-faint" aria-hidden /> : <Braces className="h-4 w-4 text-faint" aria-hidden />}
-            Vista previa {isGeo ? "geoespacial" : "del JSON"}
+            {isGeo ? (
+              <Globe className="h-4 w-4 text-faint" aria-hidden />
+            ) : isJson ? (
+              <Braces className="h-4 w-4 text-faint" aria-hidden />
+            ) : (
+              <Table2 className="h-4 w-4 text-faint" aria-hidden />
+            )}
+            Vista previa {isGeo ? "geoespacial" : isJson ? "del JSON" : "de los datos"}
           </h2>
           {isGeo ? (
             <DistributionMap
@@ -255,8 +273,15 @@ export default async function DistributionPage({
               dead={status === "error"}
               serviceSiblings={serviceSiblings}
             />
-          ) : (
+          ) : isJson ? (
             <JsonViewer url={distMeta.url} sizeBytes={fetchSize} />
+          ) : (
+            <TableViewer
+              url={distMeta.url}
+              sizeBytes={fetchSize}
+              reportedRows={typeof metrics.rows === "number" ? metrics.rows : null}
+              reportTruncated={Boolean(dist?.analysis?.truncated)}
+            />
           )}
         </section>
       )}
@@ -282,8 +307,8 @@ export default async function DistributionPage({
           </h2>
           <SchemaExplorer
             schema={schema}
-            sampleRows={sampleRows}
             unit={isRecordShaped ? "record" : "row"}
+            truncated={Boolean(dist?.analysis?.truncated)}
           />
         </section>
       )}
@@ -293,7 +318,7 @@ export default async function DistributionPage({
         <nav aria-label="Otras distribuciones" className="flex items-center justify-between gap-4 border-t border-border pt-4">
           {prevIdx != null ? (
             <Link
-              href={`/catalogo/${datasetId}/${prevIdx}`}
+              href={`/catalogo/${datasetId}/${slugs[prevIdx]}`}
               className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm text-body transition-colors hover:border-border-strong hover:bg-fill"
             >
               <ChevronLeft className="h-4 w-4 text-faint" aria-hidden />
@@ -307,7 +332,7 @@ export default async function DistributionPage({
           )}
           {nextIdx != null ? (
             <Link
-              href={`/catalogo/${datasetId}/${nextIdx}`}
+              href={`/catalogo/${datasetId}/${slugs[nextIdx]}`}
               className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm text-body transition-colors hover:border-border-strong hover:bg-fill"
             >
               <span className="text-right">

@@ -2,8 +2,10 @@ import { isAllowedHost } from "@/lib/proxy-allow";
 
 export const revalidate = 3600;
 
-const MAX_BYTES = 12 * 1024 * 1024; // 12 MB
-const TIMEOUT_MS = 12000;
+// 32 MB: por encima del tope de descarga del analizador (25 MB), para que el
+// visor de tabla pueda mostrar el fichero completo y no una parte.
+const MAX_BYTES = 32 * 1024 * 1024;
+const TIMEOUT_MS = 25000;
 
 /**
  * Proxy de solo lectura para recursos de *.jcyl.es. Evita el bloqueo CORS del

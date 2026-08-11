@@ -20,6 +20,7 @@ export {
 } from './quality-labels';
 export type { DistributionVolume, VolumeMetric } from './quality-labels';
 import { distributionVolume } from './quality-labels';
+import { datasetAvailabilityPct, formatStates, type FormatState } from './availability';
 export type { IssueCategory } from './quality-labels';
 import { issueCategory } from './quality-labels';
 
@@ -163,6 +164,10 @@ export type QualityDatasetLite = {
   error_issues: number;
   /** Incidencias con severidad de advertencia (sobre todo celdas vacías). */
   warning_issues: number;
+  /** % de distribuciones que se descargan y abren, o null si no se analizó. */
+  availability_pct: number | null;
+  /** Estado agregado de cada formato, para colorear su etiqueta en la tarjeta. */
+  format_states: Record<string, FormatState>;
 };
 
 /* ------------------------------------------------------------------ */
@@ -331,6 +336,8 @@ export function toDatasetLite(ds: QualityDatasetSummary): QualityDatasetLite {
     max_cols,
     error_issues,
     warning_issues,
+    availability_pct: datasetAvailabilityPct(ds),
+    format_states: formatStates(ds),
   };
 }
 

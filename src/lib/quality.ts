@@ -1,19 +1,54 @@
 import type { DatasetStatus } from '@/lib/types';
+import { datasetAvailabilityPct } from '@/lib/availability';
+import type { QualityDatasetSummary } from '@/lib/quality-report';
 
 /**
- * Combina la puntuación de metadatos del catálogo (que ya pondera
- * completitud, formato, frescura y licencia) con la puntuación del análisis
- * de contenido en un único score de 0-100.
- * Si solo una está disponible, se usa esa; si ambas, media ponderada 50/50.
+ * Pesos del score compuesto.
+ *
+ * Antes eran metadatos y contenido al 50%, y la disponibilidad no entraba:
+ * como el análisis no devuelve score de contenido cuando NINGÚN archivo se
+ * puede abrir, `combineScore(100, null)` devolvía 100. Resultado: 388 de 824
+ * datasets sin una sola distribución utilizable podían lucir nota alta.
+ * Con la disponibilidad como eje propio, eso ya no puede pasar.
  */
-export function combineScore(
+export const SCORE_WEIGHTS = { metadata: 0.4, availability: 0.3, content: 0.3 } as const;
+
+export interface ScoreInputs {
+  /** Score de metadatos del catálogo DCAT (0-100). */
+  metadata: number | null;
+  /** % de distribuciones que se descargan y abren (0-100), o null si no se analizó. */
+  availability: number | null;
+  /** Score de contenido del análisis (0-100), o null si no hubo nada analizable. */
+  content: number | null;
+}
+
+/**
+ * Score compuesto 0-100 a partir de los tres ejes.
+ *
+ * Si `availability` es null el dataset nunca se analizó, así que no se puede
+ * afirmar nada sobre sus archivos y se devuelve el score de metadatos tal cual.
+ * Si sí se analizó, `content` a null significa que no quedó nada legible que
+ * medir, y eso cuenta como cero: no es ausencia de dato, es el peor caso.
+ */
+export function compositeScore({ metadata, availability, content }: ScoreInputs): number | null {
+  if (availability == null) return metadata == null ? null : Math.round(metadata);
+  return Math.round(
+    SCORE_WEIGHTS.metadata * (metadata ?? 0) +
+      SCORE_WEIGHTS.availability * availability +
+      SCORE_WEIGHTS.content * (content ?? 0)
+  );
+}
+
+/** Score compuesto de un dataset a partir de su ficha del informe de análisis. */
+export function scoreForDataset(
   metadataScore: number | null,
-  contentScore: number | null
+  reportDataset: QualityDatasetSummary | null | undefined
 ): number | null {
-  if (metadataScore == null && contentScore == null) return null;
-  if (metadataScore == null) return Math.round(contentScore as number);
-  if (contentScore == null) return Math.round(metadataScore);
-  return Math.round(0.5 * metadataScore + 0.5 * contentScore);
+  return compositeScore({
+    metadata: metadataScore,
+    availability: datasetAvailabilityPct(reportDataset),
+    content: reportDataset?.score ?? null,
+  });
 }
 
 /**

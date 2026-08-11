@@ -98,13 +98,24 @@ export default function MetodologiaPage() {
 
         <Card className="border-ok-line bg-ok-surface">
           <CardContent className="p-5">
-            <p className="text-sm text-body leading-relaxed">
-              El <strong className="text-strong">score compuesto</strong> que ves en cada ficha combina ambas
-              miradas a partes iguales cuando existen las dos. Si solo hay una, se usa esa.
+            <p className="text-sm leading-relaxed text-body">
+              El <strong className="text-strong">score compuesto</strong> que ves en cada ficha pondera tres
+              ejes. La disponibilidad va aparte de la calidad del contenido porque son preguntas distintas:
+              un archivo que no abre no tiene contenido que medir.
             </p>
-            <div className="mt-3 rounded-lg bg-card border border-border px-4 py-3 text-sm text-body font-mono">
-              score compuesto = 50% · calidad_metadatos + 50% · análisis_contenido
+            <div className="mt-3 rounded-lg border border-border bg-card px-4 py-3 font-mono text-sm text-body">
+              score compuesto = 40% · metadatos
+              <br />
+              &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;+ 30% · disponibilidad
+              <br />
+              &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;+ 30% · contenido
             </div>
+            <p className="mt-3 text-xs leading-relaxed text-body">
+              <strong className="text-strong">Disponibilidad</strong> es el porcentaje de archivos del dataset
+              que se descargan y abren. Si el análisis no llegó a evaluar ninguno, se muestra solo el índice de
+              metadatos, indicándolo. Si se evaluaron y no quedó nada legible, el contenido cuenta como cero:
+              no es un dato ausente, es el peor resultado posible.
+            </p>
           </CardContent>
         </Card>
       </section>
@@ -234,8 +245,8 @@ export default function MetodologiaPage() {
               Un observatorio de datos abiertos debería publicar también los suyos. Todo lo que se ve
               en el portal está disponible en JSON sin autenticación, y la lista de archivos con
               problemas se puede descargar en CSV desde{" "}
-              <Link href="/catalogo?vista=ficheros" className="font-medium text-link underline-offset-2 hover:underline">
-                la vista de ficheros del catálogo
+              <Link href="/calidad?vista=reparar" className="font-medium text-link underline-offset-2 hover:underline">
+                la pestaña «Qué arreglar» del informe de calidad
               </Link>
               , respetando los filtros que tengas aplicados.
             </p>

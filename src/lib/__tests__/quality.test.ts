@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  combineScore,
+  compositeScore,
   getScoreColor,
   getScoreFill,
   getScoreLabel,
@@ -9,26 +9,32 @@ import {
   timeAgo,
 } from '../quality';
 
-describe('combineScore', () => {
-  it('returns null when both are null', () => {
-    expect(combineScore(null, null)).toBeNull();
+describe('compositeScore', () => {
+  it('sin análisis, no se puede afirmar nada de los archivos: manda el metadato', () => {
+    expect(compositeScore({ metadata: 80, availability: null, content: null })).toBe(80);
+    expect(compositeScore({ metadata: null, availability: null, content: null })).toBeNull();
   });
 
-  it('returns metadata score when content is null', () => {
-    expect(combineScore(80, null)).toBe(80);
+  it('pondera los tres ejes 40/30/30', () => {
+    expect(compositeScore({ metadata: 100, availability: 100, content: 100 })).toBe(100);
+    expect(compositeScore({ metadata: 80, availability: 60, content: 40 })).toBe(62);
   });
 
-  it('returns content score when metadata is null', () => {
-    expect(combineScore(null, 70)).toBe(70);
+  /**
+   * El fallo que motivó el cambio: con la fórmula anterior, un dataset con
+   * metadatos perfectos y ningún archivo abrible puntuaba 100.
+   */
+  it('un dataset analizado sin ningún archivo utilizable no puede puntuar alto', () => {
+    expect(compositeScore({ metadata: 100, availability: 0, content: null })).toBe(40);
+    expect(compositeScore({ metadata: 100, availability: 0, content: 0 })).toBe(40);
   });
 
-  it('returns 50/50 weighted average when both are present', () => {
-    expect(combineScore(80, 60)).toBe(70);
-    expect(combineScore(100, 0)).toBe(50);
+  it('contenido nulo con archivos que sí abren cuenta como cero, no se ignora', () => {
+    expect(compositeScore({ metadata: 100, availability: 100, content: null })).toBe(70);
   });
 
-  it('rounds to integer', () => {
-    expect(combineScore(75, 80)).toBe(78);
+  it('redondea a entero', () => {
+    expect(compositeScore({ metadata: 75, availability: 80, content: 77 })).toBe(77);
   });
 });
 

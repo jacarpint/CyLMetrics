@@ -19,7 +19,11 @@ from .report import aggregate, print_summary
 
 DEFAULT_OUTPUT = Path("reports") / "data-analysis.json"
 DEFAULT_SIZE_CAP = 25 * 1024 * 1024  # 25 MB
-DEFAULT_CSV_SAMPLE = 5 * 1024 * 1024  # 5 MB de muestra para CSV/TXT
+# Sin muestreo propio para CSV/TXT: antes se cortaban en 5 MB y el esquema, los
+# valores distintos y los rangos salían de esa muestra, no del fichero. Ahora
+# comparten el tope general de descarga, así que solo se recorta lo que de
+# verdad supera --size-cap (y esos casos quedan marcados como truncados).
+DEFAULT_CSV_SAMPLE = DEFAULT_SIZE_CAP
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -36,7 +40,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--limit", type=int, default=0, help="Máximo de distribuciones a analizar (0 = todas)")
     parser.add_argument("--workers", type=int, default=8, help="Descargas concurrentes")
     parser.add_argument("--size-cap", type=int, default=DEFAULT_SIZE_CAP, help="Tope de descarga en bytes (25 MB por defecto)")
-    parser.add_argument("--csv-sample", type=int, default=DEFAULT_CSV_SAMPLE, help="Tope de muestra para CSV/TXT")
+    parser.add_argument("--csv-sample", type=int, default=DEFAULT_CSV_SAMPLE,
+                        help="Tope de descarga para CSV/TXT (por defecto, el mismo que --size-cap)")
     parser.add_argument("--timeout", type=int, default=60, help="Timeout de lectura por descarga (segundos)")
     parser.add_argument("--retries", type=int, default=2, help="Reintentos por distribución")
     parser.add_argument("--output", default=str(DEFAULT_OUTPUT), help="Ruta del informe JSON")

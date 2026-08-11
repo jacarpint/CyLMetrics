@@ -15,7 +15,7 @@
  * importa tipos de `quality-report` y funciones de `quality-labels`.
  */
 
-import type { DistributionResult, QualityReport } from './quality-report';
+import type { DistributionResult, QualityDatasetSummary, QualityReport } from './quality-report';
 import { issueLabel } from './quality-labels';
 import { isBlockingCode } from './alerts';
 
@@ -138,6 +138,56 @@ export function summarizeDelivery(report: QualityReport | null): DeliverySummary
 }
 
 /**
+ * Porcentaje de distribuciones de un dataset que se descargan y abren (0-100).
+ *
+ * Las que el analizador no llegó a evaluar quedan fuera del denominador: no
+ * son un fallo del dataset, simplemente no se comprobaron. Devuelve null si no
+ * se evaluó ninguna, para poder distinguir "no lo sabemos" de "no funciona".
+ */
+export function datasetAvailabilityPct(
+  ds: Pick<QualityDatasetSummary, 'distribution_results'> | null | undefined
+): number | null {
+  if (!ds) return null;
+  let evaluated = 0;
+  let ok = 0;
+  for (const dist of ds.distribution_results) {
+    const state = classifyDelivery(dist);
+    if (state === 'omitida') continue;
+    evaluated++;
+    if (state === 'ok') ok++;
+  }
+  return evaluated === 0 ? null : Math.round((ok / evaluated) * 100);
+}
+
+/**
+ * Estado agregado por formato dentro de un dataset: para poder colorear la
+ * etiqueta de cada formato en la tarjeta del catálogo sin volcar recuentos.
+ */
+export type FormatState = 'ok' | 'parcial' | 'roto' | 'sin-datos';
+
+export function formatStates(
+  ds: Pick<QualityDatasetSummary, 'distribution_results'> | null | undefined
+): Record<string, FormatState> {
+  const out: Record<string, FormatState> = {};
+  if (!ds) return out;
+  const acc = new Map<string, { evaluated: number; ok: number }>();
+
+  for (const dist of ds.distribution_results) {
+    let entry = acc.get(dist.format);
+    if (!entry) { entry = { evaluated: 0, ok: 0 }; acc.set(dist.format, entry); }
+    const state = classifyDelivery(dist);
+    if (state === 'omitida') continue;
+    entry.evaluated++;
+    if (state === 'ok') entry.ok++;
+  }
+
+  for (const [format, { evaluated, ok }] of acc) {
+    out[format] = evaluated === 0 ? 'sin-datos' : ok === evaluated ? 'ok' : ok === 0 ? 'roto' : 'parcial';
+  }
+  return out;
+}
+
+/**
  * Cuántas DISTRIBUCIONES sufre cada incidencia (no cuántas celdas).
  *
  * `issues_by_code` del informe suma ocurrencias, y eso hace que "celdas
@@ -171,6 +221,8 @@ export interface BrokenFileRow {
   format: string;
   url: string;
   distIdx: number;
+  /** Slug de la distribución para la URL (/csv, /csv-2). */
+  distSlug: string;
   state: Exclude<DeliveryState, 'ok'>;
   causeCode: string;
   causeLabel: string;

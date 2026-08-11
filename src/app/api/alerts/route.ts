@@ -4,7 +4,7 @@ import { getCatalog } from "@/lib/rdf-catalog";
 import { buildAlerts, isBlockingCode } from "@/lib/alerts";
 import { categoryLabel, type IssueCategory } from "@/lib/quality-labels";
 import { datasetSlug } from "@/lib/utils";
-import { combineScore } from "@/lib/quality";
+import { scoreForDataset } from "@/lib/quality";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -28,10 +28,17 @@ export async function GET(request: NextRequest) {
     catalog.datasets.map((d) => [datasetSlug(d.id), d.qualityScore])
   );
 
+  // El score expuesto es el compuesto (metadatos + disponibilidad + contenido),
+  // el mismo que ve el usuario en el portal.
+  const reportBySlug = new Map(report.datasets.map((d) => [datasetSlug(d.dataset_id), d]));
+
   const alerts = buildAlerts(report)
     .map((a) => ({
       ...a,
-      score: combineScore(metadataBySlug.get(datasetSlug(a.datasetId)) ?? null, a.score),
+      score: scoreForDataset(
+        metadataBySlug.get(datasetSlug(a.datasetId)) ?? null,
+        reportBySlug.get(datasetSlug(a.datasetId))
+      ),
     }))
     .sort((a, b) => (a.score ?? 0) - (b.score ?? 0))
     .filter((a) => (level ? a.level === level : true))

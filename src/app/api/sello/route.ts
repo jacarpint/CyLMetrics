@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getQualityReport } from "@/lib/quality-report";
 import { getCatalog } from "@/lib/rdf-catalog";
 import { datasetSlug } from "@/lib/utils";
-import { combineScore } from "@/lib/quality";
+import { scoreForDataset } from "@/lib/quality";
 
 const SCORE_COLORS: Record<string, string> = {
   excellent: "#10b981",
@@ -56,16 +56,17 @@ export async function GET(request: NextRequest) {
     const catalogDs = catalog.datasets.find(
       (c) => c.id === datasetId || datasetSlug(c.id) === slug
     );
-    score = combineScore(catalogDs?.qualityScore ?? null, ds?.score ?? null);
+    score = scoreForDataset(catalogDs?.qualityScore ?? null, ds);
   } else {
-    const avgMetadata =
-      catalog.datasets.length > 0
-        ? catalog.datasets.reduce((s, d) => s + d.qualityScore, 0) / catalog.datasets.length
-        : null;
-    score = combineScore(
-      avgMetadata != null ? Math.round(avgMetadata) : null,
-      report?.totals.avg_score ?? null
-    );
+    // Media de los compuestos, no compuesto de las medias: promediar primero
+    // cada eje diluye a los datasets cuyos archivos no abren.
+    const bySlug = new Map((report?.datasets ?? []).map((d) => [datasetSlug(d.dataset_id), d]));
+    const composites = catalog.datasets
+      .map((d) => scoreForDataset(d.qualityScore, bySlug.get(datasetSlug(d.id))))
+      .filter((s): s is number => s != null);
+    score = composites.length > 0
+      ? Math.round(composites.reduce((a, b) => a + b, 0) / composites.length)
+      : null;
   }
 
   const svg = generateSVG(score);

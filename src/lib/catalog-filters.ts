@@ -18,27 +18,20 @@ export const PAGE_SIZE_OPTIONS = [12, 24, 48] as const;
 export type PageSort = 'quality-desc' | 'quality-asc' | 'title-asc' | 'date-desc' | 'date-asc';
 
 /**
- * Modos de exploración del catálogo. `ficheros` lista las distribuciones que
- * no se pueden usar, heredando los mismos filtros que las otras dos vistas.
+ * Orden por defecto: lo más reciente primero.
+ *
+ * Antes se ordenaba por calidad descendente, lo que dejaba siempre arriba los
+ * mismos datasets y escondía las publicaciones nuevas, que es lo que la gente
+ * suele venir a ver.
  */
-export type CatalogVista = 'tarjetas' | 'mapa' | 'ficheros';
-
-export function parseVista(raw: string | undefined): CatalogVista {
-  return raw === 'mapa' || raw === 'ficheros' ? raw : 'tarjetas';
-}
-
-/** Añade `vista` a una URL de catálogo ya construida (tarjetas es el defecto). */
-export function withVista(url: string, vista: CatalogVista): string {
-  if (vista === 'tarjetas') return url;
-  return `${url}${url.includes('?') ? '&' : '?'}vista=${vista}`;
-}
+export const DEFAULT_SORT: PageSort = 'date-desc';
 
 export const SORT_OPTIONS: { value: PageSort; label: string }[] = [
-  { value: 'quality-desc', label: 'Calidad (mayor)' },
-  { value: 'quality-asc', label: 'Calidad (menor)' },
-  { value: 'title-asc', label: 'Título (A-Z)' },
-  { value: 'date-desc', label: 'Más reciente' },
-  { value: 'date-asc', label: 'Más antiguo' },
+  { value: 'date-desc', label: 'Más recientes primero' },
+  { value: 'date-asc', label: 'Más antiguos primero' },
+  { value: 'quality-desc', label: 'Mayor calidad' },
+  { value: 'quality-asc', label: 'Menor calidad' },
+  { value: 'title-asc', label: 'Título (A–Z)' },
 ];
 
 export interface ActiveFilters {
@@ -86,7 +79,7 @@ export function parseActiveFilters(params: SearchParams): ActiveFilters {
   const limit = PAGE_SIZE_OPTIONS.includes(limitRaw as typeof PAGE_SIZE_OPTIONS[number])
     ? limitRaw
     : DEFAULT_PAGE_SIZE;
-  const sort = (readParam(params, 'sort') as PageSort) || 'quality-desc';
+  const sort = (readParam(params, 'sort') as PageSort) || DEFAULT_SORT;
 
   return {
     categorias: splitList(readParam(params, 'categorias')) as Category[],
@@ -178,7 +171,7 @@ export function buildFilterUrl(f: ActiveFilters, base = '/catalogo'): string {
   if (f.geo) params.set('geo', '1');
   if (f.page > 1) params.set('page', String(f.page));
   if (f.limit !== DEFAULT_PAGE_SIZE) params.set('limit', String(f.limit));
-  if (f.sort !== 'quality-desc') params.set('sort', f.sort);
+  if (f.sort !== DEFAULT_SORT) params.set('sort', f.sort);
   const qs = params.toString();
   return qs ? `${base}?${qs}` : base;
 }

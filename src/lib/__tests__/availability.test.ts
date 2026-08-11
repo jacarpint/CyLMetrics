@@ -157,7 +157,7 @@ describe('findSystemicCauses', () => {
   const rows = (n: number, format: string, causeCode: string, ds = (i: number) => `d${i}`): BrokenFileRow[] =>
     Array.from({ length: n }, (_, i) => ({
       datasetSlug: ds(i), datasetTitle: 'x', publisher: 'Org', category: 'c',
-      format, url: 'u', distIdx: 0, state: 'roto' as const, causeCode, causeLabel: causeCode,
+      format, url: 'u', distIdx: 0, distSlug: format.toLowerCase(), state: 'roto' as const, causeCode, causeLabel: causeCode,
     }));
 
   it('marca wholeFormat cuando el fallo alcanza a todos los recursos del formato', () => {
@@ -188,7 +188,7 @@ describe('findSystemicCauses', () => {
 describe('groupByField', () => {
   const mk = (category: string, slug: string): BrokenFileRow => ({
     datasetSlug: slug, datasetTitle: 't', publisher: 'org', category, format: 'CSV',
-    url: 'u', distIdx: 0, state: 'roto', causeCode: 'descarga', causeLabel: 'Descarga',
+    url: 'u', distIdx: 0, distSlug: 'csv', state: 'roto', causeCode: 'descarga', causeLabel: 'Descarga',
   });
 
   it('ordena los grupos por recursos afectados', () => {

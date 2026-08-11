@@ -1,11 +1,10 @@
 "use client";
 
-import { Columns3, TableProperties } from "lucide-react";
+import { Columns3 } from "lucide-react";
 import type { SchemaField } from "@/lib/quality-report";
 import { schemaTypeLabel } from "@/lib/quality-labels";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { cn } from "@/lib/utils";
 
 /**
  * En CSV/XLSX la unidad es la fila y la columna; en JSON, el registro y el
@@ -103,7 +102,7 @@ export function SchemaTable({ schema, unit = "row" }: { schema: SchemaField[]; u
                     </div>
                   </td>
                   <td className="px-3 py-2 text-right tabular-nums text-body">
-                    {field.distinct >= 1000 ? "1000+" : field.distinct.toLocaleString("es-ES")}
+                    {field.distinct.toLocaleString("es-ES")}
                   </td>
                   <td className="px-3 py-2 font-mono text-faint">{formatRange(field)}</td>
                 </tr>
@@ -116,74 +115,17 @@ export function SchemaTable({ schema, unit = "row" }: { schema: SchemaField[]; u
   );
 }
 
-export function SampleRowsTable({
-  header,
-  rows,
-  unit = "row",
-}: {
-  header?: (string | null)[];
-  rows: (string | null)[][];
-  unit?: SchemaUnit;
-}) {
-  const cols = rows.length > 0 ? Math.max(rows[0].length, header?.length ?? 0) : header?.length ?? 0;
-  if (cols === 0) {
-    return <p className="text-sm text-faint">Sin muestra de datos disponible.</p>;
-  }
-  const words = UNIT_WORDS[unit];
-  const colNames = Array.from({ length: cols }, (_, i) => header?.[i] ?? `${words.field} ${i + 1}`);
-  const maxCols = 12;
-
-  return (
-    <div className="overflow-x-auto rounded-lg border border-border">
-      <table className="w-full whitespace-nowrap text-xs">
-        <thead>
-          <tr className="border-b border-border bg-fill text-left">
-            <th scope="col" className="w-10 px-2.5 py-2 font-semibold text-faint">#</th>
-            {colNames.slice(0, maxCols).map((name, i) => (
-              <th key={i} scope="col" className="max-w-[16rem] truncate px-2.5 py-2 font-semibold text-body" title={name ?? ""}>
-                {name}
-              </th>
-            ))}
-            {cols > maxCols && <th scope="col" className="px-2.5 py-2 font-medium text-faint">+{cols - maxCols} más</th>}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row, ri) => (
-            <tr key={ri} className="border-b border-border last:border-0 hover:bg-fill">
-              <td className="px-2.5 py-1.5 tabular-nums text-faint">{ri + 1}</td>
-              {Array.from({ length: Math.min(cols, maxCols) }, (_, ci) => (
-                <td
-                  key={ci}
-                  className={cn("max-w-[16rem] truncate px-2.5 py-1.5", row[ci] == null ? "italic text-faint" : "text-body")}
-                  title={row[ci] ?? undefined}
-                >
-                  {row[ci] == null ? "vacío" : row[ci]}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
 export function SchemaExplorer({
   schema,
-  sampleRows,
-  header,
-  rowsLabel,
   unit = "row",
+  truncated = false,
 }: {
   schema: SchemaField[];
-  sampleRows: (string | null)[][];
-  header?: (string | null)[];
-  rowsLabel?: string;
   unit?: SchemaUnit;
+  /** La descarga se cortó por tamaño: las cifras son de la parte analizada. */
+  truncated?: boolean;
 }) {
-  const words = UNIT_WORDS[unit];
-
-  if (schema.length === 0 && sampleRows.length === 0) {
+  if (schema.length === 0) {
     return (
       <p className="text-sm text-faint">
         Sin esquema disponible: el recurso no tiene datos tabulares analizables.
@@ -192,26 +134,18 @@ export function SchemaExplorer({
   }
 
   return (
-    <div className="space-y-6">
-      {schema.length > 0 && (
-        <section>
-          <h3 className="eyebrow mb-3 flex items-center gap-1.5">
-            <Columns3 className="h-3.5 w-3.5" aria-hidden />
-            Esquema inferido (sobre la muestra analizada)
-          </h3>
-          <SchemaTable schema={schema} unit={unit} />
-        </section>
+    <section>
+      <h3 className="eyebrow mb-3 flex items-center gap-1.5">
+        <Columns3 className="h-3.5 w-3.5" aria-hidden />
+        {truncated ? "Esquema inferido (sobre la parte descargada)" : "Esquema inferido"}
+      </h3>
+      <SchemaTable schema={schema} unit={unit} />
+      {truncated && (
+        <p className="mt-2 text-xs text-warn">
+          El archivo supera el tope de descarga del analizador, así que nulos, valores distintos y
+          rangos corresponden solo a la parte que se pudo leer.
+        </p>
       )}
-
-      {sampleRows.length > 0 && (
-        <section>
-          <h3 className="eyebrow mb-3 flex items-center gap-1.5">
-            <TableProperties className="h-3.5 w-3.5" aria-hidden />
-            {rowsLabel ?? words.preview}
-          </h3>
-          <SampleRowsTable header={header} rows={sampleRows} unit={unit} />
-        </section>
-      )}
-    </div>
+    </section>
   );
 }

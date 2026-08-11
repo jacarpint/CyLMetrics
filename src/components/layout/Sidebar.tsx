@@ -17,13 +17,14 @@ export function Sidebar({ stats }: SidebarProps) {
   if (!isCatalogo) return null;
 
   return (
-    <aside className="hidden h-[calc(100vh-4.5rem)] w-64 flex-col border-r border-border bg-card lg:flex sticky top-[4.5rem]">
-      <div className="p-5 border-b border-border">
-        <div className="flex items-center gap-2 mb-1">
-          <Filter className="h-4 w-4 text-faint" />
-          <h2 className="text-sm font-semibold text-strong">Filtros</h2>
-        </div>
-        <p className="text-xs text-faint">Datos reales del catálogo de datosabiertos.jcyl.es</p>
+    // El panel entero se desplaza como una columna: antes la lista scrolleaba
+    // dentro de una altura fija y el botón de aplicar quedaba anclado encima.
+    <aside className="sticky top-[4.5rem] hidden max-h-[calc(100vh-4.5rem)] w-64 shrink-0 flex-col overflow-y-auto border-r border-border bg-card lg:flex">
+      <div className="border-b border-border px-5 py-4">
+        <h2 className="flex items-center gap-2 text-sm font-semibold text-strong">
+          <Filter className="h-4 w-4 text-faint" aria-hidden />
+          Filtros
+        </h2>
       </div>
       <FilterContent stats={stats} />
     </aside>
