@@ -1,0 +1,370 @@
+"""Motor de análisis: coordina descarga + analizador por distribución."""
+from __future__ import annotations
+
+import json
+import threading
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime
+from pathlib import Path
+from urllib.parse import unquote, urlsplit
+
+from .downloader import FetchResult, fetch, make_run_dir
+from .formats import REGISTRY
+
+# Formatos que se analizan como servicio HTTP (no se descarga archivo)
+SERVICE_FORMATS = {"WMS", "WFS"}
+
+# Formatos que admiten muestra truncada (streaming con tope)
+SAMPLEABLE_FORMATS = {"CSV", "TXT"}
+
+_PRINT_LOCK = threading.Lock()
+_VERBOSE = True  # lo activa run_analysis según `verbose`
+
+
+def _ts() -> str:
+    return datetime.now().strftime("%H:%M:%S")
+
+
+def _url_basename(url: str, max_len: int = 90) -> str:
+    name = unquote(urlsplit(url).path.rsplit("/", 1)[-1]) or url
+    return name if len(name) <= max_len else name[: max_len - 3] + "..."
+
+
+def vprint(line: str) -> None:
+    """Línea de detalle por item, hilo seguro."""
+    if not _VERBOSE:
+        return
+    with _PRINT_LOCK:
+        print(line, flush=True)
+
+
+def _size_str(size: int | None) -> str:
+    if not size:
+        return "peso desconocido"
+    return f"{size / 1e6:.1f} MB" if size >= 1e6 else f"{size / 1e3:.0f} KB"
+
+
+def _dataset_label(title: str, max_len: int = 60) -> str:
+    """Título del dataset recortado para la línea de consola."""
+    title = (title or "").strip()
+    if not title:
+        return "(sin titulo)"
+    return title if len(title) <= max_len else title[: max_len - 3] + "..."
+
+
+class ProgressReporter:
+    """Informe de avance en consola con ETA (hilo seguro)."""
+
+    def __init__(self, total: int, every: int = 25,
+                 done0: int = 0, ok0: int = 0, failed0: int = 0,
+                 skipped0: int = 0, bytes0: int = 0):
+        self.total = total
+        self.every = every
+        self.done = done0
+        self.ok = ok0
+        self.failed = failed0
+        self.skipped = skipped0
+        self.bytes_downloaded = bytes0
+        self.start = time.monotonic()
+        self.ema = 1.0  # segundos por item (media móvil)
+        self._lock = threading.Lock()
+
+    def update(self, result: dict, duration_s: float, size: int) -> None:
+        with self._lock:
+            self.done += 1
+            self.bytes_downloaded += size
+            if result.get("status") == "ok":
+                self.ok += 1
+            elif result.get("status") == "skipped":
+                self.skipped += 1
+            else:
+                self.failed += 1
+            if duration_s > 0:
+                self.ema = 0.8 * self.ema + 0.2 * duration_s
+            if self.done % self.every == 0 or self.done == self.total:
+                self._report_locked()
+
+    def _report_locked(self) -> None:
+        elapsed = time.monotonic() - self.start
+        remaining = (self.total - self.done) * self.ema if self.done else 0
+        pct = self.done / self.total * 100 if self.total else 100
+        mb = self.bytes_downloaded / 1e6
+        m, s = divmod(int(remaining), 60)
+        h, m = divmod(m, 60)
+        eta = f"{h}h{m:02d}m" if h else f"{m}m{s:02d}s"
+        print(
+            f"[{self.done}/{self.total}] {pct:5.1f}% | ok={self.ok} err={self.failed} skip={self.skipped} "
+            f"| {mb:6.1f} MB | vel={self.done/elapsed:.1f} it/s | ETA {eta}",
+            flush=True,
+        )
+
+    def final(self) -> None:
+        with self._lock:
+            self._report_locked()
+
+
+def _load_checkpoint(path: Path) -> dict[str, dict]:
+    """Carga resultados previos (JSONL) indexados por URL de distribución."""
+    done: dict[str, dict] = {}
+    if not path.exists():
+        return done
+    with open(path, "r", encoding="utf-8") as fh:
+        for line in fh:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                entry = json.loads(line)
+                url = entry.get("url", "")
+                if url and isinstance(entry.get("result"), dict):
+                    done[url] = entry["result"]
+            except Exception:
+                continue
+    return done
+
+
+def _append_checkpoint(path: Path, url: str, result: dict) -> None:
+    """Añade un resultado al checkpoint JSONL (append atómico por línea)."""
+    try:
+        with open(path, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps({"url": url, "result": result}, ensure_ascii=False) + "\n")
+    except Exception:
+        pass
+
+
+def run_item(item: dict, ctx: dict) -> dict:
+    """Analiza una distribución y devuelve su resultado normalizado."""
+    start = time.monotonic()
+    url = item.get("url", "")
+    fmt = item.get("format", "OTRO")
+    result: dict = {
+        "dataset_index": item["dataset_index"],
+        "dataset_id": item.get("dataset_id", ""),
+        "dataset_title": item.get("dataset_title", ""),
+        "format": fmt,
+        "mime": item.get("mime", ""),
+        "url": url,
+        "status": "error",
+        "fetch": None,
+        "analysis": None,
+        "duration_ms": 0,
+    }
+
+    if not url:
+        result["status"] = "skipped"
+        result["fetch"] = {"status": "no_url", "note": "La distribución no tiene URL de acceso"}
+        result["duration_ms"] = int((time.monotonic() - start) * 1000)
+        return result
+
+    ctx = {
+        **ctx,
+        "declared_format": fmt,
+        "service": fmt in SERVICE_FORMATS,
+    }
+
+    if fmt in SERVICE_FORMATS:
+        # WMS/WFS: análisis vía HTTP (GetCapabilities), sin archivo
+        try:
+            from .formats.ogc import analyze_ogc
+
+            vprint(f"[{_ts()}] → [{fmt}] {_url_basename(url)} · consultando GetCapabilities")
+            analysis = analyze_ogc(url, ctx)
+            result["fetch"] = {"status": "service", "size": 0, "http_status": None,
+                               "note": "Servicio OGC analizado vía GetCapabilities"}
+            result["status"] = "ok" if analysis["ok"] else "error"
+            result["analysis"] = analysis
+        except Exception as exc:
+            result["status"] = "error"
+            result["fetch"] = {"status": "error", "note": f"Fallo interno: {exc}"}
+        result["duration_ms"] = int((time.monotonic() - start) * 1000)
+        return result
+
+    # Descarga con tope de tamaño (muestra menor para formatos muestreables)
+    cap = ctx["sample_cap"] if fmt in SAMPLEABLE_FORMATS else ctx["size_cap"]
+
+    def _on_dl_start(info: dict) -> None:
+        # Muestra el progreso (N/total) y el dataset, no el peso declarado:
+        # el HEAD de datosabiertos.jcyl.es devuelve la pagina del portal (html)
+        # en vez del archivo, asi que ese peso casi nunca es fiable.
+        idx = ctx.get("item_index", "?")
+        total = ctx.get("total", "?")
+        vprint(f"[{_ts()}] > [{fmt}] ({idx}/{total}) {_dataset_label(item.get('dataset_title', ''))} | {_url_basename(url)} | inicia descarga")
+
+    fetch_res: FetchResult = fetch(url, ctx["run_dir"], cap,
+                                   timeout=ctx["timeout"], retries=ctx["retries"],
+                                   on_start=_on_dl_start)
+    result["fetch"] = {
+        "status": fetch_res.status,
+        "size": fetch_res.size,
+        "http_status": fetch_res.http_status,
+        "duration_ms": fetch_res.duration_ms,
+        "truncated": fetch_res.truncated,
+        "note": fetch_res.note,
+        "final_url": fetch_res.final_url,
+    }
+
+    if fetch_res.status == "too_large":
+        result["status"] = "skipped"
+        result["analysis"] = {
+            "ok": False, "score": None, "summary": fetch_res.note,
+            "metrics": {"size_bytes": fetch_res.size}, "issues": [],
+        }
+        result["duration_ms"] = int((time.monotonic() - start) * 1000)
+        return result
+
+    if fetch_res.status in ("http_error", "unreachable"):
+        result["status"] = "error"
+        result["analysis"] = {
+            "ok": False, "score": None, "summary": fetch_res.note,
+            "metrics": {}, "issues": [{"code": "descarga", "label": fetch_res.note,
+                                       "severity": "error", "count": 1}],
+        }
+        result["duration_ms"] = int((time.monotonic() - start) * 1000)
+        return result
+
+    if fetch_res.path is None or fetch_res.size == 0:
+        result["status"] = "error"
+        result["analysis"] = {
+            "ok": False, "score": None, "summary": "Archivo vacío (0 bytes)",
+            "metrics": {}, "issues": [{"code": "archivo-vacio", "label": "El archivo descargado está vacío",
+                                       "severity": "error", "count": 1}],
+        }
+        result["duration_ms"] = int((time.monotonic() - start) * 1000)
+        return result
+
+    # Ejecutar analizador del formato
+    analyzer = REGISTRY.get(fmt)
+    if analyzer is None:
+        from .formats.binary import analyze_binary
+
+        analyzer = analyze_binary
+
+    file_ctx = {
+        **ctx,
+        "truncated": fetch_res.truncated,
+        "size_bytes": fetch_res.size,
+    }
+    try:
+        analysis = analyzer(fetch_res.path, file_ctx)
+        result["analysis"] = analysis
+        # Fallos técnicos nuestros (dependencia no instalada, contenido que no es
+        # el formato declarado por la plataforma, etc.) NO son fallos del dataset:
+        # se marcan como "skipped" para no penalizar al proveedor ni al score.
+        if not analysis.get("ok"):
+            codes = {i.get("code") for i in analysis.get("issues", [])}
+            if codes & {"dependencia-faltante", "no-es-archivo", "no-es-imagen"}:
+                result["status"] = "skipped"
+            else:
+                result["status"] = "error"
+        else:
+            result["status"] = "ok"
+    except Exception as exc:
+        result["status"] = "error"
+        result["analysis"] = {
+            "ok": False, "score": None,
+            "summary": f"Fallo interno del analizador {fmt}: {type(exc).__name__}: {exc}",
+            "metrics": {}, "issues": [{"code": "fallo-analizador", "label": str(exc), "severity": "error", "count": 1}],
+        }
+    finally:
+        try:
+            fetch_res.path.unlink(missing_ok=True)
+        except Exception:
+            pass
+
+    result["duration_ms"] = int((time.monotonic() - start) * 1000)
+    return result
+
+
+def _print_item_done(result: dict, item_index: int | None = None, total: int | None = None) -> None:
+    """Línea de detalle al terminar cada item (dataset, progreso, peso real, resultado)."""
+    name = _url_basename(result.get("url", ""), max_len=40)
+    fmt = result.get("format", "?")
+    size = (result.get("fetch") or {}).get("size", 0)
+    dur = result["duration_ms"] / 1000
+    st = result.get("status")
+    analysis = result.get("analysis") or {}
+    score = analysis.get("score")
+    if st == "ok":
+        mark = "ok "
+        info = f"score {score}" if score is not None else "ok"
+    elif st == "skipped":
+        mark = "skp"
+        info = "omitido"
+    else:
+        mark = "err"
+        note = analysis.get("summary") or (result.get("fetch") or {}).get("note") or st
+        info = str(note)[:80]
+    where = f"({item_index + 1}/{total}) " if item_index is not None and total else ""
+    ds = _dataset_label(result.get("dataset_title", ""))
+    vprint(f"[{_ts()}] {mark} [{fmt}] {where}{ds} | {name} | {_size_str(size)} | {info} ({dur:.1f}s)")
+
+
+def run_analysis(items: list[dict], workers: int, size_cap: int, sample_cap: int | None = None,
+                 timeout: int = 60, retries: int = 2, progress_every: int = 25,
+                 checkpoint: Path | None = None, verbose: bool = True) -> list[dict]:
+    """Analiza `items`. Si `checkpoint` (JSONL) existe, reanuda saltando lo ya hecho.
+
+    Los resultados se indexan por URL de distribución, por lo que reanudar es
+    seguro incluso si el catálogo de entrada cambia de orden.
+    """
+    global _VERBOSE
+    _VERBOSE = verbose
+    run_dir = make_run_dir()
+    ctx = {"run_dir": run_dir, "size_cap": size_cap, "sample_cap": sample_cap or size_cap,
+           "timeout": timeout, "retries": retries}
+    results: list[dict | None] = [None] * len(items)
+
+    # Reanudación: volcar resultados previos en su posición
+    done_by_url: dict[str, dict] = {}
+    if checkpoint is not None:
+        done_by_url = _load_checkpoint(checkpoint)
+        for idx, item in enumerate(items):
+            prev = done_by_url.get(item.get("url", ""))
+            if prev is not None:
+                results[idx] = prev
+
+    done0 = sum(1 for r in results if r is not None)
+    ok0 = sum(1 for r in results if r is not None and r.get("status") == "ok")
+    failed0 = sum(1 for r in results if r is not None and r.get("status") == "error")
+    skipped0 = sum(1 for r in results if r is not None and r.get("status") == "skipped")
+    bytes0 = sum((r.get("fetch") or {}).get("size", 0) for r in results if r is not None)
+
+    reporter = ProgressReporter(total=len(items), every=progress_every,
+                                done0=done0, ok0=ok0, failed0=failed0,
+                                skipped0=skipped0, bytes0=bytes0)
+    pending = [idx for idx, r in enumerate(results) if r is None]
+
+    def _run(idx: int, item: dict) -> tuple[int, dict]:
+        # Blindaje total: un worker jamás debe morir (ni tumbar el run completo).
+        # Si run_item lanza algo inesperado, se registra como error analizable.
+        item_ctx = {**ctx, "item_index": idx, "total": len(items)}
+        try:
+            return idx, run_item(item, item_ctx)
+        except Exception as exc:
+            result: dict = {
+                "dataset_index": item.get("dataset_index"),
+                "dataset_id": item.get("dataset_id", ""),
+                "dataset_title": item.get("dataset_title", ""),
+                "format": item.get("format", "OTRO"),
+                "mime": item.get("mime", ""),
+                "url": item.get("url", ""),
+                "status": "error",
+                "fetch": {"status": "error", "note": f"Fallo interno del engine: {type(exc).__name__}: {exc}"},
+                "analysis": None,
+                "duration_ms": 0,
+            }
+            return idx, result
+
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = [pool.submit(_run, idx, items[idx]) for idx in pending]
+        for fut in as_completed(futures):
+            idx, result = fut.result()
+            results[idx] = result
+            if checkpoint is not None:
+                _append_checkpoint(checkpoint, items[idx].get("url", ""), result)
+            _print_item_done(result, idx, len(items))
+            reporter.update(result, result["duration_ms"] / 1000, (result["fetch"] or {}).get("size", 0))
+
+    reporter.final()
+    return results

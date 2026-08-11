@@ -1,0 +1,11 @@
+# Dependencias del análisis de calidad de datos (src/analysis)
+# Instalar: python -m venv .venv-analysis && .venv-analysis\Scripts\pip install -r requirements-analysis.txt
+frictionless[excel]>=5.19,<6
+pyshp>=2.3
+Pillow>=10.0
+icalendar>=5.0
+filetype>=1.2
+geojson>=3.0
+charset-normalizer>=3.0
+requests>=2.31
+pytest>=8.0
