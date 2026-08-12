@@ -9,7 +9,6 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { datasetSlug } from './utils';
 
 // Re-export para uso en servidor; los componentes cliente deben importar
 // desde `./quality-labels` (este módulo usa node:fs y no puede empaquetarse
@@ -26,7 +25,14 @@ import { issueCategory } from './quality-labels';
 
 const REPORT_PATH = path.join(process.cwd(), 'reports', 'data-analysis.json');
 const HISTORY_DIR = path.join(process.cwd(), 'reports', 'history');
-const CACHE_MS = 5 * 60 * 1000;
+
+/**
+ * Informes con menos datasets que esto son ejecuciones parciales (`--limit N`)
+ * y no representan al catálogo. `build-history-index.ts` ya las descarta; el
+ * mismo criterio tiene que aplicarse aquí o el índice y la página cuentan un
+ * número distinto de informes.
+ */
+const MIN_DATASETS_FOR_FULL_RUN = 50;
 
 export interface IssueSample {
   /** Row number (1-based, data row excluding header). */
@@ -174,21 +180,91 @@ export type QualityDatasetLite = {
 /* Carga                                                               */
 /* ------------------------------------------------------------------ */
 
-let cached: { at: number; report: QualityReport } | null = null;
+/**
+ * Firma de un fichero: ruta, fecha de modificación y tamaño.
+ *
+ * La caché se invalida comparando firmas, no por tiempo transcurrido. Antes
+ * caducaba a los 5 minutos, pero solo en la rama que leía
+ * `reports/data-analysis.json` — y ese fichero está en `.gitignore`, así que en
+ * un despliegue limpio nunca existe: cada render caía al historial, que se
+ * releía y reparseaba entero (26 MB, 300 ms medidos) sin guardar nada.
+ */
+function fileSignature(filePath: string): string | null {
+  try {
+    const stat = fs.statSync(filePath);
+    return `${filePath}:${stat.mtimeMs}:${stat.size}`;
+  } catch {
+    return null;
+  }
+}
+
+/** Ficheros del historial, del más reciente al más antiguo (por nombre). */
+function historyFiles(): string[] {
+  if (!fs.existsSync(HISTORY_DIR)) return [];
+  return fs
+    .readdirSync(HISTORY_DIR)
+    .filter((f) => f.endsWith('.json'))
+    .sort()
+    .reverse()
+    .map((f) => path.join(HISTORY_DIR, f));
+}
+
+/** Candidatos a informe vigente: el recién generado y, tras él, el historial. */
+function candidateReportPaths(): string[] {
+  const paths: string[] = [];
+  if (fs.existsSync(REPORT_PATH)) paths.push(REPORT_PATH);
+  paths.push(...historyFiles());
+  return paths;
+}
+
+function isValidReport(value: unknown): value is QualityReport {
+  const report = value as QualityReport | null;
+  return Boolean(
+    report &&
+      Array.isArray(report.datasets) &&
+      report.totals != null &&
+      typeof report.generated_at === 'string'
+  );
+}
+
+/** True si el informe cubre el catálogo entero (no es una ejecución con `--limit`). */
+function isFullRun(report: QualityReport): boolean {
+  return report.datasets.length >= MIN_DATASETS_FOR_FULL_RUN;
+}
+
+function readReport(filePath: string): QualityReport | null {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(filePath, 'utf-8')) as unknown;
+    return isValidReport(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+let cached: { key: string; report: QualityReport | null } | null = null;
 
 /** Devuelve el informe tipado, o null si aún no se ha generado. */
 export function getQualityReport(): QualityReport | null {
-  if (!fs.existsSync(REPORT_PATH)) return getLatestValidHistoryReport();
-  if (cached && Date.now() - cached.at < CACHE_MS) return cached.report;
-  try {
-    const raw = fs.readFileSync(REPORT_PATH, 'utf-8');
-    const report = JSON.parse(raw) as QualityReport;
-    cached = { at: Date.now(), report };
-    return report;
-  } catch {
-    // Informe corrupto: intentar fallback al último válido del historial.
-    return getLatestValidHistoryReport();
+  const candidates = candidateReportPaths();
+  // La clave incluye la firma del candidato preferido y el número de ficheros
+  // del historial: así se detecta tanto que el informe se ha regenerado como
+  // que ha entrado uno nuevo en el historial.
+  const key = candidates.length > 0
+    ? `${fileSignature(candidates[0]) ?? candidates[0]}|${candidates.length}`
+    : 'sin-informe';
+  if (cached && cached.key === key) return cached.report;
+
+  let report: QualityReport | null = null;
+  for (const filePath of candidates) {
+    const parsed = readReport(filePath);
+    if (parsed) {
+      report = parsed;
+      break;
+    }
   }
+
+  cached = { key, report };
+  return report;
 }
 
 /** Información de un informe en el historial. */
@@ -198,35 +274,28 @@ export interface HistoryEntry {
   filePath: string;
 }
 
-/** Lista los informes del historial ordenados por fecha descendente. */
+/**
+ * Lista los informes del historial ordenados por fecha descendente.
+ *
+ * La fecha sale del nombre del fichero (`analysis-2026-08-10T13-18-40.json`),
+ * que lo escribe `manage-reports.ts` a partir de `generated_at`. Antes se
+ * abría y parseaba cada informe solo para leer ese campo: 200 ms de JSON por
+ * una cadena que ya estaba en el nombre.
+ */
 export function listHistory(): HistoryEntry[] {
-  if (!fs.existsSync(HISTORY_DIR)) return [];
-  const files = fs.readdirSync(HISTORY_DIR).filter((f) => f.endsWith('.json')).sort().reverse();
-  return files.map((filename) => {
-    const filePath = path.join(HISTORY_DIR, filename);
-    try {
-      const raw = fs.readFileSync(filePath, 'utf-8');
-      const report = JSON.parse(raw) as QualityReport;
-      return { filename, generatedAt: report.generated_at, filePath };
-    } catch {
-      return { filename, generatedAt: '', filePath };
-    }
-  }).filter((e) => e.generatedAt);
+  return historyFiles()
+    .map((filePath) => ({
+      filename: path.basename(filePath),
+      generatedAt: generatedAtFromFilename(path.basename(filePath)),
+      filePath,
+    }))
+    .filter((entry) => entry.generatedAt);
 }
 
-/** Devuelve el último informe válido del historial (fallback). */
-function getLatestValidHistoryReport(): QualityReport | null {
-  const entries = listHistory();
-  for (const entry of entries) {
-    try {
-      const raw = fs.readFileSync(entry.filePath, 'utf-8');
-      const report = JSON.parse(raw) as QualityReport;
-      if (report.datasets && report.totals) return report;
-    } catch {
-      continue;
-    }
-  }
-  return null;
+/** `analysis-2026-08-10T13-18-40.json` → `2026-08-10T13:18:40`. */
+function generatedAtFromFilename(filename: string): string {
+  const match = filename.match(/^analysis-(\d{4}-\d{2}-\d{2})T(\d{2})-(\d{2})-(\d{2})\.json$/);
+  return match ? `${match[1]}T${match[2]}:${match[3]}:${match[4]}` : '';
 }
 
 /* ------------------------------------------------------------------ */
@@ -243,57 +312,111 @@ export interface HistorySnapshot {
   healthyDatasets: number;
   warningDatasets: number;
   criticalDatasets: number;
+  /**
+   * Datasets sin puntuación de contenido: ni un solo archivo legible que medir.
+   * Se cuentan aparte en vez de omitirse, que era lo que hacía que la interfaz
+   * enseñara «436 / 0 / 0» de 824 y afirmara «0 críticos» justo al lado de «el
+   * 35% de los archivos no abre».
+   */
+  unscoredDatasets: number;
+  totalDatasets: number;
 }
 
-/** Carga los N últimos informes válidos del historial como snapshots. */
+let snapshotCache: { key: string; snapshots: HistorySnapshot[] } | null = null;
+
+/**
+ * Carga los N últimos informes completos del historial como snapshots.
+ *
+ * Las ejecuciones parciales quedan fuera, con el mismo umbral que usa
+ * `build-history-index.ts`: si no, el índice contaba 2 informes y esta función
+ * 3, y la página mezclaba las dos cifras.
+ */
 export function loadHistorySnapshots(maxEntries = 20): HistorySnapshot[] {
   const entries = listHistory().slice(0, maxEntries).reverse();
+  const key = `${maxEntries}|${entries.map((e) => fileSignature(e.filePath) ?? e.filename).join(',')}`;
+  if (snapshotCache && snapshotCache.key === key) return snapshotCache.snapshots;
+
   const snapshots: HistorySnapshot[] = [];
   for (const entry of entries) {
-    try {
-      const raw = fs.readFileSync(entry.filePath, 'utf-8');
-      const report = JSON.parse(raw) as QualityReport;
-      // Validación estructural: ignora informes de un esquema antiguo/incompleto.
-      if (!report || !Array.isArray(report.datasets) || !report.totals || typeof report.generated_at !== 'string') {
-        continue;
-      }
-      const healthy = report.datasets.filter((d) => d.score != null && d.score >= 80).length;
-      const warning = report.datasets.filter((d) => d.score != null && d.score >= 50 && d.score < 80).length;
-      const critical = report.datasets.filter((d) => d.score != null && d.score < 50).length;
-      snapshots.push({
-        date: report.generated_at.slice(0, 10),
-        totalDistributions: report.totals.distributions,
-        ok: report.totals.ok,
-        error: report.totals.error,
-        skipped: report.totals.skipped,
-        avgScore: report.totals.avg_score,
-        healthyDatasets: healthy,
-        warningDatasets: warning,
-        criticalDatasets: critical,
-      });
-    } catch {
-      // Archivo corrupto o ilegible: se omite del historial.
-      continue;
+    const report = readReport(entry.filePath);
+    if (!report || !isFullRun(report)) continue;
+    let healthy = 0;
+    let warning = 0;
+    let critical = 0;
+    let unscored = 0;
+    for (const ds of report.datasets) {
+      if (ds.score == null) unscored++;
+      else if (ds.score >= 80) healthy++;
+      else if (ds.score >= 50) warning++;
+      else critical++;
     }
+    snapshots.push({
+      date: report.generated_at.slice(0, 10),
+      totalDistributions: report.totals.distributions,
+      ok: report.totals.ok,
+      error: report.totals.error,
+      skipped: report.totals.skipped,
+      avgScore: report.totals.avg_score,
+      healthyDatasets: healthy,
+      warningDatasets: warning,
+      criticalDatasets: critical,
+      unscoredDatasets: unscored,
+      totalDatasets: report.datasets.length,
+    });
   }
+
+  snapshotCache = { key, snapshots };
   return snapshots;
 }
 
-/** Localiza un dataset del informe por el slug numérico de su dataset_id. */
-export function findReportDatasetBySlug(report: QualityReport | null, slug: string): QualityDatasetSummary | null {
-  if (!report) return null;
-  return report.datasets.find((d) => datasetSlug(d.dataset_id) === slug) ?? null;
-}
-
 /**
- * Localiza una distribución dentro de un dataset del informe por su índice
- * dentro de `distribution_results` (usado como `[distIdx]` en la URL).
+ * Empareja las distribuciones del catálogo con sus resultados del informe.
+ *
+ * El emparejamiento es por URL, no por posición. Antes se leía
+ * `distribution_results[idx]` directamente: hoy los índices coinciden, pero el
+ * catálogo es una fuente en vivo y el informe una foto, así que el día que la
+ * Junta reordene o retire una distribución la ficha enseñaría el análisis de
+ * otro archivo sin dar ninguna señal. Con la URL como clave eso no puede pasar.
+ *
+ * El índice se mantiene como respaldo para las URLs que hayan cambiado de forma
+ * (redirecciones, un `?v=` añadido) sin que el recurso sea otro: solo se usa si
+ * esa posición no se ha emparejado ya por URL.
  */
-export function findDistribution(
-  dataset: QualityDatasetSummary,
-  distIdx: number
-): DistributionResult | null {
-  return dataset.distribution_results[distIdx] ?? null;
+export function matchDistributions(
+  catalogDistributions: readonly { url: string }[],
+  reportResults: readonly DistributionResult[] | undefined
+): (DistributionResult | undefined)[] {
+  if (!reportResults || reportResults.length === 0) {
+    return catalogDistributions.map(() => undefined);
+  }
+
+  const byUrl = new Map<string, DistributionResult[]>();
+  for (const result of reportResults) {
+    const bucket = byUrl.get(result.url);
+    if (bucket) bucket.push(result);
+    else byUrl.set(result.url, [result]);
+  }
+
+  const used = new Set<DistributionResult>();
+  const matched: (DistributionResult | undefined)[] = catalogDistributions.map((dist) => {
+    const candidates = byUrl.get(dist.url);
+    const hit = candidates?.find((c) => !used.has(c));
+    if (hit) used.add(hit);
+    return hit;
+  });
+
+  // Segunda pasada: posiciones sin emparejar caen a su índice, siempre que ese
+  // resultado no se haya asignado ya a otra distribución por URL.
+  matched.forEach((hit, idx) => {
+    if (hit) return;
+    const fallback = reportResults[idx];
+    if (fallback && !used.has(fallback)) {
+      used.add(fallback);
+      matched[idx] = fallback;
+    }
+  });
+
+  return matched;
 }
 
 /** Versión ligera de cada dataset, apta para pasar a componentes cliente. */

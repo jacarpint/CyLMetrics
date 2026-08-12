@@ -15,20 +15,26 @@
  */
 
 import type { QualityDatasetSummary, QualityReport } from './quality-report';
-import { issueCategory, issueLabel, type IssueCategory } from './quality-labels';
 
 export type AlertLevel = 'critical' | 'warning';
 
+/**
+ * Causa de una alerta.
+ *
+ * Solo el código y el recuento: `label` y `category` se derivan de `code` con
+ * `issueLabel` e `issueCategory`, ambas client-safe. La lista entera viaja al
+ * navegador (se filtra en cliente), y mandar las etiquetas ya resueltas para
+ * las ~1.400 causas de las 555 alertas engordaba el HTML sin aportar nada.
+ */
 export interface AlertCause {
   code: string;
-  label: string;
   count: number;
-  category: IssueCategory;
 }
 
 export interface DatasetAlert {
   datasetId: string;
   title: string;
+  /** Puntuación compuesta del dataset (metadatos + disponibilidad + contenido). */
   score: number | null;
   level: AlertLevel;
   causes: AlertCause[];
@@ -101,13 +107,13 @@ export function classifyDataset(ds: QualityDatasetSummary): DatasetAlert | null 
   for (const [code, count] of Object.entries(ds.issues_by_code)) {
     if (BLOCKING_ISSUE_CODES.has(code)) {
       hasBlocking = true;
-      causes.push({ code, label: issueLabel(code), count, category: issueCategory(code) });
+      causes.push({ code, count });
     } else if (
       HIGH_IMPACT_CONTENT_CODES.has(code) ||
       (code === 'celda-faltante' && count >= MISSING_CELL_THRESHOLD)
     ) {
       hasContent = true;
-      causes.push({ code, label: issueLabel(code), count, category: issueCategory(code) });
+      causes.push({ code, count });
     }
   }
 
@@ -132,24 +138,28 @@ export function classifyDataset(ds: QualityDatasetSummary): DatasetAlert | null 
   };
 }
 
-/** Construye la lista de alertas ordenadas por peor score primero. */
-export function buildAlerts(report: QualityReport | null): DatasetAlert[] {
+/**
+ * Construye la lista de alertas, de peor puntuación a mejor.
+ *
+ * `resolveScore` permite sustituir la puntuación de contenido del informe por la
+ * compuesta, que es la que ve el usuario en el resto del portal. El nivel
+ * (crítico / advertencia) no depende de ella: lo decide si hay una incidencia
+ * bloqueante o si el contenido baja de 50, como hasta ahora.
+ */
+export function buildAlerts(
+  report: QualityReport | null,
+  resolveScore?: (ds: QualityDatasetSummary) => number | null
+): DatasetAlert[] {
   if (!report) return [];
-  const alerts = report.datasets
-    .map(classifyDataset)
-    .filter((a): a is DatasetAlert => a != null);
-  alerts.sort((a, b) => (a.score ?? 0) - (b.score ?? 0));
+  const alerts: DatasetAlert[] = [];
+  for (const ds of report.datasets) {
+    const alert = classifyDataset(ds);
+    if (!alert) continue;
+    if (resolveScore) alert.score = resolveScore(ds);
+    alerts.push(alert);
+  }
+  // Las que no tienen puntuación van primero: no hay nada legible que medir.
+  alerts.sort((a, b) => (a.score ?? -1) - (b.score ?? -1));
   return alerts;
 }
 
-/** Texto plano de las alertas para exportar (TXT). */
-export function alertsToText(alerts: DatasetAlert[]): string {
-  return alerts
-    .map(
-      (a) =>
-        `[${a.level.toUpperCase()}] ${a.title} (${a.datasetId})\n` +
-        `  Score: ${a.score ?? 'N/A'}%\n` +
-        a.causes.map((c) => `  - ${c.label} (×${c.count})`).join('\n')
-    )
-    .join('\n\n');
-}

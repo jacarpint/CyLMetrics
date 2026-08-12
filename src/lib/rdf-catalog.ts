@@ -16,6 +16,13 @@ import path from 'node:path';
 import { XMLParser } from 'fast-xml-parser';
 import type { CatalogData, CatalogStats, Category, DataFormat, Dataset, DatasetStatus, DistributionUrl, License } from '@/lib/types';
 import { timeAgo } from '@/lib/quality';
+import {
+  completenessRatio,
+  diagnoseFreshness,
+  findMetadataGaps,
+  type FreshnessReport,
+  type MetadataGapCode,
+} from '@/lib/metadata-gaps';
 
 export const RDF_CATALOG_URL =
   'https://datosabiertos.jcyl.es/web/jcyl/risp/es/ciencia-tecnologia/general/1284166186527.rdf';
@@ -49,10 +56,26 @@ const IMT_TO_FORMAT: Record<string, DataFormat> = {
   'application/octet-stream': 'BIN',
 };
 
-const LICENSE_URL_TO_LABEL: Record<string, License> = {
-  'https://creativecommons.org/licenses/by/4.0/deed.es_ES': 'CC-BY-4.0',
-  'https://www.jcyl.es/licencia-IGCYL-NC': 'IGCYL-NC',
-};
+/**
+ * Reconocimiento de licencias por patrón, no por igualdad de cadena.
+ *
+ * Antes era un diccionario con dos URIs exactas. Cualquier variación —una barra
+ * final, `http` en vez de `https`, `deed.es` en vez de `deed.es_ES`, otra ruta
+ * para la licencia IGCYL— caía en `Otro` en silencio, y eso tiene dos costes:
+ * el dataset pierde un punto de completitud por una licencia que SÍ declara, y
+ * la pestaña de metadatos le reprocha al publicador un hueco que no existe.
+ *
+ * Se observó de verdad: el feed en vivo devolvió una variante en la que 169
+ * datasets con licencia IGCYL declarada acabaron como `Otro`.
+ */
+const LICENSE_PATTERNS: { test: RegExp; label: License }[] = [
+  { test: /creativecommons\.org\/licenses\/by-sa\/4\.0/i, label: 'CC-BY-SA-4.0' },
+  { test: /creativecommons\.org\/licenses\/by\/4\.0/i, label: 'CC-BY-4.0' },
+  { test: /creativecommons\.org\/publicdomain\/zero\/1\.0/i, label: 'CC0' },
+  { test: /opendatacommons\.org\/licenses\/odbl/i, label: 'ODbL' },
+  // La licencia propia de la Junta: uso no comercial.
+  { test: /igcyl/i, label: 'IGCYL-NC' },
+];
 
 const THEME_TO_CATEGORY: Record<string, Category> = {
   'http://datos.gob.es/kos/sector-publico/sector/medio-ambiente': 'Medio Ambiente',
@@ -155,8 +178,17 @@ function mapFormat(mimeType: string): DataFormat {
   return IMT_TO_FORMAT[mimeType.trim().toLowerCase()] ?? 'OTRO';
 }
 
-function mapLicense(resource: string): License {
-  return LICENSE_URL_TO_LABEL[resource] ?? 'Otro';
+/**
+ * Identifica la licencia a partir de lo que declare el RDF.
+ *
+ * Acepta tanto `rdf:resource` como el texto del nodo: hay feeds que la publican
+ * de una forma y otros de la otra, y leer solo el atributo dejaba la licencia
+ * como no identificada.
+ */
+export function mapLicense(value: unknown): License {
+  const declared = (resourceOf(value) || textOf(value)).trim();
+  if (!declared) return 'Otro';
+  return LICENSE_PATTERNS.find((p) => p.test.test(declared))?.label ?? 'Otro';
 }
 
 function mapCategory(theme: string): Category {
@@ -209,23 +241,30 @@ export function computeQuality(dataset: {
   keywords: string[];
   periodicityMonths?: number;
   formats: DataFormat[];
+  identifier?: string;
+  contactPoint?: string;
   now: Date;
-}): { score: number; status: DatasetStatus; breakdown: QualityBreakdown; freshnessSource: 'modified' | 'issued' | 'none' } {
+}): {
+  score: number;
+  status: DatasetStatus;
+  breakdown: QualityBreakdown;
+  freshnessSource: 'modified' | 'issued' | 'none';
+  /** Huecos concretos, para que la interfaz pueda decir qué falta. */
+  gaps: MetadataGapCode[];
+  /**
+   * Por qué la actualidad puntúa lo que puntúa. No es el valor del eje —ese va
+   * en `breakdown.freshness`—, es su explicación.
+   */
+  freshnessReport: FreshnessReport;
+} {
   const { now } = dataset;
 
   // 1) Completitud de metadatos (40%)
-  const fields = [
-    !!dataset.title,
-    !!dataset.description,
-    dataset.license !== 'Otro',
-    !!dataset.publisher,
-    !!dataset.issued,
-    !!dataset.language,
-    !!dataset.spatial,
-    dataset.themes.length > 0,
-    dataset.keywords.length > 0,
-  ];
-  const completeness = (fields.filter(Boolean).length / fields.length) * 100;
+  // Derivada de `findMetadataGaps`, que es la única definición de qué campos
+  // cuentan: si la nota se calculara aparte de la lista de huecos, acabarían
+  // discrepando (el mismo fallo que tuvo `classifyDelivery`).
+  const gaps = findMetadataGaps(dataset);
+  const completeness = completenessRatio(gaps) * 100;
 
   // 2) Disponibilidad de formatos abiertos (25%)
   let formatScore = 0;
@@ -267,6 +306,13 @@ export function computeQuality(dataset: {
     status,
     breakdown: { completeness, formatScore, freshness, licenseScore },
     freshnessSource,
+    gaps,
+    freshnessReport: diagnoseFreshness({
+      issued: dataset.issued,
+      modified: dataset.modified,
+      periodicityMonths: dataset.periodicityMonths,
+      now,
+    }),
   };
 }
 
@@ -297,6 +343,10 @@ interface RawDataset {
     spatial?: unknown;
     accrualPeriodicity?: unknown;
     distribution?: unknown;
+    // Recomendaciones DCAT-AP que el catálogo no publica hoy (0 de 824). Se leen
+    // para poder informar del hueco; no entran en la puntuación.
+    identifier?: unknown;
+    contactPoint?: unknown;
   };
 }
 
@@ -309,7 +359,12 @@ const xmlParser = new XMLParser({
 });
 
 /** Parsea el XML RDF/XML del catálogo y devuelve los datasets normalizados. */
-export function parseCatalog(xml: string, sourceUrl: string, fetchedAt: string): CatalogData {
+export function parseCatalog(
+  xml: string,
+  sourceUrl: string,
+  fetchedAt: string,
+  origin: CatalogData['source']['origin'] = 'remote'
+): CatalogData {
   const doc = xmlParser.parse(xml) as { RDF?: { Catalog?: { dataset?: RawDataset | RawDataset[] } } };
   const rawDatasets = toArray<RawDataset>(doc?.RDF?.Catalog?.dataset);
   const now = new Date();
@@ -326,11 +381,14 @@ export function parseCatalog(xml: string, sourceUrl: string, fetchedAt: string):
       const keywords = toArray(d.keyword).map(textOf).filter(Boolean);
       const publisher = resourceOf(d.publisher);
       const publisherName = publisherNameOf(d.publisher, publisher) || undefined;
-      const license = mapLicense(resourceOf(d.license));
+      const license = mapLicense(d.license);
       const issued = textOf(d.issued);
       const modified = textOf(d.modified);
       const spatial = resourceOf(d.spatial);
       const language = textOf(d.language);
+      const identifier = textOf(d.identifier) || resourceOf(d.identifier);
+      // `contactPoint` es un nodo vCard: basta con saber si viene o no.
+      const contactPoint = resourceOf(d.contactPoint) || (d.contactPoint != null ? 'presente' : '');
 
       const periodicityMonths = parsePeriodicityMonths(d.accrualPeriodicity);
 
@@ -346,7 +404,7 @@ export function parseCatalog(xml: string, sourceUrl: string, fetchedAt: string):
 
       const formats = Array.from(new Set(distributionUrls.map((d) => d.format)));
 
-      const { score, status, freshnessSource } = computeQuality({
+      const { score, status, freshnessSource, gaps, freshnessReport } = computeQuality({
         title,
         description,
         license,
@@ -359,6 +417,8 @@ export function parseCatalog(xml: string, sourceUrl: string, fetchedAt: string):
         keywords,
         periodicityMonths,
         formats,
+        identifier,
+        contactPoint,
         now,
       });
 
@@ -391,6 +451,8 @@ export function parseCatalog(xml: string, sourceUrl: string, fetchedAt: string):
         keywords: keywords.length > 0 ? keywords : undefined,
         periodicityMonths,
         distributionUrls,
+        metadataGaps: gaps,
+        freshness: freshnessReport,
       };
     });
 
@@ -399,7 +461,13 @@ export function parseCatalog(xml: string, sourceUrl: string, fetchedAt: string):
   return {
     datasets,
     stats: computeStats(datasets),
-    source: { url: sourceUrl, fetchedAt, datasetCount: datasets.length, distributionCount: datasets.reduce((n, d) => n + d.distributionUrls.length, 0) },
+    source: {
+      url: sourceUrl,
+      fetchedAt,
+      datasetCount: datasets.length,
+      distributionCount: datasets.reduce((n, d) => n + d.distributionUrls.length, 0),
+      origin,
+    },
   };
 }
 
@@ -470,6 +538,7 @@ export function computeStats(datasets: Dataset[]): CatalogStats {
 interface CatalogSource {
   xml: string;
   sourceUrl: string;
+  origin: 'remote' | 'local';
 }
 
 const FETCH_TIMEOUT_MS = 15000;
@@ -486,7 +555,7 @@ async function loadCatalogXml(): Promise<CatalogSource | null> {
     if (res.ok) {
       const xml = await res.text();
       if (xml.trim().length > 0) {
-        return { xml, sourceUrl: RDF_CATALOG_URL };
+        return { xml, sourceUrl: RDF_CATALOG_URL, origin: 'remote' };
       }
     }
   } catch {
@@ -499,7 +568,7 @@ async function loadCatalogXml(): Promise<CatalogSource | null> {
     if (fs.existsSync(LOCAL_CATALOG_PATH)) {
       const xml = fs.readFileSync(LOCAL_CATALOG_PATH, 'utf-8');
       if (xml.trim().length > 0) {
-        return { xml, sourceUrl: `file://${LOCAL_CATALOG_PATH}` };
+        return { xml, sourceUrl: `file://${LOCAL_CATALOG_PATH}`, origin: 'local' };
       }
     }
   } catch {
@@ -509,7 +578,16 @@ async function loadCatalogXml(): Promise<CatalogSource | null> {
   return null;
 }
 
-let cachedCatalog: { at: number; data: CatalogData } | null = null;
+/**
+ * Último catálogo servible y cuándo toca volver a intentar refrescarlo.
+ *
+ * `nextAttemptAt` se separa de la fecha del dato a propósito: un refresco
+ * fallido no invalida lo que ya teníamos, solo adelanta el siguiente intento.
+ */
+let cachedCatalog: { data: CatalogData; nextAttemptAt: number } | null = null;
+
+/** Reintento corto tras un fallo, en vez de esperar la hora completa. */
+const RETRY_AFTER_FAILURE_MS = 60 * 1000;
 
 function emptyCatalog(): CatalogData {
   const now = new Date().toISOString();
@@ -532,40 +610,59 @@ function emptyCatalog(): CatalogData {
       fetchedAt: now,
       datasetCount: 0,
       distributionCount: 0,
+      origin: 'none',
     },
   };
 }
 
 /**
- * Devuelve el catálogo completo (datasets + stats). La copia remota se
- * revalida cada hora; el parseo queda memorizado durante el mismo periodo.
- * Nunca lanza: si fallan la red y la copia local, devuelve un catálogo vacío
- * de emergencia para no tumbar el shell de la aplicación.
+ * Intenta obtener un catálogo utilizable, o null si no hay forma.
+ *
+ * Un parseo "exitoso" que no produce ni un dataset se trata como fallo: casi
+ * siempre significa que la fuente devolvió una página de error con código 200.
+ */
+async function refreshCatalog(): Promise<CatalogData | null> {
+  const source = await loadCatalogXml();
+  if (!source) return null;
+  try {
+    const data = parseCatalog(source.xml, source.sourceUrl, new Date().toISOString(), source.origin);
+    return data.datasets.length > 0 ? data : null;
+  } catch {
+    // XML corrupto o con un esquema no esperado.
+    return null;
+  }
+}
+
+/**
+ * Devuelve el catálogo completo (datasets + stats): siempre lo más actualizado
+ * que se pueda conseguir.
+ *
+ * La copia remota se revalida cada hora. Si el refresco falla —red caída, jcyl
+ * sin responder, XML corrupto— se sigue sirviendo el último catálogo bueno y se
+ * reintenta en un minuto, en lugar de reemplazarlo. Antes cualquier fallo
+ * puntual guardaba un catálogo VACÍO en la caché durante la hora entera: un
+ * parpadeo de red en el momento justo dejaba el portal enseñando «0 datasets» y
+ * medias al 0% durante sesenta minutos, teniendo el dato bueno un segundo antes.
+ *
+ * Nunca lanza. Solo devuelve el catálogo vacío si nunca se ha conseguido
+ * ninguno, y en ese caso no lo memoriza: el siguiente request vuelve a probar.
  */
 export async function getCatalog(): Promise<CatalogData> {
-  if (cachedCatalog && Date.now() - cachedCatalog.at < REVALIDATE_SECONDS * 1000) {
+  const now = Date.now();
+  if (cachedCatalog && now < cachedCatalog.nextAttemptAt) {
     return cachedCatalog.data;
   }
 
-  const source = await loadCatalogXml();
-  if (!source) {
-    cachedCatalog = { at: Date.now(), data: emptyCatalog() };
+  const fresh = await refreshCatalog();
+  if (fresh) {
+    cachedCatalog = { data: fresh, nextAttemptAt: now + REVALIDATE_SECONDS * 1000 };
+    return fresh;
+  }
+
+  if (cachedCatalog) {
+    cachedCatalog.nextAttemptAt = now + RETRY_AFTER_FAILURE_MS;
     return cachedCatalog.data;
   }
 
-  try {
-    const data = parseCatalog(source.xml, source.sourceUrl, new Date().toISOString());
-    // Validación estructural: si un parse "exitoso" no produce datasets,
-    // probablemente la fuente devolvió una página de error con código 200.
-    if (data.datasets.length === 0) {
-      cachedCatalog = { at: Date.now(), data: emptyCatalog() };
-      return cachedCatalog.data;
-    }
-    cachedCatalog = { at: Date.now(), data };
-    return data;
-  } catch {
-    // XML corrupto o con un esquema no esperado: catálogo vacío de emergencia.
-    cachedCatalog = { at: Date.now(), data: emptyCatalog() };
-    return cachedCatalog.data;
-  }
+  return emptyCatalog();
 }

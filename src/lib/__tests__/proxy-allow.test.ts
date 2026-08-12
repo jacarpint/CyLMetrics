@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import { isAllowedHost, ALLOWED_DOMAINS } from '../proxy-allow';
+import { isAllowedHost, isAllowedResponse, ALLOWED_DOMAINS } from '../proxy-allow';
 
 describe('isAllowedHost', () => {
   it('admite los hosts reales del catálogo', () => {
@@ -47,6 +47,29 @@ describe('isAllowedHost', () => {
 
   it('no distingue mayúsculas en el host', () => {
     expect(isAllowedHost('https://DatosAbiertos.JCYL.es/x')).toBe(true);
+  });
+});
+
+/**
+ * El proxy sigue redirecciones, así que validar solo la URL pedida deja abierta
+ * la puerta de atrás: un recurso permitido que redirija fuera se descargaría
+ * igual desde nuestro servidor.
+ */
+describe('isAllowedResponse', () => {
+  const pedida = 'https://datosabiertos.jcyl.es/x.csv';
+
+  it('admite un redirect dentro de los dominios permitidos', () => {
+    expect(isAllowedResponse({ url: 'https://idecyl.jcyl.es/geoserver/x' }, pedida)).toBe(true);
+  });
+
+  it('rechaza un redirect que sale de la allowlist', () => {
+    expect(isAllowedResponse({ url: 'https://atacante.com/x' }, pedida)).toBe(false);
+    expect(isAllowedResponse({ url: 'http://169.254.169.254/latest/meta-data/' }, pedida)).toBe(false);
+  });
+
+  it('sin URL final, se juzga la pedida', () => {
+    expect(isAllowedResponse({}, pedida)).toBe(true);
+    expect(isAllowedResponse({ url: '' }, 'https://atacante.com/x')).toBe(false);
   });
 });
 

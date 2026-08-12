@@ -20,7 +20,7 @@ xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
 <dct:description xml:lang="es">Catálogo de datos públicos abiertos de la Junta de Castilla y León, que se ofrecen en www.datosabiertos.jcyl.es</dct:description>
 <dct:license rdf:resource="https://datosabiertos.jcyl.es/web/es/catalogo-datos/terminos.html" />
 <dct:issued rdf:datatype="http://www.w3.org/2001/XMLSchema#dateTime">2012-03-27T00:00:00</dct:issued>
-<dct:modified rdf:datatype="http://www.w3.org/2001/XMLSchema#dateTime">2026-08-08T05:30:03</dct:modified>
+<dct:modified rdf:datatype="http://www.w3.org/2001/XMLSchema#dateTime">2026-08-12T03:36:58</dct:modified>
 <dc:language>es</dc:language> 
 <dcat:themeTaxonomy rdf:resource="http://datos.gob.es/kos/sector-publico/sector/"/>
 <dcat:dataset>
@@ -2897,6 +2897,58 @@ La información se ordena en los siguientes campos: denominación de entidad, c�
 </dcat:Dataset>
 </dcat:dataset>
 <dcat:dataset>
+<dcat:Dataset rdf:about="https://datosabiertos.jcyl.es/web/jcyl/set/es/medio-ambiente/autorizaciones-ambientales/1285162712921" dct:identifier="https://datosabiertos.jcyl.es/web/jcyl/set/es/medio-ambiente/autorizaciones-ambientales/1285162712921" >
+<dct:title xml:lang="es">Autorizaciones ambientales</dct:title>
+<dct:description xml:lang="es">La Autorización Ambiental es la resolución escrita del órgano competente de la comunidad autónoma en la que se ubique la instalación, por la que se permite, a los efectos de la protección del medio ambiente y de la salud de las personas, explotar la totalidad o parte de una instalación, bajo determinadas condiciones destinadas a garantizar que la misma cumple el objeto y las disposiciones de la normativa europea y española sobre prevención y control integrados de la contaminación.
+
+Así, se constituye en el máximo nivel de intervención administrativa de carácter ambiental. Está dirigido a las instalaciones con un mayor potencial de incidencia ambiental y determina las condiciones de la explotación de la actividad, a fin de lograr la máxima protección del medio ambiente.
+
+El conjunto de datos contiene múltiples campos sobre los expedientes autorizados, incluyendo la localización, documentos y publicidad, así como datos técnicos.</dct:description>
+<dcat:theme rdf:resource="http://datos.gob.es/kos/sector-publico/sector/medio-ambiente"/>
+<dcat:keyword xml:lang="es">medio ambiente</dcat:keyword>
+<dcat:keyword xml:lang="es"> protección del medio ambiente</dcat:keyword>
+<dct:language>es</dct:language>
+<dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
+<dct:license rdf:resource="https://creativecommons.org/licenses/by/4.0/deed.es_ES"/>
+<dcat:distribution>
+<dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/autorizaciones-ambientales/1285162712921.csv">
+<dct:title xml:lang="es">Autorizaciones ambientales</dct:title>
+<dct:format>
+<dct:IMT rdf:value="text/csv" rdfs:label="CSV" />
+</dct:format>
+<dcat:accessURL rdf:datatype="http://www.w3.org/2001/XMLSchema#anyURI">https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/autorizaciones-ambientales/1285162712921.csv</dcat:accessURL>
+</dcat:Distribution>
+</dcat:distribution>
+<dcat:distribution>
+<dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/autorizaciones-ambientales/1285162712921.json">
+<dct:title xml:lang="es">Autorizaciones ambientales</dct:title>
+<dct:format>
+<dct:IMT rdf:value="application/json" rdfs:label="JSON" />
+</dct:format>
+<dcat:accessURL rdf:datatype="http://www.w3.org/2001/XMLSchema#anyURI">https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/autorizaciones-ambientales/1285162712921.json</dcat:accessURL>
+</dcat:Distribution>
+</dcat:distribution>
+<dcat:distribution>
+<dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/autorizaciones-ambientales/1285162712921.xls">
+<dct:title xml:lang="es">Autorizaciones ambientales</dct:title>
+<dct:format>
+<dct:IMT rdf:value="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" rdfs:label="XLS" />
+</dct:format>
+<dcat:accessURL rdf:datatype="http://www.w3.org/2001/XMLSchema#anyURI">https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/autorizaciones-ambientales/1285162712921.xls</dcat:accessURL>
+</dcat:Distribution>
+</dcat:distribution>
+<dct:accrualPeriodicity>
+<dct:Frequency>
+<rdf:value><time:DurationDescription>
+<time:months rdf:datatype="http://www.w3.org/2001/XMLSchema#decimal">1</time:months>
+</time:DurationDescription></rdf:value>
+</dct:Frequency>
+</dct:accrualPeriodicity>
+<dct:issued rdf:datatype="http://www.w3.org/2001/XMLSchema#date">2022-04-27T00:00:00</dct:issued>
+<dct:spatial rdf:resource="http://datos.gob.es/recurso/sector-publico/territorio/Autonomia/Castilla-Leon"/>
+</dcat:Dataset>
+</dcat:dataset>
+<dcat:dataset>
 <dcat:Dataset rdf:about="https://datosabiertos.jcyl.es/web/jcyl/set/es/medio-rural-pesca/alertas-plagas-agricolas/1284902271050" dct:identifier="https://datosabiertos.jcyl.es/web/jcyl/set/es/medio-rural-pesca/alertas-plagas-agricolas/1284902271050" >
 <dct:title xml:lang="es">Avisos de plagas agrícolas en la comunidad de Castilla y León</dct:title>
 <dct:description xml:lang="es">Avisos de plagas agrícolas que surgen a raíz de los datos de monitorización que se controlan en distintos tipos de cultivos y plagas, según se describe en el Observatorio de Plagas de Castilla y León, junto con recomendaciones, fichas de ayuda, etc, en cada caso.</dct:description>
@@ -4049,7 +4101,7 @@ Se distribuye en formato shapefile por hojas 1:50.000 del Mapa Topográfico Naci
 <dcat:keyword xml:lang="es"> 1_25.000</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/SIOSE2005CyL/1284207327910.shp">
 <dct:title xml:lang="es">SIOSE 2005 Castilla y León</dct:title>
@@ -5904,7 +5956,7 @@ A partir del factor agroambiental es posible evaluar la posibilidad de ampliaci�
 <dcat:keyword xml:lang="es"> Instalaciones de observación del medio ambiente</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/factor-agroambiental-ganadero/1285116360707-1.shp">
 <dct:title xml:lang="es">municipales</dct:title>
@@ -5948,7 +6000,7 @@ Representación cartográfica de incidencia municipal por presencia de nitratos 
 <dcat:keyword xml:lang="es"> Instalaciones de observación del medio ambiente</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/nitratos-aguas-subterraneas/1285116419717.shp">
 <dct:title xml:lang="es">Contaminación agraria CyL: nitratos aguas subterráneas</dct:title>
@@ -7099,7 +7151,7 @@ Se trata de una malla formada por elementos comprendidos entre dos paralelos y d
 <dcat:keyword xml:lang="es">Sistema de cuadrículas geográficas</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/energia/cuadricula-minera-cyl/1284813456589.shp">
 <dct:title xml:lang="es">Cuadrícula minera de Castilla y León</dct:title>
@@ -8456,7 +8508,7 @@ El fichero incluye el número de pescadores de una edad determinada que hay en c
 <dcat:keyword xml:lang="es"> Muestras de suelo</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-rural-pesca/edafologia/1284225647057.jpg">
 <dct:title xml:lang="es">Edafología</dct:title>
@@ -11828,7 +11880,7 @@ Su elaboración y permanente actualización resulta posible gracias a la colabor
 <dcat:keyword xml:lang="es"> Fotogrametría</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/fotografia_aerea/1284207326052.ecw">
 <dct:title xml:lang="es">Fotografía aérea ortorrectificada de Castilla y León</dct:title>
@@ -11860,7 +11912,7 @@ También se publican los fotogramas aéreos del vuelo americano 1956-57. En este
 <dcat:keyword xml:lang="es"> vuelo 1956</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/urbanismo-infraestructuras/fotogramas_aereos/1284225619893.jpg">
 <dct:title xml:lang="es">Fotogramas aereos</dct:title>
@@ -12749,7 +12801,7 @@ Se incluyen las iniciativas normativas de leyes, decretos legislativos, decretos
 <dcat:keyword xml:lang="es"> Servicios de utilidad pública y estatales</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/aguas-residuales-edaru/1285031887133.shp">
 <dct:title xml:lang="es">Aguas residuales CyL: EDARU</dct:title>
@@ -12782,7 +12834,7 @@ Se recoge y representa mediante mapas la delimitación geográfica de cada uno d
 <dcat:keyword xml:lang="es">Lugares protegidos</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/cultura-ocio/areas-proteccion/1284872783628.shp">
 <dct:title xml:lang="es">Bienes de Interés Cultural de Castilla y León: áreas de protección</dct:title>
@@ -12814,7 +12866,7 @@ Se recoge y representa mediante mapas la geometría que delimita cada uno de los
 <dcat:keyword xml:lang="es">Lugares protegidos</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/cultura-ocio/bienes-inmuebles/1284872768044.shp">
 <dct:title xml:lang="es">Bienes de Interés Cultural (BIC) de Castilla y León: bienes inmuebles</dct:title>
@@ -12848,7 +12900,7 @@ Se representa mediante mapas la trayectoria seguida por los elementos del patrim
 <dcat:keyword xml:lang="es">Lugares protegidos</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/cultura-ocio/ejes/1284872784706.shp">
 <dct:title xml:lang="es">Bienes de Interés Cultural de Castilla y León: ejes</dct:title>
@@ -12880,7 +12932,7 @@ Frecuencia de actualización:  Según necesidad</dct:description>
 <dcat:keyword xml:lang="es"> a restricciones o reglamentaciones y unidades de notificación</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/prug-sierra-guadarrama/1284968592279.wms">
 <dct:title xml:lang="es">Cartografía del PRUG Sierra de Guadarrama</dct:title>
@@ -12902,7 +12954,7 @@ Frecuencia de actualización:  Según necesidad</dct:description>
 <dcat:keyword xml:lang="es">Elevaciones</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/altimetria-lineas/1284687116916.shp">
 <dct:title xml:lang="es">Cartografía Topográfica Urbana 1:1.000: Altimetria - lineas</dct:title>
@@ -12931,7 +12983,7 @@ Frecuencia de actualización:  Según necesidad</dct:description>
 <dcat:keyword xml:lang="es">Elevaciones</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/altimetria-poligonos/1284687132965.shp">
 <dct:title xml:lang="es">Cartografía Topográfica Urbana 1:1.000: Altimetria - polígonos</dct:title>
@@ -12960,7 +13012,7 @@ Frecuencia de actualización:  Según necesidad</dct:description>
 <dcat:keyword xml:lang="es">Elevaciones</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/altimetria-puntos/1284687151032.shp">
 <dct:title xml:lang="es">Cartografía Topográfica Urbana 1:1.000: Altimetria - puntos</dct:title>
@@ -12989,7 +13041,7 @@ Frecuencia de actualización:  Según necesidad</dct:description>
 <dcat:keyword xml:lang="es">Elevaciones</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/altimetria-textos/1284687154372.shp">
 <dct:title xml:lang="es">Cartografía Topográfica Urbana 1:1.000: Altimetria - textos</dct:title>
@@ -13018,7 +13070,7 @@ Frecuencia de actualización:  Según necesidad</dct:description>
 <dcat:keyword xml:lang="es">Cubierta terrestre</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/cubierta-terrestre-lineas/1284687155171.shp">
 <dct:title xml:lang="es">Cartografía Topográfica Urbana 1:1.000: Cubierta Terrestre - lineas</dct:title>
@@ -13047,7 +13099,7 @@ Frecuencia de actualización:  Según necesidad</dct:description>
 <dcat:keyword xml:lang="es">Cubierta terrestre</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/cubierta-terrestre-poligonos/1284687161791.shp">
 <dct:title xml:lang="es">Cartografía Topográfica Urbana 1:1.000: Cubierta Terrestre - polígonos</dct:title>
@@ -13076,7 +13128,7 @@ Frecuencia de actualización:  Según necesidad</dct:description>
 <dcat:keyword xml:lang="es">Cubierta terrestre</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/cubierta-terrestre-textos/1284687165029.shp">
 <dct:title xml:lang="es">Cartografía Topográfica Urbana 1:1.000: Cubierta Terrestre - textos</dct:title>
@@ -13105,7 +13157,7 @@ Frecuencia de actualización:  Según necesidad</dct:description>
 <dcat:keyword xml:lang="es">Edificios</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/edificaciones-construcciones-lineas/1284687167187.shp">
 <dct:title xml:lang="es">Cartografía Topográfica Urbana 1:1.000: Edificaciones y Construcciones - lineas</dct:title>
@@ -13134,7 +13186,7 @@ Frecuencia de actualización:  Según necesidad</dct:description>
 <dcat:keyword xml:lang="es">Edificios</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/edificaciones-construcciones-poligonos/1284687167997.shp">
 <dct:title xml:lang="es">Cartografía Topográfica Urbana 1:1.000: Edificaciones y Construcciones - polígonos</dct:title>
@@ -13163,7 +13215,7 @@ Frecuencia de actualización:  Según necesidad</dct:description>
 <dcat:keyword xml:lang="es">Edificios</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/edificaciones-construcciones-puntos/1284687169352.shp">
 <dct:title xml:lang="es">Cartografía Topográfica Urbana 1:1.000: Edificaciones y Construcciones - puntos</dct:title>
@@ -13192,7 +13244,7 @@ Frecuencia de actualización:  Según necesidad</dct:description>
 <dcat:keyword xml:lang="es">Edificios</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/edificaciones-construcciones-textos/1284687173496.shp">
 <dct:title xml:lang="es">Cartografía Topográfica Urbana 1:1.000: Edificaciones y Construcciones - textos</dct:title>
@@ -13221,7 +13273,7 @@ Frecuencia de actualización:  Según necesidad</dct:description>
 <dcat:keyword xml:lang="es">Hidrografía</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/hidrografia-lineas/1284687176801.shp">
 <dct:title xml:lang="es">Cartografía Topográfica Urbana 1:1.000: Hidrografía - lineas</dct:title>
@@ -13250,7 +13302,7 @@ Frecuencia de actualización:  Según necesidad</dct:description>
 <dcat:keyword xml:lang="es">Hidrografía</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/hidrografia-poligonos/1284687180228.shp">
 <dct:title xml:lang="es">Cartografía Topográfica Urbana 1:1.000: Hidrografía - polígonos</dct:title>
@@ -13279,7 +13331,7 @@ Frecuencia de actualización:  Según necesidad</dct:description>
 <dcat:keyword xml:lang="es">Hidrografía</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/hidrografia-puntos/1284687184949.shp">
 <dct:title xml:lang="es">Cartografía Topográfica Urbana 1:1.000: Hidrografía - puntos</dct:title>
@@ -13308,7 +13360,7 @@ Frecuencia de actualización:  Según necesidad</dct:description>
 <dcat:keyword xml:lang="es">Hidrografía</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/hidrografia-textos/1284687191147.shp">
 <dct:title xml:lang="es">Cartografía Topográfica Urbana 1:1.000: Hidrografía - textos</dct:title>
@@ -13337,7 +13389,7 @@ Frecuencia de actualización:  Según necesidad</dct:description>
 <dcat:keyword xml:lang="es">Sistema de cuadrículas geográficas;Redes de transporte</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/informacion-auxiliar-lineas/1284687192746.shp">
 <dct:title xml:lang="es">Cartografía Topográfica Urbana 1:1.000: Información auxiliar - lineas</dct:title>
@@ -13366,7 +13418,7 @@ Frecuencia de actualización:  Según necesidad</dct:description>
 <dcat:keyword xml:lang="es">Sistemas de coordenadas de referencia</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/puntos-referencia-puntos/1284687195471.shp">
 <dct:title xml:lang="es">Cartografía Topográfica Urbana 1:1.000: Puntos de referencia - puntos</dct:title>
@@ -13395,7 +13447,7 @@ Frecuencia de actualización:  Según necesidad</dct:description>
 <dcat:keyword xml:lang="es">Sistemas de coordenadas de referencia</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/puntos-referencia-textos/1284687200518.shp">
 <dct:title xml:lang="es">Cartografía Topográfica Urbana 1:1.000: Puntos de referencia - textos</dct:title>
@@ -13424,7 +13476,7 @@ Frecuencia de actualización:  Según necesidad</dct:description>
 <dcat:keyword xml:lang="es">Redes de transporte</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/redes-transporte-lineas/1284687203268.shp">
 <dct:title xml:lang="es">Cartografía Topográfica Urbana 1:1.000: Redes de transporte - lineas</dct:title>
@@ -13453,7 +13505,7 @@ Frecuencia de actualización:  Según necesidad</dct:description>
 <dcat:keyword xml:lang="es">Redes de transporte</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/redes-transporte-poligonos/1284687204842.shp">
 <dct:title xml:lang="es">Cartografía Topográfica Urbana 1:1.000: Redes de transporte - polígonos</dct:title>
@@ -13482,7 +13534,7 @@ Frecuencia de actualización:  Según necesidad</dct:description>
 <dcat:keyword xml:lang="es">Redes de transporte</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/redes-transporte-puntos/1284687207309.shp">
 <dct:title xml:lang="es">Cartografía Topográfica Urbana 1:1.000: Redes de transporte - puntos</dct:title>
@@ -13511,7 +13563,7 @@ Frecuencia de actualización:  Según necesidad</dct:description>
 <dcat:keyword xml:lang="es">Redes de transporte</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/redes-transporte-textos/1284687209548.shp">
 <dct:title xml:lang="es">Cartografía Topográfica Urbana 1:1.000: Redes de transporte - textos</dct:title>
@@ -13540,7 +13592,7 @@ Frecuencia de actualización:  Según necesidad</dct:description>
 <dcat:keyword xml:lang="es">Servicios de utilidad pública y estatales</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/servicios-instalaciones-lineas/1284687211569.shp">
 <dct:title xml:lang="es">Cartografía Topográfica Urbana 1:1.000: Servicios e instalaciones - lineas</dct:title>
@@ -13569,7 +13621,7 @@ Frecuencia de actualización:  Según necesidad</dct:description>
 <dcat:keyword xml:lang="es">Servicios de utilidad pública y estatales</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/servicios-instalaciones-poligonos/1284687228850.shp">
 <dct:title xml:lang="es">Cartografía Topográfica Urbana 1:1.000: Servicios e instalaciones - polígonos</dct:title>
@@ -13598,7 +13650,7 @@ Frecuencia de actualización:  Según necesidad</dct:description>
 <dcat:keyword xml:lang="es">Servicios de utilidad pública y estatales</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/servicios-instalaciones-puntos/1284687235094.shp">
 <dct:title xml:lang="es">Cartografía Topográfica Urbana 1:1.000: Servicios e instalaciones - puntos</dct:title>
@@ -13627,7 +13679,7 @@ Frecuencia de actualización:  Según necesidad</dct:description>
 <dcat:keyword xml:lang="es">Servicios de utilidad pública y estatales</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/servicios-instalaciones-textos/1284687238181.shp">
 <dct:title xml:lang="es">Cartografía Topográfica Urbana 1:1.000: Servicios e instalaciones - textos</dct:title>
@@ -13656,7 +13708,7 @@ Frecuencia de actualización:  Según necesidad</dct:description>
 <dcat:keyword xml:lang="es">Unidades administrativas</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/unidades-asministrativas-textos/1284687238822.shp">
 <dct:title xml:lang="es">Cartografía Topográfica Urbana 1:1.000: Unidades Administrativas - textos</dct:title>
@@ -13685,7 +13737,7 @@ Frecuencia de actualización:  Según necesidad</dct:description>
 <dcat:keyword xml:lang="es">Sistema de cuadrículas geográficas</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/mtn10-cyl/1284687246070.shp">
 <dct:title xml:lang="es">Cuadrícula geográfica de distribución de hojas MTN10 de Castilla y León</dct:title>
@@ -13714,7 +13766,7 @@ Frecuencia de actualización:  Según necesidad</dct:description>
 <dcat:keyword xml:lang="es">Sistema de cuadrículas geográficas</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/mtn100-cl/1284687253300.shp">
 <dct:title xml:lang="es">Cuadrícula geográfica de distribución de hojas MTN100 de Castilla y León</dct:title>
@@ -13743,7 +13795,7 @@ Frecuencia de actualización:  Según necesidad</dct:description>
 <dcat:keyword xml:lang="es">Sistema de cuadrículas geográficas</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/mtn200-cl/1284687264190.shp">
 <dct:title xml:lang="es">Cuadrícula geográfica de distribución de hojas MTN200 de Castilla y León</dct:title>
@@ -13772,7 +13824,7 @@ Frecuencia de actualización:  Según necesidad</dct:description>
 <dcat:keyword xml:lang="es">Sistema de cuadrículas geográficas</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/mtn25-cyl/1284687264994.shp">
 <dct:title xml:lang="es">Cuadrícula geográfica de distribución de hojas MTN25 de Castilla y León</dct:title>
@@ -13801,7 +13853,7 @@ Frecuencia de actualización:  Según necesidad</dct:description>
 <dcat:keyword xml:lang="es">Sistema de cuadrículas geográficas</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/mtn5-cyl/1284687267116.shp">
 <dct:title xml:lang="es">Cuadrícula geográfica de distribución de hojas MTN5 de Castilla y León</dct:title>
@@ -13830,7 +13882,7 @@ Frecuencia de actualización:  Según necesidad</dct:description>
 <dcat:keyword xml:lang="es">Sistema de cuadrículas geográficas</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/mtn50-cyl/1284687269918.shp">
 <dct:title xml:lang="es">Cuadrícula geográfica de distribución de hojas MTN50 de Castilla y León</dct:title>
@@ -13864,7 +13916,7 @@ Permite la localización y representación de los diferentes tramos y zonas háb
 <dcat:keyword xml:lang="es"> a restricciones o reglamentaciones y unidades de notificación</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/delimitacion-cartografica-blackbass/1285154880418.shp">
 <dct:title xml:lang="es">Pesca CyL: delimitación cartográfica carpa</dct:title>
@@ -13900,7 +13952,7 @@ Constituye una de las cartografías básicas de referencia de la Comunidad Autó
 <dcat:keyword xml:lang="es">Hidrografía</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/hidrografia-cursos-fluviales/1284872026926.shp">
 <dct:title xml:lang="es">Hidrografía de Castilla y León: cursos fluviales</dct:title>
@@ -13936,7 +13988,7 @@ Constituye una de las cartografías básicas de referencia de la Comunidad Autó
 <dcat:keyword xml:lang="es">Hidrografía</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/hidrografia-masas-agua/1284872027137.shp">
 <dct:title xml:lang="es">Hidrografía de Castilla y León: masas de agua</dct:title>
@@ -13966,7 +14018,7 @@ Constituye una de las cartografías básicas de referencia de la Comunidad Autó
 <dcat:keyword xml:lang="es">Unidades administrativas</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/limites-autonomicos-cyl-recintos/1284687277756.shp">
 <dct:title xml:lang="es">Límites autonómicos de Castilla y León: recintos</dct:title>
@@ -14001,7 +14053,7 @@ Capa de entidades geométricas de tipo polígono.</dct:description>
 <dcat:keyword xml:lang="es">Unidades estadísticas</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/limites-entidades-poblacion-recintos/1284872029895.shp">
 <dct:title xml:lang="es">Límites de entidades de población de Castilla y León: recintos</dct:title>
@@ -14031,7 +14083,7 @@ Capa de entidades geométricas de tipo polígono.</dct:description>
 <dcat:keyword xml:lang="es">Unidades administrativas</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/limites-municipales-cyl-lineas-limite/1284687279115.shp">
 <dct:title xml:lang="es">Límites municipales de Castilla y León: líneas límite</dct:title>
@@ -14060,7 +14112,7 @@ Capa de entidades geométricas de tipo polígono.</dct:description>
 <dcat:keyword xml:lang="es">Unidades administrativas</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/limites-municipales-cyl-recintos/1284687284691.shp">
 <dct:title xml:lang="es">Límites municipales de Castilla y León: recintos</dct:title>
@@ -14089,7 +14141,7 @@ Capa de entidades geométricas de tipo polígono.</dct:description>
 <dcat:keyword xml:lang="es">Unidades administrativas</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/limites-provinciales-cyl-recintos/1284687285400.shp">
 <dct:title xml:lang="es">Límites provinciales de Castilla y León: recintos</dct:title>
@@ -14118,7 +14170,7 @@ Capa de entidades geométricas de tipo polígono.</dct:description>
 <dcat:keyword xml:lang="es">Lugares protegidos</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/ambitos-aplicacion-especies-protegisas-cyl/1284687286509.shp">
 <dct:title xml:lang="es">Mapa de Ámbitos de Aplicación de Especies Protegidas de Castilla y León</dct:title>
@@ -14148,7 +14200,7 @@ Capa de entidades geométricas de tipo polígono.</dct:description>
 <dcat:keyword xml:lang="es">Lugares protegidos</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/arboles-singulares-cyl/1284687288895.shp">
 <dct:title xml:lang="es">Mapa de Árboles Singulares de Castilla y León</dct:title>
@@ -14178,7 +14230,7 @@ Capa de entidades geométricas de tipo polígono.</dct:description>
 <dcat:keyword xml:lang="es">Lugares protegidos</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/areas-criticas-especies-protegidas-cyl/1284687290975.shp">
 <dct:title xml:lang="es">Mapa de Áreas Críticas de Especies Protegidas de Castilla y León</dct:title>
@@ -14208,7 +14260,7 @@ Capa de entidades geométricas de tipo polígono.</dct:description>
 <dcat:keyword xml:lang="es">Lugares protegidos</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/areas-relevancia-la-alondra-ricoti-cyl/1284687293711.shp">
 <dct:title xml:lang="es">Mapa de Áreas de relevancia de la Alondra Ricoti en Castilla y León</dct:title>
@@ -14238,7 +14290,7 @@ Capa de entidades geométricas de tipo polígono.</dct:description>
 <dcat:keyword xml:lang="es">Salud y seguridad humanas</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/areas-salud-cyl/1284687294103.shp">
 <dct:title xml:lang="es">Mapa de Áreas de Salud de Castilla y León</dct:title>
@@ -14267,7 +14319,7 @@ Capa de entidades geométricas de tipo polígono.</dct:description>
 <dcat:keyword xml:lang="es">Salud y seguridad humanas</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/centros-salud-cyl/1284687294839.shp">
 <dct:title xml:lang="es">Mapa de Centros de Salud de Castilla y León</dct:title>
@@ -14303,7 +14355,7 @@ La certificación forestal es un instrumento que garantiza y demuestra al consum
 <dcat:keyword xml:lang="es"> a restricciones o reglamentaciones y unidades de notificación</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/certificacion-forestal-montes-cyl/1284687295333.shp">
 <dct:title xml:lang="es">Montes de Castilla y León: certificación forestal sostenible (PEFC)</dct:title>
@@ -14333,7 +14385,7 @@ La certificación forestal es un instrumento que garantiza y demuestra al consum
 <dcat:keyword xml:lang="es">Unidades estadísticas</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/comarcas-medio-ambiente-cyl/1284687310081.shp">
 <dct:title xml:lang="es">Mapa de Comarcas de Medio Ambiente de Castilla y León</dct:title>
@@ -14363,7 +14415,7 @@ La certificación forestal es un instrumento que garantiza y demuestra al consum
 <dcat:keyword xml:lang="es">Geología</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/Geologico-cyl-litologia/1284688150618.shp">
 <dct:title xml:lang="es">Mapa Geológico de Castilla y León: Litología</dct:title>
@@ -14392,7 +14444,7 @@ La certificación forestal es un instrumento que garantiza y demuestra al consum
 <dcat:keyword xml:lang="es">Geología</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/Geologico-cyl-tectonica/1284688160053.shp">
 <dct:title xml:lang="es">Mapa Geológico de Castilla y León: Tectónica</dct:title>
@@ -14421,7 +14473,7 @@ La certificación forestal es un instrumento que garantiza y demuestra al consum
 <dcat:keyword xml:lang="es">Lugares protegidos</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/la-red-espacios-naturales-cyl/1284687312196.shp">
 <dct:title xml:lang="es">Mapa de la Red de Espacios Naturales de Castilla y León (REN)</dct:title>
@@ -14451,7 +14503,7 @@ La certificación forestal es un instrumento que garantiza y demuestra al consum
 <dcat:keyword xml:lang="es">Lugares protegidos</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/material-forestal-reproduccion-cyl/1284687319076.shp">
 <dct:title xml:lang="es">Mapa de Materiales de Base para la producción de Material Forestal de Reproducción (MFR) de Castilla y León</dct:title>
@@ -14481,7 +14533,7 @@ La certificación forestal es un instrumento que garantiza y demuestra al consum
 <dcat:keyword xml:lang="es">Lugares protegidos</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/montes-utilidad-publica-cyl/1284687320824.shp">
 <dct:title xml:lang="es">Mapa de Montes de Utilidad Pública (MUP) de Castilla y León</dct:title>
@@ -14511,7 +14563,7 @@ La certificación forestal es un instrumento que garantiza y demuestra al consum
 <dcat:keyword xml:lang="es">Unidades estadísticas</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/secciones-territoriales-medio-ambiente-cyl/1284687310970.shp">
 <dct:title xml:lang="es">Mapa de Secciones Territoriales de Medio Ambiente de Castilla y León</dct:title>
@@ -14552,7 +14604,7 @@ La información cartográfica de los límites de los cotos de caza ofrecida en e
 <dcat:keyword xml:lang="es"> a restricciones o reglamentaciones y unidades de notificación</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/terrenos-cinegeticos-cyl/1285071377531.shp">
 <dct:title xml:lang="es">Caza CyL: terrenos cinegéticos</dct:title>
@@ -14582,7 +14634,7 @@ La información cartográfica de los límites de los cotos de caza ofrecida en e
 <dcat:keyword xml:lang="es">Edificios</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/topografico-10000-edificaciones-construcciones-poligonos/1284688179706.shp">
 <dct:title xml:lang="es">Mapa Topográfico de Castilla y León 1:10.000: Edificaciones y Construcciones - polígonos</dct:title>
@@ -14611,7 +14663,7 @@ La información cartográfica de los límites de los cotos de caza ofrecida en e
 <dcat:keyword xml:lang="es">Cubierta terrestre</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/topografico-5000-cubierta-terrestre-poligonos/1284688349246.shp">
 <dct:title xml:lang="es">Mapa Topográfico de Castilla y León 1:5.000: Cubierta Terrestre - polígonos</dct:title>
@@ -14640,7 +14692,7 @@ La información cartográfica de los límites de los cotos de caza ofrecida en e
 <dcat:keyword xml:lang="es">Edificios</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/topografico-5000-edificaciones-construcciones-poligonos/1284688350845.shp">
 <dct:title xml:lang="es">Mapa Topográfico de Castilla y León 1:5.000: Edificaciones y Construcciones - polígonos</dct:title>
@@ -14669,7 +14721,7 @@ La información cartográfica de los límites de los cotos de caza ofrecida en e
 <dcat:keyword xml:lang="es">Servicios de utilidad pública y estatales</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/topografico-5000-servicios-instalaciones-poligonos/1284688427061.shp">
 <dct:title xml:lang="es">Mapa Topográfico de Castilla y León 1:5.000: Servicios e instalaciones - polígonos</dct:title>
@@ -14698,7 +14750,7 @@ La información cartográfica de los límites de los cotos de caza ofrecida en e
 <dcat:keyword xml:lang="es">Cubierta terrestre</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/topografico-10000-cubierta-terrestre-lineas/1284688166725.shp">
 <dct:title xml:lang="es">Mapa Topográfico de Castilla y León 1:10.000: Cubierta Terrestre - lineas</dct:title>
@@ -14727,7 +14779,7 @@ La información cartográfica de los límites de los cotos de caza ofrecida en e
 <dcat:keyword xml:lang="es">Cubierta terrestre</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/topografico-10000-cubierta-terrestre-puntos/1284688168122.shp">
 <dct:title xml:lang="es">Mapa Topográfico de Castilla y León 1:10.000: Cubierta Terrestre - puntos</dct:title>
@@ -14756,7 +14808,7 @@ La información cartográfica de los límites de los cotos de caza ofrecida en e
 <dcat:keyword xml:lang="es">Edificios</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/topografico-10000-edificaciones-construcciones-lineas/1284688170237.shp">
 <dct:title xml:lang="es">Mapa Topográfico de Castilla y León 1:10.000: Edificaciones y Construcciones - lineas</dct:title>
@@ -14785,7 +14837,7 @@ La información cartográfica de los límites de los cotos de caza ofrecida en e
 <dcat:keyword xml:lang="es">Edificios</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/topografico-10000-edificaciones-construcciones-puntos/1284688188002.shp">
 <dct:title xml:lang="es">Mapa Topográfico de Castilla y León 1:10.000: Edificaciones y Construcciones - puntos</dct:title>
@@ -14814,7 +14866,7 @@ La información cartográfica de los límites de los cotos de caza ofrecida en e
 <dcat:keyword xml:lang="es">Nombres geográficos</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/topografico-10000-nombres-geograficos-puntos/1284688326135.shp">
 <dct:title xml:lang="es">Mapa Topográfico de Castilla y León 1:10.000: Nombres geográficos - puntos</dct:title>
@@ -14843,7 +14895,7 @@ La información cartográfica de los límites de los cotos de caza ofrecida en e
 <dcat:keyword xml:lang="es">Servicios de utilidad pública y estatales</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/topografico-10000-servicios-instalaciones-lineas/1284688335045.shp">
 <dct:title xml:lang="es">Mapa Topográfico de Castilla y León 1:10.000: Servicios e instalaciones - lineas</dct:title>
@@ -14872,7 +14924,7 @@ La información cartográfica de los límites de los cotos de caza ofrecida en e
 <dcat:keyword xml:lang="es">Servicios de utilidad pública y estatales</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/topografico-10000-servicios-instalaciones-puntos/1284688336261.shp">
 <dct:title xml:lang="es">Mapa Topográfico de Castilla y León 1:10.000: Servicios e instalaciones - puntos</dct:title>
@@ -14901,7 +14953,7 @@ La información cartográfica de los límites de los cotos de caza ofrecida en e
 <dcat:keyword xml:lang="es">Redes de transporte</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/topografico-5000-redes-transporte-poligonos/1284688381958.shp">
 <dct:title xml:lang="es">Mapa Topográfico de Castilla y León 1:5.000: Redes de transporte - polígonos</dct:title>
@@ -14930,7 +14982,7 @@ La información cartográfica de los límites de los cotos de caza ofrecida en e
 <dcat:keyword xml:lang="es">Redes de transporte</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/topografico-10000-redes-transporte-lineas/1284688331553.shp">
 <dct:title xml:lang="es">Mapa Topográfico de Castilla y León 1:10.000: Redes de transporte - lineas</dct:title>
@@ -14959,7 +15011,7 @@ La información cartográfica de los límites de los cotos de caza ofrecida en e
 <dcat:keyword xml:lang="es">Cubierta terrestre</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/topografico-5000-cubierta-terrestre-lineas/1284688347339.shp">
 <dct:title xml:lang="es">Mapa Topográfico de Castilla y León 1:5.000: Cubierta Terrestre - lineas</dct:title>
@@ -14988,7 +15040,7 @@ La información cartográfica de los límites de los cotos de caza ofrecida en e
 <dcat:keyword xml:lang="es">Cubierta terrestre</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/topografico-5000-cubierta-terrestre-textos/1284688350133.shp">
 <dct:title xml:lang="es">Mapa Topográfico de Castilla y León 1:5.000: Cubierta Terrestre - textos</dct:title>
@@ -15017,7 +15069,7 @@ La información cartográfica de los límites de los cotos de caza ofrecida en e
 <dcat:keyword xml:lang="es">Edificios</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/topografico-5000-edificaciones-construcciones-lineas/1284688350533.shp">
 <dct:title xml:lang="es">Mapa Topográfico de Castilla y León 1:5.000: Edificaciones y Construcciones - lineas</dct:title>
@@ -15046,7 +15098,7 @@ La información cartográfica de los límites de los cotos de caza ofrecida en e
 <dcat:keyword xml:lang="es">Edificios</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/topografico-5000-edificaciones-construcciones-puntos/1284688351342.shp">
 <dct:title xml:lang="es">Mapa Topográfico de Castilla y León 1:5.000: Edificaciones y Construcciones - puntos</dct:title>
@@ -15075,7 +15127,7 @@ La información cartográfica de los límites de los cotos de caza ofrecida en e
 <dcat:keyword xml:lang="es">Edificios</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/topografico-5000-edificaciones-construcciones-textos/1284688351950.shp">
 <dct:title xml:lang="es">Mapa Topográfico de Castilla y León 1:5.000: Edificaciones y Construcciones - textos</dct:title>
@@ -15104,7 +15156,7 @@ La información cartográfica de los límites de los cotos de caza ofrecida en e
 <dcat:keyword xml:lang="es">Sistemas de coordenadas de referencia</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/topografico-5000-puntos-referencia-textos/1284688372248.shp">
 <dct:title xml:lang="es">Mapa Topográfico de Castilla y León 1:5.000: Puntos de referencia - textos</dct:title>
@@ -15133,7 +15185,7 @@ La información cartográfica de los límites de los cotos de caza ofrecida en e
 <dcat:keyword xml:lang="es">Servicios de utilidad pública y estatales</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/topografico-5000-servicios-instalaciones-lineas/1284688424369.shp">
 <dct:title xml:lang="es">Mapa Topográfico de Castilla y León 1:5.000: Servicios e instalaciones - lineas</dct:title>
@@ -15162,7 +15214,7 @@ La información cartográfica de los límites de los cotos de caza ofrecida en e
 <dcat:keyword xml:lang="es">Servicios de utilidad pública y estatales</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/topografico-5000-servicios-instalaciones-puntos/1284688428105.shp">
 <dct:title xml:lang="es">Mapa Topográfico de Castilla y León 1:5.000: Servicios e instalaciones - puntos</dct:title>
@@ -15191,7 +15243,7 @@ La información cartográfica de los límites de los cotos de caza ofrecida en e
 <dcat:keyword xml:lang="es">Servicios de utilidad pública y estatales</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/topografico-5000-servicios-instalaciones-textos/1284688428316.shp">
 <dct:title xml:lang="es">Mapa Topográfico de Castilla y León 1:5.000: Servicios e instalaciones - textos</dct:title>
@@ -15220,7 +15272,7 @@ La información cartográfica de los límites de los cotos de caza ofrecida en e
 <dcat:keyword xml:lang="es">Unidades administrativas</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/topografico-5000-unidades-administrativas-poligonos/1284688437146.shp">
 <dct:title xml:lang="es">Mapa Topográfico de Castilla y León 1:5.000: Unidades Administrativas - polígonos</dct:title>
@@ -15249,7 +15301,7 @@ La información cartográfica de los límites de los cotos de caza ofrecida en e
 <dcat:keyword xml:lang="es">Unidades administrativas</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/topografico-5000-unidades-administrativas-lineas/1284688435619.shp">
 <dct:title xml:lang="es">Mapa Topográfico de Castilla y León 1:5.000: Unidades Administrativas - lineas</dct:title>
@@ -15278,7 +15330,7 @@ La información cartográfica de los límites de los cotos de caza ofrecida en e
 <dcat:keyword xml:lang="es">Unidades administrativas</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/topografico-5000-unidades-administrativas-textos/1284688438904.shp">
 <dct:title xml:lang="es">Mapa Topográfico de Castilla y León 1:5.000: Unidades Administrativas - textos</dct:title>
@@ -15307,7 +15359,7 @@ La información cartográfica de los límites de los cotos de caza ofrecida en e
 <dcat:keyword xml:lang="es">Redes de transporte</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/topografico-5000-redes-transporte-lineas/1284688379522.shp">
 <dct:title xml:lang="es">Mapa Topográfico de Castilla y León 1:5.000: Redes de transporte - lineas</dct:title>
@@ -15336,7 +15388,7 @@ La información cartográfica de los límites de los cotos de caza ofrecida en e
 <dcat:keyword xml:lang="es">Redes de transporte</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/topografico-5000-redes-transporte-puntos/1284688383918.shp">
 <dct:title xml:lang="es">Mapa Topográfico de Castilla y León 1:5.000: Redes de transporte - puntos</dct:title>
@@ -15365,7 +15417,7 @@ La información cartográfica de los límites de los cotos de caza ofrecida en e
 <dcat:keyword xml:lang="es">Redes de transporte</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/topografico-5000-redes-transporte-textos/1284688384998.shp">
 <dct:title xml:lang="es">Mapa Topográfico de Castilla y León 1:5.000: Redes de transporte - textos</dct:title>
@@ -15394,7 +15446,7 @@ La información cartográfica de los límites de los cotos de caza ofrecida en e
 <dcat:keyword xml:lang="es">Elevaciones</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/topografico-10000-altimetria-lineas/1284688162974.shp">
 <dct:title xml:lang="es">Mapa Topográfico de Castilla y León 1:10.000: Altimetria - lineas</dct:title>
@@ -15423,7 +15475,7 @@ La información cartográfica de los límites de los cotos de caza ofrecida en e
 <dcat:keyword xml:lang="es">Elevaciones</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/topografico-10000-altimetria-puntos/1284688165384.shp">
 <dct:title xml:lang="es">Mapa Topográfico de Castilla y León 1:10.000: Altimetria - puntos</dct:title>
@@ -15452,7 +15504,7 @@ La información cartográfica de los límites de los cotos de caza ofrecida en e
 <dcat:keyword xml:lang="es">Hidrografía</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/topografico-10000-hidrografia-lineas/1284688189537.shp">
 <dct:title xml:lang="es">Mapa Topográfico de Castilla y León 1:10.000: Hidrografía - lineas</dct:title>
@@ -15481,7 +15533,7 @@ La información cartográfica de los límites de los cotos de caza ofrecida en e
 <dcat:keyword xml:lang="es">Hidrografía</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/topografico-10000-hidrografia-puntos/1284688199962.shp">
 <dct:title xml:lang="es">Mapa Topográfico de Castilla y León 1:10.000: Hidrografía - puntos</dct:title>
@@ -15510,7 +15562,7 @@ La información cartográfica de los límites de los cotos de caza ofrecida en e
 <dcat:keyword xml:lang="es">Sistemas de coordenadas de referencia</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/topografico-10000-puntos-referencia-puntos/1284688330196.shp">
 <dct:title xml:lang="es">Mapa Topográfico de Castilla y León 1:10.000: Puntos de referencia - puntos</dct:title>
@@ -15541,7 +15593,7 @@ Mapa que aglutina todas las entidades geométricas de tipo lineal pertenecientes
 <dcat:keyword xml:lang="es">Elevaciones</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/topografico-5000-altimetria-lineas/1284688344023.shp">
 <dct:title xml:lang="es">Mapa Topográfico de Castilla y León 1:5.000: Altimetria - lineas</dct:title>
@@ -15570,7 +15622,7 @@ Mapa que aglutina todas las entidades geométricas de tipo lineal pertenecientes
 <dcat:keyword xml:lang="es">Elevaciones</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/topografico-5000-altimetria-poligonos/1284688344963.shp">
 <dct:title xml:lang="es">Mapa Topográfico de Castilla y León 1:5.000: Altimetria - polígonos</dct:title>
@@ -15599,7 +15651,7 @@ Mapa que aglutina todas las entidades geométricas de tipo lineal pertenecientes
 <dcat:keyword xml:lang="es">Elevaciones</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/topografico-5000-altimetria-puntos/1284688346792.shp">
 <dct:title xml:lang="es">Mapa Topográfico de Castilla y León 1:5.000: Altimetria - puntos</dct:title>
@@ -15628,7 +15680,7 @@ Mapa que aglutina todas las entidades geométricas de tipo lineal pertenecientes
 <dcat:keyword xml:lang="es">Elevaciones</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/topografico-5000-altimetria-textos/1284688347033.shp">
 <dct:title xml:lang="es">Mapa Topográfico de Castilla y León 1:5.000: Altimetria - textos</dct:title>
@@ -15657,7 +15709,7 @@ Mapa que aglutina todas las entidades geométricas de tipo lineal pertenecientes
 <dcat:keyword xml:lang="es">Hidrografía</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/topografico-5000-hidrografia-lineas/1284688354521.shp">
 <dct:title xml:lang="es">Mapa Topográfico de Castilla y León 1:5.000: Hidrografía - lineas</dct:title>
@@ -15686,7 +15738,7 @@ Mapa que aglutina todas las entidades geométricas de tipo lineal pertenecientes
 <dcat:keyword xml:lang="es">Hidrografía</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/topografico-5000-hidrografia-poligonos/1284688363140.shp">
 <dct:title xml:lang="es">Mapa Topográfico de Castilla y León 1:5.000: Hidrografía - polígonos</dct:title>
@@ -15715,7 +15767,7 @@ Mapa que aglutina todas las entidades geométricas de tipo lineal pertenecientes
 <dcat:keyword xml:lang="es">Hidrografía</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/topografico-5000-hidrografia-puntos/1284688363751.shp">
 <dct:title xml:lang="es">Mapa Topográfico de Castilla y León 1:5.000: Hidrografía - puntos</dct:title>
@@ -15744,7 +15796,7 @@ Mapa que aglutina todas las entidades geométricas de tipo lineal pertenecientes
 <dcat:keyword xml:lang="es">Hidrografía</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/topografico-5000-hidrografia-textos/1284688365203.shp">
 <dct:title xml:lang="es">Mapa Topográfico de Castilla y León 1:5.000: Hidrografía - textos</dct:title>
@@ -15773,7 +15825,7 @@ Mapa que aglutina todas las entidades geométricas de tipo lineal pertenecientes
 <dcat:keyword xml:lang="es">Sistema de cuadrículas geográficas;Redes de transporte</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/topografico-5000-informacion-auxiliar-lineas/1284688366183.shp">
 <dct:title xml:lang="es">Mapa Topográfico de Castilla y León 1:5.000: Información auxiliar - lineas</dct:title>
@@ -15802,7 +15854,7 @@ Mapa que aglutina todas las entidades geométricas de tipo lineal pertenecientes
 <dcat:keyword xml:lang="es">Sistemas de coordenadas de referencia</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/topografico-5000-puntos-referencia-puntos/1284688367447.shp">
 <dct:title xml:lang="es">Mapa Topográfico de Castilla y León 1:5.000: Puntos de referencia - puntos</dct:title>
@@ -15832,7 +15884,7 @@ Delimitación y representación cartográfica del ámbito municipal afectado por
 <dcat:keyword xml:lang="es">Uso del suelo</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/urbanistico-cyl-ambito-municipal-planeamiento/1284688462956.shp">
 <dct:title xml:lang="es">Planeamiento urbanístico de Castilla y León: ámbito municipal</dct:title>
@@ -15863,7 +15915,7 @@ Identificación y representación cartográfica de las categorías de suelo urba
 <dcat:keyword xml:lang="es">Uso del suelo</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/urbanistico-cyl-categorias-suelo/1284688465008.shp">
 <dct:title xml:lang="es">Planeamiento urbanístico de Castilla y León: categorías de suelo</dct:title>
@@ -15894,7 +15946,7 @@ Delimitación y representación cartográfica de las clases de suelo urbano, urb
 <dcat:keyword xml:lang="es">Uso del suelo</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/urbanistico-cyl-clases-suelo/1284688465890.shp">
 <dct:title xml:lang="es">Planeamiento urbanístico de Castilla y León: clases de suelo</dct:title>
@@ -15925,7 +15977,7 @@ Identificación y representación cartográfica de cada uno de sectores definido
 <dcat:keyword xml:lang="es">Uso del suelo</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/urbanistico-cyl-sectores-desarrollo/1284688467026.shp">
 <dct:title xml:lang="es">Planeamiento urbanístico de Castilla y León: sectores de desarrollo</dct:title>
@@ -15965,7 +16017,7 @@ Esta cartografía, que tiene un recubrimiento parcial e incompleto de la red pec
 <dcat:keyword xml:lang="es">Lugares protegidos</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/vias-pecuarias-cyl-ejes/1285064339591.shp">
 <dct:title xml:lang="es">Mapa de vías pecuarias CyL: ejes</dct:title>
@@ -15996,7 +16048,7 @@ Esta cartografía, que tiene un recubrimiento parcial e incompleto de la red pec
 <dcat:keyword xml:lang="es"> a restricciones o reglamentaciones y unidades de notificación</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/vias-pecuarias-provincia-vallasolis/1284688128733.shp">
 <dct:title xml:lang="es">Vías pecuarias provincia de Valladolid: márgenes</dct:title>
@@ -16026,7 +16078,7 @@ Esta cartografía, que tiene un recubrimiento parcial e incompleto de la red pec
 <dcat:keyword xml:lang="es">Salud y seguridad humanas</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/zonas-basicas-salud-cyl/1284688135689.shp">
 <dct:title xml:lang="es">Mapa de Zonas Básicas de Salud de Castilla y León</dct:title>
@@ -16055,7 +16107,7 @@ Esta cartografía, que tiene un recubrimiento parcial e incompleto de la red pec
 <dcat:keyword xml:lang="es">Lugares protegidos</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/zonas-especial-proteccion-aves-cyl/1284688139345.shp">
 <dct:title xml:lang="es">Mapa de Zonas de Especial Protección para las Aves (ZEPA) de Castilla y León</dct:title>
@@ -16086,7 +16138,7 @@ Forman parte de dicho Catálogo 297 humedales, con la siguiente distribución pr
 <dcat:keyword xml:lang="es">Lugares protegidos</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/zonas-humedad-catalogadas-cyl/1284688146063.shp">
 <dct:title xml:lang="es">Catálogo Regional de Zonas Húmedas de Interés Especial (ZHIE)</dct:title>
@@ -16116,7 +16168,7 @@ Forman parte de dicho Catálogo 297 humedales, con la siguiente distribución pr
 <dcat:keyword xml:lang="es">Lugares protegidos</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/zonas-naturales-esparcimiento-cyl/1284688147606.shp">
 <dct:title xml:lang="es">Mapa de Zonas Naturales de Esparcimiento de Castilla y León</dct:title>
@@ -16147,7 +16199,7 @@ Forman parte de dicho Catálogo 297 humedales, con la siguiente distribución pr
 <dcat:keyword xml:lang="es"> a restricciones o reglamentaciones y unidades de notificación</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/potencialidad-termopluviometrica-especies-forestales-cyl/1284688160570.shp">
 <dct:title xml:lang="es">Mapas de Potencialidad Termopluviométrica de Especies Forestales en Castilla y León</dct:title>
@@ -16182,7 +16234,7 @@ La cartografía es el resultado de la incorporación de los recintos SIGPAC y mo
 <dcat:keyword xml:lang="es"> a restricciones o reglamentaciones y unidades de notificación</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/micologia-zonas-reguladas/1285096524391.shp">
 <dct:title xml:lang="es">Micología CyL: zonas reguladas</dct:title>
@@ -16212,7 +16264,7 @@ La cartografía es el resultado de la incorporación de los recintos SIGPAC y mo
 <dcat:keyword xml:lang="es">Elevaciones</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/modelo-digital-terreno-cyl-elevaciones-5m./1284688447307.shp">
 <dct:title xml:lang="es">Modelo Digital del Terreno de Castilla y León: Elevaciones 5m.</dct:title>
@@ -16241,7 +16293,7 @@ La cartografía es el resultado de la incorporación de los recintos SIGPAC y mo
 <dcat:keyword xml:lang="es">Elevaciones</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/modelo-digital-terreno-cyl-mapa-sombras-5m./1284688451904.shp">
 <dct:title xml:lang="es">Modelo Digital del Terreno de Castilla y León: Mapa de sombras 5m.</dct:title>
@@ -16270,7 +16322,7 @@ La cartografía es el resultado de la incorporación de los recintos SIGPAC y mo
 <dcat:keyword xml:lang="es">Elevaciones</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/modelo-digital-terreno-cyl-orientaciones-5m./1284688453239.shp">
 <dct:title xml:lang="es">Modelo Digital del Terreno de Castilla y León: Orientaciones 5m.</dct:title>
@@ -16299,7 +16351,7 @@ La cartografía es el resultado de la incorporación de los recintos SIGPAC y mo
 <dcat:keyword xml:lang="es">Elevaciones</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/modelo-digital-terreno-cyl-pendientes-5m./1284688454357.shp">
 <dct:title xml:lang="es">Modelo Digital del Terreno de Castilla y León: Pendientes 5m.</dct:title>
@@ -16328,7 +16380,7 @@ La cartografía es el resultado de la incorporación de los recintos SIGPAC y mo
 <dcat:keyword xml:lang="es">Ortoimágenes</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/ortofoto-aerea-cyl/1284688462770.shp">
 <dct:title xml:lang="es">Ortofoto aérea de Castilla y León</dct:title>
@@ -16357,7 +16409,7 @@ La cartografía es el resultado de la incorporación de los recintos SIGPAC y mo
 <dcat:keyword xml:lang="es">Ortoimágenes</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/ortofoto-aerea-nucleos-poblacion-cyl/1284688462567.shp">
 <dct:title xml:lang="es">Ortofoto aérea de núcleos de población de Castilla y León</dct:title>
@@ -16387,7 +16439,7 @@ La cartografía es el resultado de la incorporación de los recintos SIGPAC y mo
 <dcat:keyword xml:lang="es"> a restricciones o reglamentaciones y unidades de notificación</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/parcelas-inventario-forestal/1284889925223.shp">
 <dct:title xml:lang="es">Montes de Castilla y León: parcelas de inventario forestal</dct:title>
@@ -16421,7 +16473,7 @@ Quedan representadas las áreas urbanas y las zonas de expansión urbana de aque
 <dcat:keyword xml:lang="es">Uso del suelo</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/desarrollo-urbano/1285096546287.shp">
 <dct:title xml:lang="es">Planeamiento urbanístico CyL: desarrollo urbano</dct:title>
@@ -16456,7 +16508,7 @@ Incluye:
 <dcat:keyword xml:lang="es">lugares protegidos</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/porn-sierra-guadarrama/1284968602613-1.shp">
 <dct:title xml:lang="es">Zonificación PORN del Espacio Natural Sierra de Guadarrama</dct:title>
@@ -16503,7 +16555,7 @@ Incluye:
 <dcat:keyword xml:lang="es">Lugares protegidos</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/protectores-catalogados/1284889925727.shp">
 <dct:title xml:lang="es">Montes de Castilla y León: protectores catalogados</dct:title>
@@ -16543,7 +16595,7 @@ Para la delimitación de la zona de exclusión de parques eólicos, se han tenid
 <dcat:keyword xml:lang="es">Cobertura de la tierra con mapas básicos e imágenes</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/renovables-excluidas-eolico/1285260724134.shp">
 <dct:title xml:lang="es">Renovables CyL: Excluido Eólico</dct:title>
@@ -16586,7 +16638,7 @@ Para la delimitación de la zona de exclusión de plantas fotovoltaicas, se han 
 <dcat:keyword xml:lang="es">Cobertura de la tierra con mapas básicos e imágenes</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/renovables-excluidas-fotovoltaico/1285260719958.shp">
 <dct:title xml:lang="es">Renovables CyL: Excluido Fotovoltaico</dct:title>
@@ -16619,7 +16671,7 @@ Para la delimitación de la zona de exclusión de plantas fotovoltaicas, se han 
 <dcat:keyword xml:lang="es"> Servicios de utilidad pública y estatales</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/residuos-instalaciones-tratamiento/1285031867361.shp">
 <dct:title xml:lang="es">Residuos CyL: instalaciones de tratamiento</dct:title>
@@ -16655,7 +16707,7 @@ Estos planes establecen limitaciones para las instalaciones de producción de en
 <dcat:keyword xml:lang="es"> a restricciones o reglamentaciones y unidades de notificación</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/sensibilidad-ambiental-fauna/1285162122742.shp">
 <dct:title xml:lang="es">Renovables CyL: sensibilidad ambiental fauna</dct:title>
@@ -16690,7 +16742,7 @@ Cartografía digital en la que se evalúa la sensibilidad a este tipo de actuaci
 <dcat:keyword xml:lang="es"> a restricciones o reglamentaciones y unidades de notificación</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/sensibilidad-ambiental-flora/1285162114157.shp">
 <dct:title xml:lang="es">Renovables CyL: sensibilidad ambiental flora</dct:title>
@@ -16727,7 +16779,7 @@ En este sentido, cabe una diferente posición respecto a los dos tipos de instal
 <dcat:keyword xml:lang="es"> a restricciones o reglamentaciones y unidades de notificación</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/sensibilidad-ambiental-mup/1285162109297-1.shp">
 <dct:title xml:lang="es">Eólica</dct:title>
@@ -16773,7 +16825,7 @@ De acuerdo con la clasificación de usos recogida en la ley, las instalaciones d
 <dcat:keyword xml:lang="es"> a restricciones o reglamentaciones y unidades de notificación</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/sensibilidad-ambiental-red-natura/1285162227257.shp">
 <dct:title xml:lang="es">Renovables CyL: sensibilidad ambiental Red Natura</dct:title>
@@ -16808,7 +16860,7 @@ En el ámbito de la Red de Espacios Naturales Protegidos de Castilla y León - R
 <dcat:keyword xml:lang="es"> a restricciones o reglamentaciones y unidades de notificación</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/sensibilidad-ambiental-ren/1285162080658.shp">
 <dct:title xml:lang="es">Renovables CyL: sensibilidad ambiental REN</dct:title>
@@ -16845,7 +16897,7 @@ La presentación de esta información no sustituye los pertinentes trámites de 
 <dcat:keyword xml:lang="es"> a restricciones o reglamentaciones y unidades de notificación</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/sensibilidad-aves-esteparias/1285071380383.shp">
 <dct:title xml:lang="es">Renovables CyL: sensibilidad aves esteparias</dct:title>
@@ -16882,7 +16934,7 @@ La presentación de esta información no sustituye los pertinentes trámites de 
 <dcat:keyword xml:lang="es"> a restricciones o reglamentaciones y unidades de notificación</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/sensibilidad-aves-planeadoras/1285090290385.shp">
 <dct:title xml:lang="es">Renovables CyL: sensibilidad aves planeadoras</dct:title>
@@ -16914,7 +16966,7 @@ La presentación de esta información no sustituye los pertinentes trámites de 
 <dcat:keyword xml:lang="es"> Cubierta terrestre</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/urbanismo-infraestructuras/SIGPAC/1284225645888.shp">
 <dct:title xml:lang="es">Sistema de Información Geográfica de Parcelas Agrícolas (SIGPAC)</dct:title>
@@ -16945,7 +16997,7 @@ La presentación de esta información no sustituye los pertinentes trámites de 
 <dcat:keyword xml:lang="es"> a restricciones o reglamentaciones y unidades de notificación</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/cotos-piscicolas/1284889718173.shp">
 <dct:title xml:lang="es">Pesca de Castilla y León: tramos de pesca</dct:title>
@@ -16986,7 +17038,7 @@ El programa REHABITARE tiene como objetivo incrementar el parque público de alq
 <dcat:keyword xml:lang="es">Servicios de utilidad pública y estatales</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/vivienda-rehabitare/1285107409533.shp">
 <dct:title xml:lang="es">Vivienda CyL: REHABITARE</dct:title>
@@ -17020,7 +17072,7 @@ Las Zonas de Acción social se conforman como la unidad básica de atención a t
 <dcat:keyword xml:lang="es">Servicios de utilidad pública y estatales</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/zonas-accion-social/1285154885186.shp">
 <dct:title xml:lang="es">Servicios Sociales CyL: Zonas de Acción Social</dct:title>
@@ -17051,7 +17103,7 @@ Las Zonas de Acción social se conforman como la unidad básica de atención a t
 <dcat:keyword xml:lang="es"> a restricciones o reglamentaciones y unidades de notificación</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/zonas-cangrejo/1284889924364.shp">
 <dct:title xml:lang="es">Pesca CyL: zonas de pesca de cangrejo</dct:title>
@@ -17084,7 +17136,7 @@ Frecuencia de actualización: </dct:description>
 <dcat:keyword xml:lang="es"> Incendios forestales</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/incendios_forestales/1285647590501.gpkg">
 <dct:title xml:lang="es">Incendios CyL: Plan 2025. Áreas peligro incendios forestales</dct:title>
@@ -17140,7 +17192,7 @@ Frecuencia de actualización: NO</dct:description>
 <dcat:keyword xml:lang="es"> Zonas de riesgos naturales</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/incendios_forestales/1285648298526.gpkg">
 <dct:title xml:lang="es">Incendios CyL: Plan 2026. Áreas peligro incendios forestales</dct:title>
@@ -17202,7 +17254,7 @@ Frecuencia de actualización: NO</dct:description>
 <dcat:keyword xml:lang="es"> Incendios forestales</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/incendios_forestales/1285648396833.gpkg">
 <dct:title xml:lang="es">Incendios CyL: Plan 2026. Riesgo áreas naturales protegidas</dct:title>
@@ -17264,7 +17316,7 @@ Frecuencia de actualización: NO</dct:description>
 <dcat:keyword xml:lang="es"> Incendios forestales</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/incendios_forestales/1285648397528.shp">
 <dct:title xml:lang="es">Incendios CyL: Plan 2026. Riesgo formaciones forestales vulnerables</dct:title>
@@ -17326,7 +17378,7 @@ Frecuencia de actualización: NO</dct:description>
 <dcat:keyword xml:lang="es"> Incendios forestales</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/incendios_forestales/1285648399689.gpkg">
 <dct:title xml:lang="es">Incendios CyL: Plan 2026. Puntos inicio 2015-2024</dct:title>
@@ -17388,7 +17440,7 @@ Frecuencia de actualización: NO</dct:description>
 <dcat:keyword xml:lang="es"> Incendios forestales</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/incendios_forestales/1285648382470.wms">
 <dct:title xml:lang="es">Incendios CyL: Plan 2025. Riesgo interfaz urbano-forestal</dct:title>
@@ -17420,7 +17472,7 @@ Frecuencia de actualización: NO</dct:description>
 <dcat:theme rdf:resource="http://datos.gob.es/kos/sector-publico/sector/medio-ambiente"/>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/incendios_forestales/1285648387234.gpkg">
 <dct:title xml:lang="es">Incendios CyL: Plan 2026. Riesgo interfaz urbano-forestal por T.M.</dct:title>
@@ -17482,7 +17534,7 @@ Frecuencia de actualización: NO</dct:description>
 <dcat:keyword xml:lang="es"> Incendios forestales</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/incendios_forestales/1285648398771.gpkg">
 <dct:title xml:lang="es">Incendios CyL: Plan 2026. Riesgo áreas recreativas</dct:title>
@@ -17549,7 +17601,7 @@ Tras la aprobación del DECRETO 6/2025, de 27 de marzo, por el que se aprueba el
 <dcat:keyword xml:lang="es"> medio natural</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/incendios_forestales/1284333417830.csv">
 <dct:title xml:lang="es">Incendios forestales</dct:title>
@@ -18501,7 +18553,7 @@ Trabajo realizado en el año 1.987 con frecuencia de actualización anual.</dct:
 <dcat:keyword xml:lang="es">Redes de transporte</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/transporte/carreteras-enlaces-red-viaria-cyl/1284813433953.shp">
 <dct:title xml:lang="es">Mapa de Carreteras de Castilla y León: Enlaces de la Red Viaria</dct:title>
@@ -18532,7 +18584,7 @@ Cartografía que recopila los puertos de montaña que atraviesa la red de carret
 <dcat:keyword xml:lang="es">Redes de transporte</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/transporte/carreteras-puertos-monta%C3%B1a-cyl/1284813439019.shp">
 <dct:title xml:lang="es">Mapa de Carreteras de Castilla y León: Puertos de Montaña</dct:title>
@@ -18567,7 +18619,7 @@ Información capturada dediante dispositivos GPS a partir de los hitos y mojones
 <dcat:keyword xml:lang="es">Redes de transporte</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/transporte/carreteras-puntos-kilometricos-cyl/1284813435661.shp">
 <dct:title xml:lang="es">Mapa de Carreteras de Castilla y León: Puntos Kilométricos</dct:title>
@@ -18609,7 +18661,7 @@ Trabajo realizado en el año 1.987 con frecuencia de actualización anual.</dct:
 <dcat:keyword xml:lang="es">Redes de transporte</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/transporte/carreteras-red-viaria-cyl/1284813431388.shp">
 <dct:title xml:lang="es">Mapa de Carreteras de Castilla y León: Red Viaria</dct:title>
@@ -18649,7 +18701,7 @@ del patrimonio natural, de perdurabilidad y de productividad de recursos renovab
 <dcat:keyword xml:lang="es"> a restricciones o reglamentaciones y unidades de notificación</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/montes-ordenados-cyl/1284813417265.shp">
 <dct:title xml:lang="es">Montes de Castilla y León: planificación forestal</dct:title>
@@ -18683,7 +18735,7 @@ Se recogen, mediante geometría de tipo punto, todas las pistas existentes y se 
 <dcat:keyword xml:lang="es">Redes de transporte</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/transporte/pistas-aereas-localizacion-cyl/1284813453925.shp">
 <dct:title xml:lang="es">Mapa de Pistas Aéreas de Castilla y León: Localización</dct:title>
@@ -18716,7 +18768,7 @@ Se recogen todas las pistas existentes e instalaciones dependientes, mediante ge
 <dcat:keyword xml:lang="es">Redes de transporte</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/transporte/pistas-aereas-recintos-cyl/1284813448731.shp">
 <dct:title xml:lang="es">Mapa de Pistas Aéreas de Castilla y León: Recintos</dct:title>
@@ -18749,7 +18801,7 @@ Se recogen, a partir de geometrías de tipo punto, todas las estaciones existent
 <dcat:keyword xml:lang="es">Redes de transporte</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/transporte/red-ferroviaria-estaciones-cyl/1284813446784.shp">
 <dct:title xml:lang="es">Mapa de la Red Ferroviaria de Castilla y León: Estaciones</dct:title>
@@ -18782,7 +18834,7 @@ Se representa, a partir de geometría de tipo líneal, el viario desplegado y se
 <dcat:keyword xml:lang="es">Redes de transporte</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/transporte/red-ferroviaria-vias-ferreas-cyl/1284813442210.shp">
 <dct:title xml:lang="es">Mapa de la Red Ferroviaria de Castilla y León: Vías Férreas</dct:title>
@@ -18817,7 +18869,7 @@ Capa formada por la agregación de la adaptación cartográfica de los límites 
 <dcat:keyword xml:lang="es">Lugares protegidos</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/zonas-especial-conservacion-cyl/1284813423560.shp">
 <dct:title xml:lang="es">Mapa de Zonas de Especial Conservación (ZEC) de Castilla y León</dct:title>
@@ -22295,7 +22347,7 @@ Representación cartográfica de las 24 zonas vulnerables declaradas según Decr
 <dcat:keyword xml:lang="es"> Instalaciones de observación del medio ambiente</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/zonas-vulnerables/1284997397537.shp">
 <dct:title xml:lang="es">Prevención Ambiental CyL: zonas vulnerables 2020</dct:title>
@@ -33059,7 +33111,7 @@ Modelo Digital de pendientes de Castilla y León en formato imagen resolución 2
 <dcat:keyword xml:lang="es"> Fotogrametría</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://www.jcyl.es/licencia-IGCYL-NC"/>
+<dct:license rdf:resource="http://www.jcyl.es/licencia-IGCYL-NC"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/modelos_terreno/1284207324406.ecw">
 <dct:title xml:lang="es">Modelos digitales del terreno de Castilla y León</dct:title>

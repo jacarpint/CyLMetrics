@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { applyFilters, sortDatasets, buildFilterUrl, DEFAULT_SORT, parseActiveFilters } from '../catalog-filters';
+import {
+  applyFilters, sortDatasets, buildFilterUrl, DEFAULT_SORT, DEFAULT_PAGE_SIZE,
+  MAX_PAGE_SIZE, parseActiveFilters,
+} from '../catalog-filters';
 import type { ActiveFilters } from '../catalog-filters';
 import type { Dataset } from '../types';
 
@@ -20,6 +23,8 @@ function makeDataset(overrides: Partial<Dataset> & { id: string }): Dataset {
     publisher: overrides.publisher ?? 'http://example.org/1',
     records: 0,
     distributionUrls: [],
+    metadataGaps: overrides.metadataGaps ?? [],
+    freshness: overrides.freshness ?? { diagnosis: 'al-dia', periodsLate: 0, reference: 'issued' },
   };
 }
 
@@ -146,5 +151,40 @@ describe('buildFilterUrl', () => {
   it('includes analisis filter', () => {
     const url = buildFilterUrl({ ...baseFilters, analisis: 'error' });
     expect(url).toContain('analisis=error');
+  });
+
+  it('no repite el parámetro de análisis', () => {
+    const url = buildFilterUrl({ ...baseFilters, analisis: 'error' });
+    expect(url.match(/analisis=/g)).toHaveLength(1);
+  });
+});
+
+describe('parseActiveFilters: validación de parámetros', () => {
+  it('descarta un orden desconocido en vez de dejar la lista sin ordenar', () => {
+    // `sortDatasets` caía en su `default:` y devolvía el array tal cual, y el
+    // `<select>` de la interfaz se quedaba sin ninguna opción seleccionada.
+    expect(parseActiveFilters({ sort: 'loquesea' }).sort).toBe(DEFAULT_SORT);
+    expect(parseActiveFilters({ sort: 'title-asc' }).sort).toBe('title-asc');
+  });
+
+  it('descarta un estado de análisis desconocido', () => {
+    expect(parseActiveFilters({ analisis: 'inventado' }).analisis).toBeUndefined();
+    expect(parseActiveFilters({ analisis: 'parcial' }).analisis).toBe('parcial');
+  });
+
+  describe('tamaño de página', () => {
+    it('en la interfaz solo admite los valores del desplegable', () => {
+      expect(parseActiveFilters({ limit: '48' }).limit).toBe(48);
+      expect(parseActiveFilters({ limit: '7' }).limit).toBe(DEFAULT_PAGE_SIZE);
+    });
+
+    // La API documenta `?limit=`: pedir 1 tiene que devolver 1, no 24.
+    it('en la API admite cualquier valor y lo acota', () => {
+      expect(parseActiveFilters({ limit: '1' }, false).limit).toBe(1);
+      expect(parseActiveFilters({ limit: '75' }, false).limit).toBe(75);
+      expect(parseActiveFilters({ limit: '99999' }, false).limit).toBe(MAX_PAGE_SIZE);
+      expect(parseActiveFilters({ limit: '0' }, false).limit).toBe(DEFAULT_PAGE_SIZE);
+      expect(parseActiveFilters({ limit: '-5' }, false).limit).toBe(1);
+    });
   });
 });

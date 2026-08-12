@@ -10,18 +10,25 @@ import type { CatalogData } from "@/lib/types";
 import type { QualityReport, HistorySnapshot } from "@/lib/quality-report";
 import type { HistoryIndex } from "@/lib/quality-history";
 
+/**
+ * Cubos de 20 puntos, todos iguales.
+ *
+ * Antes eran 0–19, 20–39, 40–49, 50–59, 60–79 y 80–100: barras de la misma
+ * anchura visual sobre rangos de 20, 20, 10, 10, 20 y 21 puntos, así que dos
+ * barras iguales podían significar densidades muy distintas.
+ */
 const BUCKETS = [
   { label: "0–19", min: 0, max: 19 },
   { label: "20–39", min: 20, max: 39 },
-  { label: "40–49", min: 40, max: 49 },
-  { label: "50–59", min: 50, max: 59 },
+  { label: "40–59", min: 40, max: 59 },
   { label: "60–79", min: 60, max: 79 },
   { label: "80–100", min: 80, max: 100 },
 ] as const;
 
-function bucketColor(label: string): string {
-  if (label === "80–100") return "bg-ok-solid";
-  if (label === "50–59" || label === "60–79") return "bg-warn-solid";
+/** Los umbrales del portal: <50 deficiente, 50–79 mejorable, ≥80 buena. */
+function bucketColor(min: number): string {
+  if (min >= 80) return "bg-ok-solid";
+  if (min >= 50) return "bg-warn-solid";
   return "bg-bad-solid";
 }
 
@@ -90,6 +97,29 @@ export function EvolucionSection({
   const scoreDelta = hasEnoughHistory ? rawScoreDelta : null;
   const errorDelta = hasEnoughHistory ? rawErrorDelta : null;
 
+  /**
+   * Observaciones que se pueden afirmar con lo que hay. Se calculan antes de
+   * pintar: sin esto la tarjeta se dibujaba con una lista vacía dentro siempre
+   * que hubiera ≥2 informes pero no bastante recorrido para comparar, que es
+   * justo el estado actual del historial.
+   */
+  const observations: { key: string; tone: "ok" | "warn" | "bad" | "flat"; text: string }[] = [];
+  if (scoreDelta != null && scoreDelta < -5) {
+    observations.push({ key: "score-baja", tone: "warn", text: `La calidad media ha bajado ${Math.abs(scoreDelta)} puntos respecto al informe anterior.` });
+  }
+  if (scoreDelta != null && scoreDelta > 5) {
+    observations.push({ key: "score-sube", tone: "ok", text: `La calidad media ha mejorado ${scoreDelta} puntos respecto al informe anterior.` });
+  }
+  if (errorDelta != null && errorDelta > 0) {
+    observations.push({ key: "errores-suben", tone: "bad", text: `Las distribuciones con fallos han aumentado en ${errorDelta}.` });
+  }
+  if (errorDelta != null && errorDelta < 0) {
+    observations.push({ key: "errores-bajan", tone: "ok", text: `Las distribuciones con fallos han disminuido en ${Math.abs(errorDelta)}.` });
+  }
+  if (observations.length === 0 && scoreDelta != null && errorDelta != null) {
+    observations.push({ key: "sin-cambios", tone: "flat", text: "Sin cambios significativos respecto al informe anterior." });
+  }
+
   if (!hasHistory) {
     return (
       <Card>
@@ -131,7 +161,7 @@ export function EvolucionSection({
       {/* Resumen del último informe */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card><CardContent className="p-5">
-          <p className="text-xs text-faint">Score medio</p>
+          <p className="text-xs text-faint">Calidad del contenido</p>
           <p className="text-3xl font-bold text-ok mt-1">{latest!.avgScore != null ? `${latest!.avgScore}%` : "—"}</p>
           {scoreDelta != null && (
             <p className={`text-xs mt-1 flex items-center gap-1 ${scoreDelta > 0 ? "text-ok" : scoreDelta < 0 ? "text-bad" : "text-faint"}`}>
@@ -154,40 +184,56 @@ export function EvolucionSection({
             </p>
           )}
         </CardContent></Card>
+        {/* Los datasets sin una sola distribución legible se cuentan aparte, no
+            se omiten: omitiéndolos, la tarjeta enseñaba «436 / 0 / 0» de 824 y
+            afirmaba «0 críticos» a la vez que el portal decía que un tercio de
+            los archivos no abre. */}
         <Card><CardContent className="p-5">
-          <p className="text-xs text-faint">Datasets</p>
+          <p className="text-xs text-faint">Datasets por contenido</p>
           <div className="flex items-baseline gap-2 mt-1">
             <span className="text-3xl font-bold text-ok">{latest!.healthyDatasets}</span>
             <span className="text-sm text-faint">/</span>
             <span className="text-sm text-warn">{latest!.warningDatasets}</span>
             <span className="text-sm text-faint">/</span>
             <span className="text-sm text-bad">{latest!.criticalDatasets}</span>
+            {latest!.unscoredDatasets > 0 && (
+              <>
+                <span className="text-sm text-faint">/</span>
+                <span className="text-sm text-faint">{latest!.unscoredDatasets}</span>
+              </>
+            )}
           </div>
-          <p className="text-[11px] text-faint mt-1">sanos / aviso / críticos</p>
+          <p className="text-[11px] text-faint mt-1">
+            buena / mejorable / deficiente
+            {latest!.unscoredDatasets > 0 && " / sin medir"}
+          </p>
+          {latest!.unscoredDatasets > 0 && (
+            <p className="text-[11px] text-faint mt-1 leading-relaxed">
+              «Sin medir» son {latest!.unscoredDatasets.toLocaleString("es-ES")} de{" "}
+              {latest!.totalDatasets.toLocaleString("es-ES")} datasets sin ningún archivo legible:
+              no tienen contenido que puntuar.
+            </p>
+          )}
         </CardContent></Card>
       </div>
 
       {/* Observaciones automáticas */}
-      {snapshots.length >= 2 && (
+      {observations.length > 0 && (
         <Card>
           <CardContent className="p-5 flex items-start gap-3">
-            <Sparkles className="h-4 w-4 text-warn mt-0.5 shrink-0" />
+            <Sparkles className="h-4 w-4 text-warn mt-0.5 shrink-0" aria-hidden />
             <ul className="space-y-1.5 text-sm text-body">
-              {scoreDelta != null && scoreDelta < -5 && (
-                <li className="flex items-start gap-2"><AlertTriangle className="h-4 w-4 text-warn mt-0.5 shrink-0" />La calidad media ha bajado {Math.abs(scoreDelta)}% respecto al informe anterior.</li>
-              )}
-              {errorDelta != null && errorDelta > 0 && (
-                <li className="flex items-start gap-2"><AlertTriangle className="h-4 w-4 text-bad mt-0.5 shrink-0" />Las distribuciones con fallos han aumentado en {errorDelta}.</li>
-              )}
-              {scoreDelta != null && scoreDelta > 5 && (
-                <li className="flex items-start gap-2"><TrendingUp className="h-4 w-4 text-ok mt-0.5 shrink-0" />La calidad media ha mejorado {scoreDelta}% respecto al informe anterior.</li>
-              )}
-              {errorDelta != null && errorDelta < 0 && (
-                <li className="flex items-start gap-2"><TrendingUp className="h-4 w-4 text-ok mt-0.5 shrink-0" />Las distribuciones con fallos han disminuido en {Math.abs(errorDelta)}.</li>
-              )}
-              {scoreDelta === 0 && errorDelta === 0 && (
-                <li className="flex items-start gap-2"><Minus className="h-4 w-4 text-faint mt-0.5 shrink-0" />Sin cambios significativos respecto al informe anterior.</li>
-              )}
+              {observations.map((o) => {
+                const Icon = o.tone === "ok" ? TrendingUp : o.tone === "flat" ? Minus : AlertTriangle;
+                const color =
+                  o.tone === "ok" ? "text-ok" : o.tone === "bad" ? "text-bad" : o.tone === "warn" ? "text-warn" : "text-faint";
+                return (
+                  <li key={o.key} className="flex items-start gap-2">
+                    <Icon className={`h-4 w-4 mt-0.5 shrink-0 ${color}`} aria-hidden />
+                    {o.text}
+                  </li>
+                );
+              })}
             </ul>
           </CardContent>
         </Card>
@@ -222,7 +268,7 @@ export function EvolucionSection({
                 <div key={h.label} className="flex items-center gap-3">
                   <span className="text-xs text-faint w-14 shrink-0 tabular-nums">{h.label}</span>
                   <div className="flex-1 h-6 rounded-md bg-fill overflow-hidden">
-                    <div className={`h-full ${bucketColor(h.label)} transition-all`} style={{ width: `${(h.count / histMax) * 100}%` }} title={`${h.count} datasets`} />
+                    <div className={`h-full ${bucketColor(h.min)} transition-all`} style={{ width: `${(h.count / histMax) * 100}%` }} title={`${h.count} datasets`} />
                   </div>
                   <span className="text-xs text-body w-12 text-right tabular-nums">{h.count}</span>
                 </div>

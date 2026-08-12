@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { distributionSlugs, resolveDistributionIndex, distributionHref } from '../distribution-slug';
+import { distributionSlugs, resolveDistributionIndex } from '../distribution-slug';
 
 describe('distributionSlugs', () => {
   it('usa el formato en minúsculas cuando no se repite', () => {
@@ -48,15 +48,5 @@ describe('resolveDistributionIndex', () => {
     expect(resolveDistributionIndex(formats, 'xml')).toBe(-1);
     expect(resolveDistributionIndex(formats, '9')).toBe(-1);
     expect(resolveDistributionIndex(formats, 'csv-9')).toBe(-1);
-  });
-});
-
-describe('distributionHref', () => {
-  it('construye la ruta canónica', () => {
-    expect(distributionHref('128514', ['CSV', 'CSV'], 1)).toBe('/catalogo/128514/csv-2');
-  });
-
-  it('cae al índice si el formato no existe', () => {
-    expect(distributionHref('128514', ['CSV'], 5)).toBe('/catalogo/128514/5');
   });
 });

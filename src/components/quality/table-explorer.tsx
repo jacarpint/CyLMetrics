@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   ChevronLeft, ChevronRight, ExternalLink, Search, X,
   Table2, Columns3, TriangleAlert, Locate, type LucideIcon,
@@ -69,6 +69,7 @@ export function TableExplorer({
   onSelectRow,
 }: TableExplorerProps) {
   const words = WORDS[voice];
+  const tabsId = useId();
 
   const [tab, setTab] = useState<string>('datos');
   const [query, setQuery] = useState('');
@@ -166,15 +167,37 @@ export function TableExplorer({
     <div className="rounded-xl border border-border bg-card">
       {/* Pestañas */}
       <div className="flex flex-wrap items-center justify-between gap-2 rounded-t-xl border-b border-border bg-fill px-3 py-2">
-        <div className="flex flex-wrap items-center gap-1" role="tablist" aria-label="Vistas del recurso">
+        {/* Patrón de pestañas completo: cada botón declara el panel que controla
+            y las flechas mueven el foco entre pestañas, como espera un lector de
+            pantalla. Antes solo estaban los roles, sin `aria-controls` ni
+            paneles asociados. */}
+        <div
+          className="flex flex-wrap items-center gap-1"
+          role="tablist"
+          aria-label="Vistas del recurso"
+          onKeyDown={(e) => {
+            if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+            const ids = TABS.map((t) => t.id);
+            const current = ids.indexOf(activeTab);
+            const next = (current + (e.key === 'ArrowRight' ? 1 : -1) + ids.length) % ids.length;
+            e.preventDefault();
+            setTab(ids[next]);
+            document.getElementById(`${tabsId}-tab-${ids[next]}`)?.focus();
+          }}
+        >
           {TABS.map(({ id, label, icon: Icon, badge }) => (
             <button
               key={id}
+              id={`${tabsId}-tab-${id}`}
               role="tab"
+              type="button"
               aria-selected={activeTab === id}
+              aria-controls={`${tabsId}-panel-${id}`}
+              tabIndex={activeTab === id ? 0 : -1}
               onClick={() => setTab(id)}
               className={cn(
                 'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-canvas',
                 activeTab === id ? 'bg-card text-strong shadow-sm' : 'text-body hover:bg-card/60'
               )}
             >
@@ -245,7 +268,7 @@ export function TableExplorer({
 
       {/* ── Datos ── */}
       {activeTab === 'datos' && (
-        <>
+        <div id={`${tabsId}-panel-datos`} role="tabpanel" aria-labelledby={`${tabsId}-tab-datos`}>
           <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2">
             <div className="relative min-w-0 flex-1 sm:max-w-xs">
               <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-faint" aria-hidden />
@@ -380,12 +403,17 @@ export function TableExplorer({
               </div>
             </div>
           )}
-        </>
+        </div>
       )}
 
       {/* ── Columnas / Campos ── */}
       {activeTab === 'columnas' && (
-        <div className={cn('p-3', isLastPanel('columnas') && 'rounded-b-xl')}>
+        <div
+          id={`${tabsId}-panel-columnas`}
+          role="tabpanel"
+          aria-labelledby={`${tabsId}-tab-columnas`}
+          className={cn('p-3', isLastPanel('columnas') && 'rounded-b-xl')}
+        >
           <p className="mb-3 text-[11px] text-faint">
             Tipo, nulos, valores distintos y rango calculados sobre {voice === 'record' ? 'los' : 'las'}{' '}
             {rows.length.toLocaleString('es-ES')} {words.rows} del archivo, sin muestreo ni topes.
@@ -396,7 +424,12 @@ export function TableExplorer({
 
       {/* ── Incidencias ── */}
       {activeTab === 'incidencias' && (
-        <div className={cn('space-y-3 p-3', isLastPanel('incidencias') && 'rounded-b-xl')}>
+        <div
+          id={`${tabsId}-panel-incidencias`}
+          role="tabpanel"
+          aria-labelledby={`${tabsId}-tab-incidencias`}
+          className={cn('space-y-3 p-3', isLastPanel('incidencias') && 'rounded-b-xl')}
+        >
           {issues.length === 0 ? (
             <p className="rounded-lg border border-ok-line bg-ok-surface px-3 py-2.5 text-sm text-ok">
               Sin incidencias de estructura ni de tipos en este recurso.
@@ -435,7 +468,18 @@ export function TableExplorer({
       )}
 
       {/* ── Pestañas propias del formato ── */}
-      {extraTabs.map((t) => (activeTab === t.id ? <div key={t.id}>{t.content}</div> : null))}
+      {extraTabs.map((t) =>
+        activeTab === t.id ? (
+          <div
+            key={t.id}
+            id={`${tabsId}-panel-${t.id}`}
+            role="tabpanel"
+            aria-labelledby={`${tabsId}-tab-${t.id}`}
+          >
+            {t.content}
+          </div>
+        ) : null
+      )}
     </div>
   );
 }

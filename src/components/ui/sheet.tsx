@@ -6,8 +6,6 @@ import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const Sheet = DialogPrimitive.Root;
-const SheetTrigger = DialogPrimitive.Trigger;
-const SheetClose = DialogPrimitive.Close;
 const SheetPortal = DialogPrimitive.Portal;
 
 const SheetOverlay = React.forwardRef<
@@ -36,7 +34,11 @@ const SheetContent = React.forwardRef<
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
-        "fixed z-50 gap-4 bg-card p-0 shadow-lg transition ease-in-out",
+        // `flex flex-col` + `min-h-0` en los hijos: sin esto el panel era una
+        // caja `fixed h-full` sin desbordamiento, así que con los grupos de
+        // filtros desplegados el botón «Aplicar» quedaba fuera de la pantalla y
+        // sin forma de llegar (Radix bloquea el scroll del body).
+        "fixed z-50 flex flex-col bg-card p-0 shadow-lg transition ease-in-out",
         "data-[state=open]:animate-in data-[state=closed]:animate-out",
         "data-[state=closed]:duration-300 data-[state=open]:duration-500",
         side === "left" &&
@@ -66,30 +68,20 @@ const SheetHeader = ({
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
-    className={cn("flex flex-col space-y-2 p-5 border-b border-border", className)}
+    className={cn("flex shrink-0 flex-col space-y-2 border-b border-border p-5 pr-14", className)}
     {...props}
   />
 );
 SheetHeader.displayName = "SheetHeader";
 
+/** Zona desplazable del panel. Todo lo que no sea cabecera va aquí dentro. */
 const SheetBody = ({
   className,
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) => (
-  <div className={cn("flex-1 overflow-y-auto", className)} {...props} />
+  <div className={cn("min-h-0 flex-1 overflow-y-auto overscroll-contain", className)} {...props} />
 );
 SheetBody.displayName = "SheetBody";
-
-const SheetFooter = ({
-  className,
-  ...props
-}: React.HTMLAttributes<HTMLDivElement>) => (
-  <div
-    className={cn("p-4 border-t border-border", className)}
-    {...props}
-  />
-);
-SheetFooter.displayName = "SheetFooter";
 
 const SheetTitle = React.forwardRef<
   React.ComponentRef<typeof DialogPrimitive.Title>,
@@ -115,14 +107,4 @@ const SheetDescription = React.forwardRef<
 ));
 SheetDescription.displayName = DialogPrimitive.Description.displayName;
 
-export {
-  Sheet,
-  SheetTrigger,
-  SheetClose,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-  SheetBody,
-  SheetFooter,
-};
+export { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetBody };

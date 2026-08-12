@@ -2,10 +2,10 @@
  * Script de gestión del pipeline de informes de análisis.
  *
  * Uso:
- *   npx tsx scripts/manage-reports.ts save     # Copiar informe actual al historial
- *   npx tsx scripts/manage-reports.ts list      # Listar informes del historial
- *   npx tsx scripts/manage-reports.ts rotate 30 # Eliminar informes > 30 días
- *   npx tsx scripts/manage-reports.ts latest    # Mostrar el último informe válido
+ *   npm run reports -- save       # Copiar informe actual al historial
+ *   npm run reports -- list       # Listar informes del historial
+ *   npm run reports -- rotate 30  # Eliminar informes > 30 días
+ *   npm run reports -- latest     # Mostrar el último informe válido
  */
 
 import fs from 'node:fs';
@@ -102,6 +102,6 @@ switch (cmd) {
   case 'rotate': rotate(parseInt(args[0] || '30', 10)); break;
   case 'latest': showLatest(); break;
   default:
-    console.log('Uso: npx tsx scripts/manage-reports.ts <save|list|rotate|latest> [días]');
+    console.log('Uso: npm run reports -- <save|list|rotate|latest> [días]');
     process.exit(1);
 }

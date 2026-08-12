@@ -211,6 +211,13 @@ const CATEGORY_LABELS: Record<IssueCategory, string> = {
 };
 
 export const ISSUE_LABELS: Record<string, string> = {
+  // Estados de la descarga (`fetch.status`). No son incidencias del analizador,
+  // pero `deliveryCause` cae a ellos cuando la descarga falla sin dejar código,
+  // y sin etiqueta se enseñaban en crudo: «http_error».
+  http_error: 'El servidor respondió con un error HTTP',
+  unreachable: 'No se pudo contactar con el servidor',
+  service: 'El servicio de origen no atendió la petición',
+  too_large: 'Supera el tamaño máximo descargable',
   'celda-faltante': 'Celdas vacías en filas con datos',
   'error-tipo': 'Valores con tipo distinto al de su columna',
   'encabezado-vacio': 'Encabezados de columna vacíos',

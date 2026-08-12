@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getQualityReport } from "@/lib/quality-report";
 import { getCatalog } from "@/lib/rdf-catalog";
 import { buildAlerts, isBlockingCode } from "@/lib/alerts";
-import { categoryLabel, type IssueCategory } from "@/lib/quality-labels";
+import { categoryLabel, issueCategory, issueLabel, type IssueCategory } from "@/lib/quality-labels";
 import { datasetSlug } from "@/lib/utils";
 import { scoreForDataset } from "@/lib/quality";
 
@@ -30,19 +30,11 @@ export async function GET(request: NextRequest) {
 
   // El score expuesto es el compuesto (metadatos + disponibilidad + contenido),
   // el mismo que ve el usuario en el portal.
-  const reportBySlug = new Map(report.datasets.map((d) => [datasetSlug(d.dataset_id), d]));
-
-  const alerts = buildAlerts(report)
-    .map((a) => ({
-      ...a,
-      score: scoreForDataset(
-        metadataBySlug.get(datasetSlug(a.datasetId)) ?? null,
-        reportBySlug.get(datasetSlug(a.datasetId))
-      ),
-    }))
-    .sort((a, b) => (a.score ?? 0) - (b.score ?? 0))
+  const alerts = buildAlerts(report, (ds) =>
+    scoreForDataset(metadataBySlug.get(datasetSlug(ds.dataset_id)) ?? null, ds)
+  )
     .filter((a) => (level ? a.level === level : true))
-    .filter((a) => (category ? a.causes.some((c) => c.category === category) : true));
+    .filter((a) => (category ? a.causes.some((c) => issueCategory(c.code) === category) : true));
 
   const total = alerts.length;
 
@@ -52,9 +44,9 @@ export async function GET(request: NextRequest) {
       critical: alerts.filter((a) => a.level === "critical").length,
       warning: alerts.filter((a) => a.level === "warning").length,
       categories: {
-        availability: alerts.filter((a) => a.causes.some((c) => isBlockingCode(c.code) && c.category === "availability")).length,
-        format: alerts.filter((a) => a.causes.some((c) => isBlockingCode(c.code) && c.category === "format")).length,
-        content: alerts.filter((a) => a.causes.some((c) => c.category === "content")).length,
+        availability: alerts.filter((a) => a.causes.some((c) => isBlockingCode(c.code) && issueCategory(c.code) === "availability")).length,
+        format: alerts.filter((a) => a.causes.some((c) => isBlockingCode(c.code) && issueCategory(c.code) === "format")).length,
+        content: alerts.filter((a) => a.causes.some((c) => issueCategory(c.code) === "content")).length,
       },
       alerts: alerts.slice(0, limit).map((a) => ({
         dataset_id: a.datasetId,
@@ -65,8 +57,8 @@ export async function GET(request: NextRequest) {
         distributions: a.totalDistributions,
         causes: a.causes.map((c) => ({
           code: c.code,
-          label: c.label,
-          category: categoryLabel(c.category),
+          label: issueLabel(c.code),
+          category: categoryLabel(issueCategory(c.code)),
           count: c.count,
         })),
       })),

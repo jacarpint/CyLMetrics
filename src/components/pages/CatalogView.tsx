@@ -8,9 +8,11 @@ import {
   ChevronLeft, ChevronRight, ArrowUpDown,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import {
+  Sheet, SheetBody, SheetContent, SheetDescription, SheetHeader, SheetTitle,
+} from '@/components/ui/sheet';
 import { FilterContent } from '@/components/layout/FilterContent';
-import { getScoreColor, getScoreBorderColor, compositeScore } from '@/lib/quality';
+import { getScoreColor, getScoreBorderColor, getScoreLabel, compositeScore } from '@/lib/quality';
 import { datasetSlug, cn } from '@/lib/utils';
 import type { CatalogStats } from '@/lib/types';
 import type { QualityDatasetLite } from '@/lib/quality-report';
@@ -68,7 +70,7 @@ function QualityScoreCircle({ score }: { score: number | null }) {
   const borderClass = score != null ? getScoreBorderColor(score) : 'border-border';
   return (
     <div
-      title="Score compuesto: metadatos, disponibilidad de los archivos y calidad del contenido"
+      title="Calidad global: metadatos, disponibilidad de los archivos y calidad del contenido"
       className={cn(
         'flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 text-sm font-bold tabular-nums',
         borderClass,
@@ -76,6 +78,13 @@ function QualityScoreCircle({ score }: { score: number | null }) {
       )}
     >
       {score ?? '—'}
+      {/* El nivel también en texto: el color no puede ser lo único que lo diga
+          (WCAG 1.4.1). El medidor de la ficha ya lo hacía; la tarjeta, no. */}
+      <span className="sr-only">
+        {score != null
+          ? ` sobre 100 — calidad ${getScoreLabel(score).toLowerCase()}`
+          : 'Sin puntuación'}
+      </span>
     </div>
   );
 }
@@ -265,8 +274,14 @@ export function CatalogView({
               <Filter className="h-4 w-4 text-faint" aria-hidden />
               Filtros
             </SheetTitle>
+            <SheetDescription>
+              Acota el catálogo por temática, formato, estado de los archivos, licencia o fecha.
+            </SheetDescription>
           </SheetHeader>
-          <FilterContent stats={totalStats} onApply={() => setMobileFiltersOpen(false)} />
+          {/* Dentro de SheetBody: es la única parte del panel que se desplaza. */}
+          <SheetBody>
+            <FilterContent stats={totalStats} onApply={() => setMobileFiltersOpen(false)} />
+          </SheetBody>
         </SheetContent>
       </Sheet>
 

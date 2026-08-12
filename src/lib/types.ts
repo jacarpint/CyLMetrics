@@ -6,6 +6,8 @@
  * https://datosabiertos.jcyl.es/web/jcyl/risp/es/ciencia-tecnologia/general/1284166186527.rdf
  */
 
+import type { FreshnessReport, MetadataGapCode } from './metadata-gaps';
+
 export type DatasetStatus = 'healthy' | 'warning' | 'critical';
 
 /** Formatos presentes en el catálogo real de jcyl (mapeados desde dct:IMT). */
@@ -91,6 +93,15 @@ export interface Dataset {
   periodicityMonths?: number;
   spatial?: string;
   distributionUrls: DistributionUrl[];
+  /**
+   * Huecos de metadatos concretos, para poder decirle al publicador qué falta
+   * en lugar de solo darle un porcentaje. Se calculan al parsear el catálogo
+   * (una vez por hora, con su caché) desde la misma función que alimenta la
+   * completitud del score.
+   */
+  metadataGaps: MetadataGapCode[];
+  /** Por qué la actualidad de este dataset puntúa lo que puntúa. */
+  freshness: FreshnessReport;
 }
 
 export interface CatalogStats {
@@ -118,6 +129,15 @@ export interface CatalogData {
     fetchedAt: string;
     datasetCount: number;
     distributionCount: number;
+    /**
+     * De dónde salieron los datos: del RDF remoto, de la copia local de
+     * respaldo, o de ningún sitio.
+     *
+     * `none` es un catálogo vacío de emergencia. Antes no se distinguía, así que
+     * si fallaban la red y la copia local la interfaz pintaba «0 datasets» como
+     * si fuera el dato real del catálogo.
+     */
+    origin: 'remote' | 'local' | 'none';
   };
 }
 

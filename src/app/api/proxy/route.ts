@@ -1,4 +1,4 @@
-import { isAllowedHost } from "@/lib/proxy-allow";
+import { isAllowedHost, isAllowedResponse } from "@/lib/proxy-allow";
 
 export const revalidate = 3600;
 
@@ -37,6 +37,14 @@ export async function GET(request: Request) {
       headers: { "user-agent": "JCyL-DataQuality-Portal/1.0", accept: "*/*" },
       redirect: "follow",
     });
+    // La allowlist también tiene que valer para el destino de los redirects.
+    if (!isAllowedResponse(upstream, url)) {
+      return new Response(JSON.stringify({ error: "El recurso redirige fuera de los dominios permitidos" }), {
+        status: 400,
+        headers: { "content-type": "application/json" },
+      });
+    }
+
     if (!upstream.ok && !raw) {
       return new Response(JSON.stringify({ error: `Origen respondió ${upstream.status}` }), {
         status: 502,

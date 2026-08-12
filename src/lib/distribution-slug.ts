@@ -54,8 +54,3 @@ export function resolveDistributionIndex(formats: string[], param: string): numb
   return distributionSlugs(formats).indexOf(param.toLowerCase());
 }
 
-/** Ruta canónica de una distribución. */
-export function distributionHref(datasetSlug: string, formats: string[], index: number): string {
-  const slug = distributionSlugs(formats)[index];
-  return `/catalogo/${datasetSlug}/${slug ?? index}`;
-}

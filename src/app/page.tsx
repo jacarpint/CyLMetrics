@@ -18,7 +18,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { getCatalog } from "@/lib/rdf-catalog";
 import { getQualityReport, formatBytes } from "@/lib/quality-report";
-import { summarizeDelivery, distributionsAffectedByIssue } from "@/lib/availability";
+import { summarizeDelivery, summarizeContent, distributionsAffectedByIssue } from "@/lib/availability";
 import { cn } from "@/lib/utils";
 
 export const revalidate = 3600;
@@ -34,7 +34,10 @@ export default async function HomePage() {
   const report = getQualityReport();
 
   const delivery = summarizeDelivery(report);
-  const contentScore = report?.totals.avg_score ?? null;
+  // Media sobre lo que abre, no sobre todo lo que dejó métricas: es lo que dice
+  // la tarjeta y lo que hace comparable este número con el de disponibilidad.
+  const content = summarizeContent(report);
+  const contentScore = content.avgScore;
 
   const analyzedAt = report?.generated_at
     ? new Date(report.generated_at).toLocaleDateString("es-ES", { day: "numeric", month: "long", year: "numeric" })
@@ -46,6 +49,12 @@ export default async function HomePage() {
     { value: catalog.stats.totalDistributions.toLocaleString("es-ES"), label: "archivos y servicios" },
     { value: formatBytes(report?.totals.bytes ?? 0), label: "descargados y abiertos" },
   ];
+
+  /* El catálogo se lee en vivo y el análisis es una foto, así que los totales no
+     coinciden: 825 datasets frente a los 824 que había el día del análisis. La
+     diferencia se explica donde se ven las dos cifras juntas, en vez de dejar
+     que parezca un error de cuentas del portal. */
+  const newSinceAnalysis = report ? catalog.stats.totalDatasets - delivery.totalDatasets : 0;
 
   /* Cómo se comprueba. El diferencial del portal es el paso 2: no se queda
      en los metadatos, se descarga el archivo y se intenta abrir de verdad. */
@@ -131,7 +140,7 @@ export default async function HomePage() {
             </Link>
           </Button>
           <Button asChild variant="secondary">
-            <Link href="/calidad?vista=reparar">Ver los archivos con problemas</Link>
+            <Link href="/calidad?vista=ficheros">Ver los archivos con problemas</Link>
           </Button>
         </div>
 
@@ -147,6 +156,13 @@ export default async function HomePage() {
           {analyzedAt && (
             <p className="text-xs text-faint">
               Último análisis completo: <time dateTime={report?.generated_at}>{analyzedAt}</time>
+              {newSinceAnalysis > 0 && (
+                <>
+                  {" "}· {newSinceAnalysis.toLocaleString("es-ES")}{" "}
+                  {newSinceAnalysis === 1 ? "dataset publicado" : "datasets publicados"} después, aún
+                  sin comprobar
+                </>
+              )}
             </p>
           )}
         </dl>
@@ -195,7 +211,7 @@ export default async function HomePage() {
                   de {delivery.totalDatasets.toLocaleString("es-ES")} datasets.
                 </p>
                 <Link
-                  href="/calidad?vista=reparar"
+                  href="/calidad?vista=ficheros"
                   className="mt-auto inline-flex w-fit items-center gap-1.5 pt-4 text-sm font-medium text-link underline-offset-2 hover:underline"
                 >
                   Ver los archivos con problemas <ArrowRight className="h-4 w-4" aria-hidden />
@@ -219,15 +235,15 @@ export default async function HomePage() {
                   calidad media del contenido legible
                 </p>
                 <p className="mt-1 text-xs text-faint">
-                  Sobre las {delivery.ok.toLocaleString("es-ES")} distribuciones que sí se pudieron analizar:
-                  encabezados, tipos de dato y celdas vacías.
+                  Sobre las {content.scored.toLocaleString("es-ES")} distribuciones que se abren y
+                  tienen contenido que medir: encabezados, tipos de dato y celdas vacías.
                 </p>
                 <p className="mt-3 text-xs text-faint">
                   No incluye los archivos rotos: un fichero que no abre no tiene calidad de
                   contenido que medir.
                 </p>
                 <Link
-                  href="/calidad?vista=incidencias"
+                  href="/calidad?vista=ficheros&familia=contenido"
                   className="mt-auto inline-flex w-fit items-center gap-1.5 pt-4 text-sm font-medium text-link underline-offset-2 hover:underline"
                 >
                   Ver el informe de incidencias <ArrowRight className="h-4 w-4" aria-hidden />
@@ -363,7 +379,7 @@ export default async function HomePage() {
               </p>
               <div className="mt-auto flex flex-wrap gap-3 pt-5">
                 <Button asChild size="sm">
-                  <Link href="/calidad?vista=reparar">
+                  <Link href="/calidad?vista=ficheros">
                     Qué arreglar primero <ArrowRight className="h-4 w-4" aria-hidden />
                   </Link>
                 </Button>

@@ -12,9 +12,13 @@
 import type { Category, DataFormat, Dataset, License } from '@/lib/types';
 import type { QualityDatasetLite } from '@/lib/quality-report';
 import { isGeoFormat } from '@/lib/geo';
+import { datasetSlug } from '@/lib/utils';
 
 export const DEFAULT_PAGE_SIZE = 24;
+/** Tamaños que ofrece el desplegable de la interfaz. */
 export const PAGE_SIZE_OPTIONS = [12, 24, 48] as const;
+/** Tope de la API: la interfaz solo usa PAGE_SIZE_OPTIONS, pero un cliente puede pedir más. */
+export const MAX_PAGE_SIZE = 200;
 export type PageSort = 'quality-desc' | 'quality-asc' | 'title-asc' | 'date-desc' | 'date-asc';
 
 /**
@@ -56,6 +60,11 @@ export interface ActiveFilters {
   geo?: boolean;
 }
 
+const SORT_VALUES = new Set<string>([
+  'quality-desc', 'quality-asc', 'title-asc', 'date-desc', 'date-asc',
+]);
+const ANALYSIS_VALUES = new Set<string>(['ok', 'parcial', 'error', 'sin-datos']);
+
 type SearchParams = Record<string, string | string[] | undefined>;
 
 function readParam(params: SearchParams, key: string): string | undefined {
@@ -72,14 +81,34 @@ function splitList(value: string | undefined): string[] {
     : [];
 }
 
-/** Interpreta los searchParams de la página como filtros activos. */
-export function parseActiveFilters(params: SearchParams): ActiveFilters {
+/**
+ * Interpreta los searchParams de la página como filtros activos.
+ *
+ * `strictPageSize` es lo que distingue la interfaz de la API. En la interfaz el
+ * tamaño de página tiene que ser uno de los del desplegable, o el `<select>` se
+ * queda en blanco. La API, en cambio, es un endpoint documentado con `?limit=`:
+ * ahí cualquier valor razonable vale, acotado a `MAX_PAGE_SIZE`. Antes se
+ * aplicaba la regla estricta a las dos, así que `/api/catalog?limit=1`
+ * respondía silenciosamente con 24 elementos.
+ */
+export function parseActiveFilters(params: SearchParams, strictPageSize = true): ActiveFilters {
   const page = Math.max(1, parseInt(readParam(params, 'page') ?? '1', 10) || 1);
   const limitRaw = parseInt(readParam(params, 'limit') ?? String(DEFAULT_PAGE_SIZE), 10) || DEFAULT_PAGE_SIZE;
-  const limit = PAGE_SIZE_OPTIONS.includes(limitRaw as typeof PAGE_SIZE_OPTIONS[number])
-    ? limitRaw
-    : DEFAULT_PAGE_SIZE;
-  const sort = (readParam(params, 'sort') as PageSort) || DEFAULT_SORT;
+  const limit = strictPageSize
+    ? PAGE_SIZE_OPTIONS.includes(limitRaw as typeof PAGE_SIZE_OPTIONS[number])
+      ? limitRaw
+      : DEFAULT_PAGE_SIZE
+    : Math.min(Math.max(limitRaw, 1), MAX_PAGE_SIZE);
+
+  // Un `sort` desconocido caía en el `default:` de `sortDatasets`, que devolvía
+  // la lista sin ordenar, y dejaba el `<select>` de la interfaz sin valor.
+  const sortRaw = readParam(params, 'sort');
+  const sort = sortRaw && SORT_VALUES.has(sortRaw) ? (sortRaw as PageSort) : DEFAULT_SORT;
+
+  const analisisRaw = readParam(params, 'analisis');
+  const analisis = analisisRaw && ANALYSIS_VALUES.has(analisisRaw)
+    ? (analisisRaw as ActiveFilters['analisis'])
+    : undefined;
 
   return {
     categorias: splitList(readParam(params, 'categorias')) as Category[],
@@ -91,7 +120,7 @@ export function parseActiveFilters(params: SearchParams): ActiveFilters {
     page,
     limit,
     sort,
-    analisis: (readParam(params, 'analisis') as ActiveFilters['analisis']) || undefined,
+    analisis,
     geo: readParam(params, 'geo') === '1' || undefined,
   };
 }
@@ -131,9 +160,13 @@ export function applyFilters(
       if (!haystack.includes(needle)) return false;
     }
     if (f.analisis && analysisBySlug) {
-      const slug = ds.id.replace(/\/+$/, '').match(/(\d+)$/)?.[1] ?? encodeURIComponent(ds.id);
-      const lit = analysisBySlug[slug];
-      if (!lit || lit.status !== f.analisis) return false;
+      const lit = analysisBySlug[datasetSlug(ds.id)];
+      if (f.analisis === 'sin-datos') {
+        // «Sin analizar» incluye los datasets que no salen en el informe.
+        if (lit && lit.status !== 'sin-datos') return false;
+      } else if (!lit || lit.status !== f.analisis) {
+        return false;
+      }
     }
     return true;
   });

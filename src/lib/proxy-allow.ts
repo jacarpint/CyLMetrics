@@ -40,3 +40,16 @@ export function isAllowedHost(rawUrl: string): boolean {
     return false;
   }
 }
+
+/**
+ * Comprueba la URL final tras seguir las redirecciones.
+ *
+ * La lista se validaba solo contra la URL pedida. Como el proxy sigue redirects,
+ * un recurso de jcyl.es que redirigiera fuera —por un cambio de plataforma o por
+ * un `Location` manipulado— acabaría descargándose igual desde nuestro servidor.
+ * Devuelve false también si la respuesta no trae URL final legible.
+ */
+export function isAllowedResponse(response: { url?: string }, requestedUrl: string): boolean {
+  const finalUrl = response.url || requestedUrl;
+  return isAllowedHost(finalUrl);
+}

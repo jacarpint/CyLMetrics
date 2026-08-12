@@ -34,6 +34,27 @@ export type DeliveryState = 'ok' | 'roto' | 'no-entrega' | 'omitida';
 /** Códigos que significan "la URL no devuelve el archivo prometido". */
 const NOT_A_FILE_CODES = new Set(['no-es-archivo', 'no-es-imagen']);
 
+/**
+ * Resultado de la descarga, según `fetch.status` del analizador.
+ *
+ * - `downloaded` / `truncated`: los bytes llegaron. `truncated` es un fichero
+ *   grande del que se leyó una parte, pero se leyó.
+ * - `too_large`: no se intentó por superar el tope. No sabemos si abre.
+ * - `http_error` / `unreachable` / `service`: la descarga falló.
+ */
+const FETCH_DELIVERED = new Set(['downloaded', 'truncated']);
+const FETCH_NOT_EVALUATED = new Set(['too_large']);
+
+type FetchOutcome = 'entregado' | 'fallido' | 'no-evaluado';
+
+function fetchOutcome(dist: DistributionResult): FetchOutcome {
+  const status = dist.fetch?.status;
+  if (!status) return 'fallido';
+  if (FETCH_DELIVERED.has(status)) return 'entregado';
+  if (FETCH_NOT_EVALUATED.has(status)) return 'no-evaluado';
+  return 'fallido';
+}
+
 export const DELIVERY_LABELS: Record<DeliveryState, string> = {
   ok: 'Se descarga y se abre',
   roto: 'No se puede descargar o abrir',
@@ -61,12 +82,42 @@ function issueCodes(dist: DistributionResult): string[] {
   return (dist.analysis?.issues ?? []).map((i) => i.code);
 }
 
-/** Clasifica una distribución del informe por su estado de entrega. */
+/**
+ * Clasifica una distribución del informe por su estado de entrega.
+ *
+ * El criterio es si el fichero LLEGA y ABRE, no el `status` que le pone el
+ * analizador. Esa era la confusión que sobredimensionaba el titular del portal:
+ * `engine.py` marca `status: 'error'` en cuanto hay una incidencia de severidad
+ * `error`, y «tipos mezclados en una columna» es una de ellas. Resultado: un
+ * XLSX que responde HTTP 200, se descarga, se abre y del que se leen 336 filas
+ * en 2 hojas con puntuación 80 se contaba como «no se puede descargar o abrir».
+ *
+ * De las 582 distribuciones que el analizador marca en error, 328 son de este
+ * tipo: abren y traen filas. Las otras 254 son las que de verdad no se pueden
+ * usar. Mezclarlas convertía el 15% real en un 35%, y metía en «Qué arreglar»
+ * —la lista de lo inutilizable— ficheros perfectamente legibles que solo
+ * necesitan limpieza, que es lo que mide el otro eje.
+ */
 export function classifyDelivery(dist: DistributionResult): DeliveryState {
-  if (dist.status === 'ok') return 'ok';
   const codes = issueCodes(dist);
+
+  // Lo más específico primero: la URL respondió, pero con una página web.
   if (codes.some((c) => NOT_A_FILE_CODES.has(c))) return 'no-entrega';
-  if (dist.status === 'error') return 'roto';
+
+  const outcome = fetchOutcome(dist);
+  // No llegó el fichero: da igual lo que diga el resto.
+  if (outcome === 'fallido') return 'roto';
+  // No se intentó (supera el tope de tamaño): no se puede afirmar nada.
+  if (outcome === 'no-evaluado') return 'omitida';
+
+  // Llegó. Solo es «roto» si además no se puede interpretar: un JSON inválido,
+  // un ZIP corrupto, un shapefile sin sus piezas.
+  if (codes.some(isBlockingCode)) return 'roto';
+
+  // Llegó y abrió. Si el analizador lo marcó en error, es por el CONTENIDO, y
+  // eso lo mide el eje de calidad, no este.
+  if (dist.status === 'ok' || dist.status === 'error') return 'ok';
+
   return 'omitida';
 }
 
@@ -76,14 +127,24 @@ export interface DeliveryCause {
 }
 
 /**
- * Motivo concreto por el que una distribución no está disponible. Prioriza el
- * primer código bloqueante; si no hay ninguno, cae al primero declarado y, en
- * último término, al estado de la descarga.
+ * Motivo concreto por el que una distribución no está disponible, o null si sí
+ * lo está.
+ *
+ * Se pregunta por el estado de entrega, no por `dist.status`: un fichero que
+ * abre pero trae tipos mezclados no tiene «motivo de indisponibilidad», y antes
+ * devolvía «Valores con tipo distinto al de su columna» como si lo fuera.
+ *
+ * Prioriza el código bloqueante; si la descarga falló sin dejar código, cae al
+ * estado de la descarga (`http_error`, `unreachable`…), que ya tiene etiqueta.
  */
 export function deliveryCause(dist: DistributionResult): DeliveryCause | null {
-  if (dist.status === 'ok') return null;
+  if (classifyDelivery(dist) === 'ok') return null;
   const codes = issueCodes(dist);
-  const code = codes.find((c) => isBlockingCode(c)) ?? codes[0] ?? dist.fetch?.status ?? 'desconocido';
+  const code =
+    codes.find((c) => isBlockingCode(c)) ??
+    dist.fetch?.status ??
+    codes[0] ??
+    'desconocido';
   return { code, label: issueLabel(code) };
 }
 
@@ -134,6 +195,42 @@ export function summarizeDelivery(report: QualityReport | null): DeliverySummary
     notAFilePct: total > 0 ? Math.round((noEntrega / total) * 100) : 0,
     affectedDatasets: affected,
     totalDatasets: report.datasets.length,
+  };
+}
+
+export interface ContentSummary {
+  /** Distribuciones entregadas con puntuación de contenido. */
+  scored: number;
+  /** Media de la calidad de contenido de esas, o null si no hay ninguna. */
+  avgScore: number | null;
+}
+
+/**
+ * Calidad de contenido de lo que SÍ se puede abrir.
+ *
+ * `report.totals.avg_score` promedia todas las distribuciones a las que el
+ * analizador pudo poner nota: 1.470 de 1.655, e incluye 215 que no se entregan
+ * (un fichero que descarga a medias o que no parsea también deja métricas
+ * parciales). El portal, en cambio, afirma que esa media «no incluye los
+ * archivos rotos». Aquí se calcula sobre el conjunto que el portal dice medir,
+ * para que la afirmación sea verdad.
+ */
+export function summarizeContent(report: QualityReport | null): ContentSummary {
+  if (!report) return { scored: 0, avgScore: null };
+  let scored = 0;
+  let sum = 0;
+  for (const ds of report.datasets) {
+    for (const dist of ds.distribution_results) {
+      if (classifyDelivery(dist) !== 'ok') continue;
+      const score = dist.analysis?.score;
+      if (typeof score !== 'number') continue;
+      scored++;
+      sum += score;
+    }
+  }
+  return {
+    scored,
+    avgScore: scored > 0 ? Math.round((sum / scored) * 10) / 10 : null,
   };
 }
 
@@ -212,23 +309,80 @@ export function distributionsAffectedByIssue(report: QualityReport | null): Reco
 /* Fila de fichero con problema                                        */
 /* ------------------------------------------------------------------ */
 
-/** Una distribución que no se puede usar, lista para pintar en tabla. */
-export interface BrokenFileRow {
+/**
+ * Familia del defecto de un fichero, que es también la corrección que toca.
+ *
+ * `entrega` el fichero no llega o no se puede interpretar.
+ * `contenido` el fichero abre, pero los datos vienen con errores.
+ */
+export type IssueFamily = 'entrega' | 'contenido';
+
+/**
+ * Un fichero con algún defecto, listo para pintar en tabla.
+ *
+ * Cubre las dos familias: antes solo existían las filas de entrega, así que los
+ * ~328 ficheros que se abren con errores de contenido no aparecían en ninguna
+ * tabla explorable —estaban únicamente en una lista de alertas por dataset— y no
+ * se podían filtrar, buscar ni exportar.
+ *
+ * Estas filas viajan enteras al navegador (la tabla filtra en cliente), así que
+ * no llevan nada derivable: la etiqueta de la causa se saca de `causeCode` con
+ * `issueLabel`, que es client-safe. Enviarla ya resuelta costaba ~40 KB de
+ * cadenas repetidas. `publisher` tampoco viaja: la vista no lo usa —el catálogo
+ * declara el mismo organismo en todos— y el agrupado se hace por temática.
+ */
+export interface FileIssueRow {
   datasetSlug: string;
   datasetTitle: string;
-  publisher: string;
   category: string;
   format: string;
   url: string;
-  distIdx: number;
   /** Slug de la distribución para la URL (/csv, /csv-2). */
   distSlug: string;
-  state: Exclude<DeliveryState, 'ok'>;
+  family: IssueFamily;
+  /** Estado de entrega. En las filas de contenido es siempre `ok`. */
+  state: DeliveryState;
+  /** Causa de entrega, o incidencia principal de contenido. */
   causeCode: string;
-  causeLabel: string;
-  /** Nota del analizador o resumen, para dar contexto en la fila expandida. */
-  note?: string;
+  /** Solo en contenido: incidencias de severidad error del fichero. */
+  errorIssues?: number;
+  /**
+   * Índice de la nota del analizador dentro de `FileIssueRows.notes`, para dar
+   * contexto en la fila expandida. Va por índice porque el analizador genera
+   * las notas desde plantillas y solo 326 de las 711 son distintas: repetirlas
+   * literalmente en cada fila costaba el doble de bytes.
+   */
+  noteIdx?: number;
   httpStatus?: number | null;
+}
+
+/** Filas de la pestaña de ficheros más las tablas que comparten. */
+export interface FileIssueRows {
+  rows: FileIssueRow[];
+  /** Notas del analizador sin repetir; las filas apuntan aquí por índice. */
+  notes: string[];
+  /** Distribuciones analizadas por formato, para calcular proporciones. */
+  formatTotals: Record<string, number>;
+  totalDistributions: number;
+}
+
+/** Acumulador de notas sin duplicados, para construir `FileIssueRows.notes`. */
+export function createNoteTable() {
+  const notes: string[] = [];
+  const index = new Map<string, number>();
+  return {
+    notes,
+    /** Devuelve el índice de la nota, o undefined si está vacía. */
+    add(note: string | undefined): number | undefined {
+      if (!note) return undefined;
+      const existing = index.get(note);
+      if (existing != null) return existing;
+      const next = notes.length;
+      notes.push(note);
+      index.set(note, next);
+      return next;
+    },
+  };
 }
 
 /* ------------------------------------------------------------------ */
@@ -256,14 +410,14 @@ export interface SystemicCause {
   wholeFormat: boolean;
 }
 
-export function findSystemicCauses(rows: BrokenFileRow[], formatTotals: Record<string, number>): SystemicCause[] {
-  const groups = new Map<string, { format: string; causeCode: string; causeLabel: string; affected: number; datasets: Set<string> }>();
+export function findSystemicCauses(rows: FileIssueRow[], formatTotals: Record<string, number>): SystemicCause[] {
+  const groups = new Map<string, { format: string; causeCode: string; affected: number; datasets: Set<string> }>();
 
   for (const row of rows) {
     const key = `${row.format}|${row.causeCode}`;
     let g = groups.get(key);
     if (!g) {
-      g = { format: row.format, causeCode: row.causeCode, causeLabel: row.causeLabel, affected: 0, datasets: new Set() };
+      g = { format: row.format, causeCode: row.causeCode, affected: 0, datasets: new Set() };
       groups.set(key, g);
     }
     g.affected++;
@@ -277,7 +431,7 @@ export function findSystemicCauses(rows: BrokenFileRow[], formatTotals: Record<s
         key,
         format: g.format,
         causeCode: g.causeCode,
-        causeLabel: g.causeLabel,
+        causeLabel: issueLabel(g.causeCode),
         affected: g.affected,
         formatTotal,
         datasets: g.datasets.size,
@@ -291,7 +445,7 @@ export function findSystemicCauses(rows: BrokenFileRow[], formatTotals: Record<s
 /**
  * Agrupa los ficheros con problema por un campo de texto.
  *
- * Nota sobre `publisher`: en este catálogo casi todos los datasets declaran el
+ * Solo por categoría o formato: en este catálogo todos los datasets declaran el
  * mismo organismo (`…/Organismo/A07002862`, la Junta como entidad única), así
  * que agrupar por ahí devuelve un solo grupo y no ayuda a repartir el trabajo.
  * La categoría temática sí discrimina.
@@ -303,8 +457,8 @@ export interface FieldFailures {
 }
 
 export function groupByField(
-  rows: BrokenFileRow[],
-  field: 'publisher' | 'category' | 'format',
+  rows: FileIssueRow[],
+  field: 'category' | 'format',
   fallback = 'Sin clasificar'
 ): FieldFailures[] {
   const map = new Map<string, { affected: number; datasets: Set<string> }>();

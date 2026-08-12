@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getQualityReport } from "@/lib/quality-report";
 import { getCatalog } from "@/lib/rdf-catalog";
 import { summarizeDelivery } from "@/lib/availability";
+import { getScoreLevel } from "@/lib/quality";
 import { datasetSlug } from "@/lib/utils";
 
 export async function GET(request: NextRequest) {
@@ -19,7 +20,12 @@ export async function GET(request: NextRequest) {
   };
 
   if (datasetId) {
-    const ds = report.datasets.find((d) => d.dataset_id === datasetId);
+    // Acepta la URI completa y el identificador corto (`1285663381041`), que es
+    // el que usan las URLs del portal. Antes solo casaba la URI exacta.
+    const slug = datasetSlug(datasetId);
+    const ds = report.datasets.find(
+      (d) => d.dataset_id === datasetId || datasetSlug(d.dataset_id) === slug
+    );
     if (!ds) {
       return NextResponse.json({ error: "Dataset not found" }, { status: 404 });
     }
@@ -63,6 +69,18 @@ export async function GET(request: NextRequest) {
 
   const delivery = summarizeDelivery(report);
 
+  /**
+   * Reparto por niveles con los umbrales del portal (≥80 buena, 50–79
+   * mejorable, <50 deficiente), no con una escala propia de 80/60/40 que no
+   * coincidía con ninguna otra parte. Y los datasets sin puntuación se cuentan:
+   * antes no caían en ningún cubo, así que la suma daba 436 de 824 sin decirlo.
+   */
+  const levels = { good: 0, fair: 0, poor: 0, unscored: 0 };
+  for (const ds of report.datasets) {
+    if (ds.score == null) levels.unscored++;
+    else levels[getScoreLevel(ds.score) === 'ok' ? 'good' : getScoreLevel(ds.score) === 'warn' ? 'fair' : 'poor']++;
+  }
+
   return NextResponse.json({
     generated_at: report.generated_at,
     totals: report.totals,
@@ -78,11 +96,14 @@ export async function GET(request: NextRequest) {
       broken_pct: delivery.brokenPct,
       affected_datasets: delivery.affectedDatasets,
     },
-    score_distribution: {
-      excellent: report.datasets.filter((d) => d.score != null && d.score >= 80).length,
-      good: report.datasets.filter((d) => d.score != null && d.score >= 60 && d.score < 80).length,
-      fair: report.datasets.filter((d) => d.score != null && d.score >= 40 && d.score < 60).length,
-      poor: report.datasets.filter((d) => d.score != null && d.score < 40).length,
+    // Sobre la puntuación de CONTENIDO de cada dataset. Los cuatro valores
+    // suman siempre `dataset_count`.
+    content_score_distribution: {
+      good: levels.good,
+      fair: levels.fair,
+      poor: levels.poor,
+      unscored: levels.unscored,
+      thresholds: { good: '>= 80', fair: '50-79', poor: '< 50', unscored: 'sin archivo legible' },
     },
   }, { headers: cacheHeaders });
 }

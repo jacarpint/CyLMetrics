@@ -1,5 +1,5 @@
 import { XMLParser } from "fast-xml-parser";
-import { isAllowedHost } from "@/lib/proxy-allow";
+import { isAllowedHost, isAllowedResponse } from "@/lib/proxy-allow";
 
 export const revalidate = 3600;
 
@@ -103,6 +103,9 @@ async function fetchText(url: string): Promise<Fetched | null> {
       headers: { "user-agent": "JCyL-DataQuality-Portal/1.0", accept: "application/xml,text/xml,*/*" },
       redirect: "follow",
     });
+    // La allowlist se comprobó sobre la URL pedida; el redirect puede llevar a
+    // otro sitio, así que se vuelve a comprobar el destino final.
+    if (!isAllowedResponse(res, url)) return null;
     return { text: await res.text(), finalUrl: res.url || url, ok: res.ok };
   } catch {
     return null;

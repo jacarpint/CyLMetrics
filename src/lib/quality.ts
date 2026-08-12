@@ -1,4 +1,3 @@
-import type { DatasetStatus } from '@/lib/types';
 import { datasetAvailabilityPct } from '@/lib/availability';
 import type { QualityDatasetSummary } from '@/lib/quality-report';
 
@@ -99,28 +98,6 @@ export function getScoreStroke(score: number): string {
   if (level === 'ok') return 'var(--ok-solid)';
   if (level === 'warn') return 'var(--warn-solid)';
   return 'var(--bad-solid)';
-}
-
-/** Clase bg para el fondo del score según puntuación. */
-export function getScoreBg(score: number): string {
-  const level = getScoreLevel(score);
-  if (level === 'ok') return 'bg-ok-surface';
-  if (level === 'warn') return 'bg-warn-surface';
-  return 'bg-bad-surface';
-}
-
-/** Clase de relleno (barras, segmentos) según puntuación. */
-export function getScoreFill(score: number): string {
-  const level = getScoreLevel(score);
-  if (level === 'ok') return 'bg-ok-solid';
-  if (level === 'warn') return 'bg-warn-solid';
-  return 'bg-bad-solid';
-}
-
-export function getStatusBadgeVariant(status: DatasetStatus): 'success' | 'warning' | 'destructive' {
-  if (status === 'healthy') return 'success';
-  if (status === 'warning') return 'warning';
-  return 'destructive';
 }
 
 /**

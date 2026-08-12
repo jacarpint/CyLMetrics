@@ -2,42 +2,53 @@ import { NextRequest, NextResponse } from "next/server";
 import { getQualityReport } from "@/lib/quality-report";
 import { getCatalog } from "@/lib/rdf-catalog";
 import { datasetSlug } from "@/lib/utils";
-import { scoreForDataset } from "@/lib/quality";
+import { getScoreLevel, scoreForDataset, type ScoreLevel } from "@/lib/quality";
 
-const SCORE_COLORS: Record<string, string> = {
-  excellent: "#10b981",
-  good: "#22c55e",
-  fair: "#f59e0b",
-  poor: "#ef4444",
-  unknown: "#94a3b8",
+/**
+ * Colores y textos del sello.
+ *
+ * Los umbrales son los del portal (`getScoreLevel`: ≥80 buena, 50–79 mejorable,
+ * <50 deficiente). Antes este endpoint tenía su propia escala 80/60/40, así que
+ * devolvía un 60% pintado de verde mientras el resto del portal llamaba
+ * «mejorable» a ese mismo 60%.
+ */
+const LEVEL_STYLE: Record<ScoreLevel | "unknown", { color: string; label: string }> = {
+  ok: { color: "#047857", label: "Buena" },
+  warn: { color: "#a45309", label: "Mejorable" },
+  bad: { color: "#b91c1c", label: "Deficiente" },
+  unknown: { color: "#5b6979", label: "Sin datos" },
 };
 
-function scoreLevel(score: number | null): keyof typeof SCORE_COLORS {
-  if (score == null) return "unknown";
-  if (score >= 80) return "excellent";
-  if (score >= 60) return "good";
-  if (score >= 40) return "fair";
-  return "poor";
+function esc(text: string): string {
+  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
+/**
+ * El sello dice el nivel además del porcentaje: el color no puede ser el único
+ * portador de la información (WCAG 1.4.1), y menos en una imagen que se pega en
+ * webs de terceros donde nadie va a explicar la escala.
+ */
 function generateSVG(score: number | null): string {
-  const level = scoreLevel(score);
-  const color = SCORE_COLORS[level];
+  const style = score == null ? LEVEL_STYLE.unknown : LEVEL_STYLE[getScoreLevel(score)];
   const pct = score != null ? `${score}%` : "—";
-  const width = 140;
+  const text = `Calidad ${pct} · ${style.label}`;
+  // Ancho aproximado a partir del número de caracteres, para que el texto no
+  // desborde el marco con etiquetas largas como «Deficiente».
+  const width = Math.max(150, 22 + text.length * 6.6);
   const height = 28;
+  const { color } = style;
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${Math.round(width)}" height="${height}" viewBox="0 0 ${Math.round(width)} ${height}" role="img" aria-label="${esc(text)}">
+  <title>${esc(text)}</title>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="0">
       <stop offset="0" stop-color="${color}" stop-opacity="0.12"/>
       <stop offset="1" stop-color="${color}" stop-opacity="0.06"/>
     </linearGradient>
   </defs>
-  <rect width="${width}" height="${height}" rx="6" fill="url(#bg)" stroke="${color}" stroke-opacity="0.3"/>
-  <rect x="1" y="1" width="${width - 2}" height="${height - 2}" rx="5" fill="none" stroke="${color}" stroke-opacity="0.15"/>
-  <text x="10" y="17" font-family="system-ui,-apple-system,sans-serif" font-size="10" font-weight="600" fill="${color}">Calidad</text>
-  <text x="68" y="17" font-family="system-ui,-apple-system,sans-serif" font-size="11" font-weight="700" fill="${color}">${pct}</text>
+  <rect width="${Math.round(width)}" height="${height}" rx="6" fill="url(#bg)" stroke="${color}" stroke-opacity="0.3"/>
+  <rect x="1" y="1" width="${Math.round(width) - 2}" height="${height - 2}" rx="5" fill="none" stroke="${color}" stroke-opacity="0.15"/>
+  <text x="11" y="18" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="11" font-weight="600" fill="${color}">${esc(text)}</text>
 </svg>`;
 }
 

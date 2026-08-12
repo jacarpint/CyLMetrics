@@ -12,9 +12,12 @@ interface SidebarProps {
 
 export function Sidebar({ stats }: SidebarProps) {
   const pathname = usePathname();
-  const isCatalogo = pathname === '/catalogo' || pathname.startsWith('/catalogo/');
+  // Solo en el listado. En la ficha de un dataset o de una distribución los
+  // filtros no acotan nada de lo que se está leyendo: aplicar uno te sacaba de
+  // la página, así que el panel prometía algo que no hacía.
+  const isListado = pathname === '/catalogo';
 
-  if (!isCatalogo) return null;
+  if (!isListado) return null;
 
   return (
     // El panel entero se desplaza como una columna: antes la lista scrolleaba

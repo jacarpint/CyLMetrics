@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
   compositeScore,
+  getScoreBorderColor,
   getScoreColor,
-  getScoreFill,
   getScoreLabel,
   getScoreLevel,
   getScoreStroke,
@@ -59,17 +59,17 @@ describe('getScoreLevel', () => {
 });
 
 describe('helpers de color del score', () => {
-  it('usan el mismo umbral en clase, relleno y trazo', () => {
+  it('usan el mismo umbral en texto, borde y trazo', () => {
     expect(getScoreColor(85)).toBe('text-ok');
-    expect(getScoreFill(85)).toBe('bg-ok-solid');
+    expect(getScoreBorderColor(85)).toBe('border-ok-solid');
     expect(getScoreStroke(85)).toBe('var(--ok-solid)');
 
     expect(getScoreColor(60)).toBe('text-warn');
-    expect(getScoreFill(60)).toBe('bg-warn-solid');
+    expect(getScoreBorderColor(60)).toBe('border-warn-solid');
     expect(getScoreStroke(60)).toBe('var(--warn-solid)');
 
     expect(getScoreColor(10)).toBe('text-bad');
-    expect(getScoreFill(10)).toBe('bg-bad-solid');
+    expect(getScoreBorderColor(10)).toBe('border-bad-solid');
     expect(getScoreStroke(10)).toBe('var(--bad-solid)');
   });
 

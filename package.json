@@ -8,11 +8,16 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "reports": "vite-node scripts/manage-reports.ts",
+    "reports:index": "vite-node scripts/build-history-index.ts",
     "check:contrast": "node scripts/check-contrast.mjs",
     "check:xlsx": "vite-node scripts/check-xlsx-read.mts",
     "check:json": "vite-node scripts/check-json-records.mts",
     "check:shp": "vite-node scripts/check-shapefile.mts",
-    "check:geo": "vite-node scripts/check-geo-pipeline.mts"
+    "check:geo": "vite-node scripts/check-geo-pipeline.mts",
+    "check:table": "vite-node scripts/check-table-viewer.mts",
+    "check:tabular": "vite-node scripts/check-tabular-analysis.mts"
   },
   "dependencies": {
     "@radix-ui/react-accordion": "^1.2.20",

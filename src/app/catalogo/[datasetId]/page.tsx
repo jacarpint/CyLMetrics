@@ -1,4 +1,5 @@
 import type React from "react";
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import {
@@ -21,6 +22,7 @@ import {
   getQualityReport,
   distributionVolume,
   formatBytes,
+  matchDistributions,
   type DistributionResult,
 } from "@/lib/quality-report";
 import { classifyDelivery, deliveryCause } from "@/lib/availability";
@@ -30,6 +32,7 @@ import { categoryIcons } from "@/data/categories";
 import { datasetSlug, cn } from "@/lib/utils";
 import { scoreForDataset } from "@/lib/quality";
 import { ScoreGauge } from "@/components/quality/score-gauge";
+import { DatasetApi } from "@/components/quality/dataset-api";
 
 export const revalidate = 3600;
 
@@ -43,6 +46,40 @@ const KEYWORD_SPAN: Record<number, string> = {
 export async function generateStaticParams() {
   const catalog = await getCatalog();
   return catalog.datasets.map((ds) => ({ datasetId: datasetSlug(ds.id) }));
+}
+
+/**
+ * Metadatos por dataset.
+ *
+ * Las 825 fichas compartían el título y la descripción del portal, así que en un
+ * buscador o al compartir un enlace eran indistinguibles entre sí.
+ *
+ * Si el dataset no aparece, NO se llama a `notFound()` aquí: quien decide es el
+ * cuerpo de la página. Hacerlo en los metadatos horneaba un 404 permanente en la
+ * salida estática cuando durante el build un worker se quedaba con la copia local
+ * de respaldo —que tiene un dataset menos que el catálogo en vivo— y ese 404 se
+ * seguía sirviendo para un slug que sí existe.
+ */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ datasetId: string }>;
+}): Promise<Metadata> {
+  const { datasetId } = await params;
+  const catalog = await getCatalog();
+  const ds = catalog.datasets.find((d) => datasetSlug(d.id) === datasetId);
+  if (!ds) return { title: "Dataset no encontrado | JCyL Data Quality Portal" };
+
+  const description = ds.description
+    ? ds.description.slice(0, 200)
+    : `Formatos, licencia y calidad de los archivos de «${ds.title}» en el catálogo de datos abiertos de Castilla y León.`;
+
+  return {
+    title: `${ds.title} | Datos Abiertos de Castilla y León`,
+    description,
+    keywords: ds.keywords,
+    openGraph: { title: ds.title, description, type: "article", locale: "es_ES" },
+  };
 }
 
 /** Fecha ISO del catálogo → «1 de marzo de 2022». */
@@ -101,6 +138,9 @@ export default async function DatasetPage({
 
   const keywords = ds.keywords ?? [];
   const slugs = distributionSlugs(ds.distributionUrls.map((d) => d.format));
+  // Emparejado por URL: el catálogo es una fuente en vivo y el informe una foto.
+  const results = matchDistributions(ds.distributionUrls, reportDs?.distribution_results);
+  const analyzedAt = report?.generated_at ?? null;
 
   /**
    * Columnas que le quedan libres a la última fila de metadatos: ahí van las
@@ -128,7 +168,7 @@ export default async function DatasetPage({
           )}
         </div>
         {composite != null && (
-          <ScoreGauge score={composite} size="md" label="Score compuesto" className="shrink-0" />
+          <ScoreGauge score={composite} size="md" label="Calidad global" className="shrink-0" />
         )}
       </header>
 
@@ -208,12 +248,29 @@ export default async function DatasetPage({
                 href={`/catalogo/${datasetId}/${slugs[idx]}`}
                 format={dist.format}
                 url={dist.url}
-                result={reportDs?.distribution_results[idx]}
+                result={results[idx]}
               />
             ))}
           </div>
+
+          {/* El informe es una foto: si el catálogo ha publicado una
+              distribución después, aquí se ve como «sin analizar» y conviene
+              decir por qué en lugar de dejar el hueco. */}
+          {analyzedAt && results.some((r) => r == null) && (
+            <p className="text-xs leading-relaxed text-faint">
+              Las distribuciones marcadas como «sin analizar» no estaban en el catálogo la última vez
+              que se ejecutó el análisis completo (
+              <time dateTime={analyzedAt}>
+                {new Date(analyzedAt).toLocaleDateString("es-ES", { day: "numeric", month: "long", year: "numeric" })}
+              </time>
+              ). Se comprobarán en la siguiente ejecución; entretanto puedes explorar el archivo
+              desde su ficha.
+            </p>
+          )}
         </section>
       )}
+
+      <DatasetApi slug={datasetId} analyzed={reportDs != null} />
     </div>
   );
 }

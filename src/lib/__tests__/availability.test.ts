@@ -6,9 +6,25 @@ import {
   findSystemicCauses,
   groupByField,
   summarizeDelivery,
-  type BrokenFileRow,
+  type FileIssueRow,
 } from '../availability';
 import type { DistributionResult, QualityReport } from '../quality-report';
+
+/**
+ * `fetch` por defecto: descargado. En el informe real TODAS las distribuciones
+ * traen su objeto `fetch`, así que omitirlo aquí probaba un estado imposible.
+ */
+function fetchInfo(status = 'downloaded', httpStatus: number | null = 200) {
+  return {
+    status,
+    size: 1024,
+    http_status: httpStatus,
+    duration_ms: 10,
+    truncated: status === 'truncated',
+    note: '',
+    final_url: null,
+  };
+}
 
 function dist(partial: Partial<DistributionResult> & { status: DistributionResult['status'] }): DistributionResult {
   return {
@@ -18,17 +34,23 @@ function dist(partial: Partial<DistributionResult> & { status: DistributionResul
     format: 'CSV',
     mime: '',
     url: 'https://example.org/a.csv',
-    fetch: null,
+    fetch: fetchInfo(),
     analysis: null,
     duration_ms: 0,
     ...partial,
   } as DistributionResult;
 }
 
-function withIssues(status: DistributionResult['status'], codes: string[], format = 'CSV'): DistributionResult {
+function withIssues(
+  status: DistributionResult['status'],
+  codes: string[],
+  format = 'CSV',
+  fetch = fetchInfo()
+): DistributionResult {
   return dist({
     status,
     format,
+    fetch,
     analysis: {
       ok: false,
       score: null,
@@ -44,9 +66,38 @@ describe('classifyDelivery', () => {
     expect(classifyDelivery(dist({ status: 'ok' }))).toBe('ok');
   });
 
-  it('roto cuando falla la descarga o el análisis', () => {
-    expect(classifyDelivery(withIssues('error', ['descarga']))).toBe('roto');
-    expect(classifyDelivery(withIssues('error', ['zip-invalido']))).toBe('roto');
+  it('roto cuando la descarga no trae el fichero', () => {
+    for (const status of ['http_error', 'unreachable', 'service']) {
+      expect(classifyDelivery(withIssues('error', ['descarga'], 'CSV', fetchInfo(status, 404))), status).toBe('roto');
+    }
+  });
+
+  it('roto cuando llega pero no se puede interpretar', () => {
+    expect(classifyDelivery(withIssues('error', ['json-invalido'], 'JSON'))).toBe('roto');
+    expect(classifyDelivery(withIssues('error', ['zip-invalido'], 'SHP'))).toBe('roto');
+    expect(classifyDelivery(withIssues('error', ['xlsx-invalido'], 'XLSX'))).toBe('roto');
+  });
+
+  /**
+   * El fallo que sobredimensionaba el titular del portal. `engine.py` pone
+   * `status: 'error'` en cuanto hay una incidencia de severidad error, y «tipos
+   * mezclados» lo es: 328 de las 582 marcadas en error abren y traen filas.
+   */
+  it('NO es roto un fichero que abre y solo tiene problemas de contenido', () => {
+    for (const code of [
+      'error-tipo', 'encabezado-vacio', 'encabezado-duplicado',
+      'fila-vacia', 'celda-extra', 'celda-faltante',
+    ]) {
+      expect(classifyDelivery(withIssues('error', [code])), code).toBe('ok');
+    }
+  });
+
+  it('un fichero grande leído a medias sigue estando entregado', () => {
+    expect(classifyDelivery(withIssues('error', ['error-tipo'], 'CSV', fetchInfo('truncated')))).toBe('ok');
+  });
+
+  it('la causa bloqueante manda sobre las de contenido', () => {
+    expect(classifyDelivery(withIssues('error', ['error-tipo', 'json-invalido'], 'JSON'))).toBe('roto');
   });
 
   // El caso que engine.py marcaba "skipped" y alerts.ts trataba como bloqueante.
@@ -59,8 +110,16 @@ describe('classifyDelivery', () => {
     expect(classifyDelivery(withIssues('error', ['no-es-archivo']))).toBe('no-entrega');
   });
 
+  it('omitida cuando supera el tope de tamaño: no se llegó a comprobar', () => {
+    expect(classifyDelivery(withIssues('skipped', [], 'CSV', fetchInfo('too_large', 200)))).toBe('omitida');
+  });
+
   it('omitida para el resto de saltos del analizador', () => {
     expect(classifyDelivery(dist({ status: 'skipped' }))).toBe('omitida');
+  });
+
+  it('roto si no hay ni información de descarga', () => {
+    expect(classifyDelivery(dist({ status: 'error', fetch: null }))).toBe('roto');
   });
 });
 
@@ -69,13 +128,23 @@ describe('deliveryCause', () => {
     expect(deliveryCause(dist({ status: 'ok' }))).toBeNull();
   });
 
+  // Un problema de contenido no es un motivo de indisponibilidad: antes esta
+  // función devolvía «Valores con tipo distinto» como si el fichero no abriera.
+  it('no hay causa si el fichero abre, aunque el contenido traiga errores', () => {
+    expect(deliveryCause(withIssues('error', ['error-tipo']))).toBeNull();
+  });
+
   it('prioriza el código bloqueante sobre el resto', () => {
-    const d = withIssues('error', ['celda-faltante', 'descarga']);
+    const d = withIssues('error', ['celda-faltante', 'descarga'], 'CSV', fetchInfo('http_error', 404));
     expect(deliveryCause(d)?.code).toBe('descarga');
   });
 
-  it('cae al primer código cuando ninguno es bloqueante', () => {
-    expect(deliveryCause(withIssues('error', ['error-tipo']))?.code).toBe('error-tipo');
+  it('cae al estado de la descarga cuando no hay código bloqueante', () => {
+    const d = withIssues('error', ['error-tipo'], 'CSV', fetchInfo('unreachable', null));
+    expect(deliveryCause(d)).toMatchObject({
+      code: 'unreachable',
+      label: 'No se pudo contactar con el servidor',
+    });
   });
 });
 
@@ -154,10 +223,10 @@ describe('distributionsAffectedByIssue', () => {
 });
 
 describe('findSystemicCauses', () => {
-  const rows = (n: number, format: string, causeCode: string, ds = (i: number) => `d${i}`): BrokenFileRow[] =>
+  const rows = (n: number, format: string, causeCode: string, ds = (i: number) => `d${i}`): FileIssueRow[] =>
     Array.from({ length: n }, (_, i) => ({
-      datasetSlug: ds(i), datasetTitle: 'x', publisher: 'Org', category: 'c',
-      format, url: 'u', distIdx: 0, distSlug: format.toLowerCase(), state: 'roto' as const, causeCode, causeLabel: causeCode,
+      datasetSlug: ds(i), datasetTitle: 'x', category: 'c', family: 'entrega' as const,
+      format, url: 'u', distSlug: format.toLowerCase(), state: 'roto' as const, causeCode,
     }));
 
   it('marca wholeFormat cuando el fallo alcanza a todos los recursos del formato', () => {
@@ -186,9 +255,9 @@ describe('findSystemicCauses', () => {
 });
 
 describe('groupByField', () => {
-  const mk = (category: string, slug: string): BrokenFileRow => ({
-    datasetSlug: slug, datasetTitle: 't', publisher: 'org', category, format: 'CSV',
-    url: 'u', distIdx: 0, distSlug: 'csv', state: 'roto', causeCode: 'descarga', causeLabel: 'Descarga',
+  const mk = (category: string, slug: string): FileIssueRow => ({
+    datasetSlug: slug, datasetTitle: 't', category, format: 'CSV', family: 'entrega',
+    url: 'u', distSlug: 'csv', state: 'roto', causeCode: 'descarga',
   });
 
   it('ordena los grupos por recursos afectados', () => {

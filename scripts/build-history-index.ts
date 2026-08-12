@@ -3,7 +3,7 @@
  * página de Informe Ejecutivo y la evolución por dataset.
  *
  * Uso:
- *   npx tsx scripts/build-history-index.ts
+ *   npm run reports:index
  *
  * Lee `reports/history/analysis-*.json`, valida cada informe y escribe
  * `reports/history-index.json` con:

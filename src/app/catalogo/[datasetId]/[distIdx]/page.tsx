@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import {
@@ -10,11 +11,18 @@ import {
   Layers,
   ChevronLeft,
   Table2,
+  Clock3,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { getCatalog } from "@/lib/rdf-catalog";
-import { getQualityReport, distributionVolume, analyzedCells, formatBytes } from "@/lib/quality-report";
+import {
+  getQualityReport,
+  distributionVolume,
+  analyzedCells,
+  formatBytes,
+  matchDistributions,
+} from "@/lib/quality-report";
 import { classifyDelivery, deliveryCause, DELIVERY_EXPLANATIONS, DELIVERY_LABELS } from "@/lib/availability";
 import { datasetSlug, cn } from "@/lib/utils";
 import { ScoreGauge } from "@/components/quality/score-gauge";
@@ -27,15 +35,51 @@ import { distributionSlugs, resolveDistributionIndex } from "@/lib/distribution-
 
 export const revalidate = 3600;
 
+/**
+ * Las rutas salen del catálogo, no del informe: el catálogo es quien decide
+ * qué distribuciones existen. Generándolas desde el informe, todo lo publicado
+ * después del último análisis se quedaba sin prerenderizar.
+ */
 export async function generateStaticParams() {
-  const report = getQualityReport();
-  if (!report) return [];
-
+  const catalog = await getCatalog();
   // La URL usa el formato (/csv, /json, /csv-2) en vez de la posición.
-  return report.datasets.flatMap((rDs) => {
-    const slugs = distributionSlugs(rDs.distribution_results.map((d) => d.format));
-    return slugs.map((slug) => ({ datasetId: datasetSlug(rDs.dataset_id), distIdx: slug }));
+  return catalog.datasets.flatMap((ds) => {
+    const slugs = distributionSlugs(ds.distributionUrls.map((d) => d.format));
+    return slugs.map((slug) => ({ datasetId: datasetSlug(ds.id), distIdx: slug }));
   });
+}
+
+/**
+ * Metadatos de la distribución.
+ *
+ * Igual que en la ficha del dataset: si no se encuentra, aquí NO se llama a
+ * `notFound()` —eso horneaba un 404 estático para rutas válidas cuando el build
+ * usaba la copia local de respaldo— y se deja la decisión al cuerpo de la página.
+ */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ datasetId: string; distIdx: string }>;
+}): Promise<Metadata> {
+  const { datasetId, distIdx } = await params;
+  const catalog = await getCatalog();
+  const ds = catalog.datasets.find((d) => datasetSlug(d.id) === datasetId);
+  if (!ds) return { title: "Distribución no encontrada | JCyL Data Quality Portal" };
+
+  const formats = ds.distributionUrls.map((d) => d.format);
+  const idx = resolveDistributionIndex(formats, distIdx);
+  if (idx < 0 || !ds.distributionUrls[idx]) {
+    return { title: "Distribución no encontrada | JCyL Data Quality Portal" };
+  }
+
+  const format = ds.distributionUrls[idx].format;
+  const description = `Vista previa, esquema e incidencias del archivo ${format} de «${ds.title}» en el catálogo de datos abiertos de Castilla y León.`;
+
+  return {
+    title: `${ds.title} · ${format} | Datos Abiertos de Castilla y León`,
+    description,
+    openGraph: { title: `${ds.title} · ${format}`, description, type: "article", locale: "es_ES" },
+  };
 }
 
 export default async function DistributionPage({
@@ -62,7 +106,10 @@ export default async function DistributionPage({
   if (!distMeta) notFound();
 
   const reportDs = report?.datasets.find((r) => datasetSlug(r.dataset_id) === datasetId);
-  const dist = reportDs?.distribution_results[idx];
+  // Emparejado por URL, no por posición: ver `matchDistributions`.
+  const dist = matchDistributions(ds.distributionUrls, reportDs?.distribution_results)[idx];
+  /** El análisis todavía no ha visto este recurso (dataset o archivo nuevo). */
+  const notAnalyzed = dist == null;
 
   const score = dist?.analysis?.score ?? null;
   const status = dist?.status ?? null;
@@ -150,7 +197,9 @@ export default async function DistributionPage({
           {ds.title}
         </Link>
         <ChevronRight className="h-3 w-3 shrink-0" aria-hidden />
-        <span className="font-medium text-strong" aria-current="page">Distribución {idx + 1}</span>
+        {/* La URL es `/csv`, `/csv-2`: la miga dice lo mismo que la ruta en vez
+            de un número de posición que no aparece en ningún sitio. */}
+        <span className="font-medium text-strong" aria-current="page">{slugs[idx] ?? distMeta.format}</span>
       </nav>
 
       {/* ── Cabecera ── */}
@@ -170,8 +219,51 @@ export default async function DistributionPage({
             Distribución {idx + 1} de {ds.distributionUrls.length}
           </p>
         </div>
-        {score != null && <ScoreGauge score={score} size="md" label="Score de contenido" className="shrink-0" />}
+        {score != null && (
+          <ScoreGauge score={score} size="md" label="Calidad del contenido" className="shrink-0" />
+        )}
       </header>
+
+      {/* ── Este recurso todavía no se ha analizado ──────────────────────────
+          Pasa con lo que se publica entre dos ejecuciones del análisis. El
+          explorador sí funciona —descarga el archivo y lo lee en el navegador,
+          sin depender del informe—, así que la página tiene que decir qué falta
+          en lugar de quedarse en blanco, que es lo que hacía antes: la guarda
+          del explorador exigía `delivery === "ok"` y sin informe `delivery` es
+          nulo, no "ok". */}
+      {notAnalyzed && (
+        <Card tone="muted">
+          <CardContent className="flex items-start gap-3 p-4">
+            <Clock3 className="mt-0.5 h-4 w-4 shrink-0 text-faint" aria-hidden />
+            <div className="min-w-0 text-sm leading-relaxed text-body">
+              <p className="font-semibold text-strong">Sin analizar todavía</p>
+              <p className="mt-1">
+                Este recurso no estaba en el catálogo la última vez que se ejecutó el análisis
+                completo
+                {report?.generated_at ? (
+                  <>
+                    {" "}
+                    (
+                    <time dateTime={report.generated_at}>
+                      {new Date(report.generated_at).toLocaleDateString("es-ES", {
+                        day: "numeric",
+                        month: "long",
+                        year: "numeric",
+                      })}
+                    </time>
+                    )
+                  </>
+                ) : null}
+                , así que no hay incidencias ni puntuación que mostrar. Se comprobará en la próxima
+                ejecución.
+                {explorerKind
+                  ? " Mientras tanto, el explorador de abajo descarga el archivo y lo analiza en tu navegador."
+                  : ""}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* ── Por qué este recurso no se pudo usar ── */}
       {delivery && delivery !== "ok" && (
@@ -206,8 +298,13 @@ export default async function DistributionPage({
           Antes eran cuatro tarjetas grandes más una de incidencias: mucho alto
           de página para cinco cifras cortas. */}
       <div className="flex flex-wrap items-center gap-x-2 gap-y-2 rounded-xl border border-border bg-card px-4 py-3 text-sm">
+        {facts.length === 0 && (
+          <span className="text-xs text-faint">
+            {notAnalyzed ? "Sin cifras del análisis todavía" : "El análisis no registró cifras de este recurso"}
+          </span>
+        )}
         {facts.map((f, i) => (
-          <span key={f.label} className="inline-flex items-baseline gap-1.5">
+          <span key={`${f.label}-${i}`} className="inline-flex items-baseline gap-1.5">
             {i > 0 && <span className="mr-1 text-border" aria-hidden>·</span>}
             <span className={cn("font-semibold tabular-nums", f.tone)}>{f.value}</span>
             <span className="text-xs text-faint">{f.label}</span>
@@ -232,7 +329,7 @@ export default async function DistributionPage({
           el archivo y recalcula sobre él, así que se puede recorrer caso por
           caso. CSV, XLSX y JSON comparten explorador; cada uno aporta solo cómo
           se lee el fichero. */}
-      {explorerKind && delivery === "ok" ? (
+      {explorerKind && (delivery === "ok" || notAnalyzed) ? (
         <section>
           <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-strong">
             <Table2 className="h-4 w-4 text-faint" aria-hidden />
