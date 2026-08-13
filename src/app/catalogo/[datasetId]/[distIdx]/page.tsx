@@ -18,11 +18,13 @@ import { Badge } from "@/components/ui/badge";
 import { getCatalog } from "@/lib/rdf-catalog";
 import {
   getQualityReport,
+  getDistributionDetail,
   distributionVolume,
   analyzedCells,
   formatBytes,
   matchDistributions,
 } from "@/lib/quality-report";
+import { affectedColumns } from "@/lib/report-bundle";
 import { classifyDelivery, deliveryCause, DELIVERY_EXPLANATIONS, DELIVERY_LABELS } from "@/lib/availability";
 import { datasetSlug, cn } from "@/lib/utils";
 import { ScoreGauge } from "@/components/quality/score-gauge";
@@ -141,8 +143,22 @@ export default async function DistributionPage({
 
   const score = dist?.analysis?.score ?? null;
   const status = dist?.status ?? null;
-  const issues = dist?.analysis?.issues ?? [];
-  const schema = dist?.analysis?.schema ?? null;
+  // El fragmento del informe con TODO el detalle de este archivo: esquema, filas
+  // de muestra y las posiciones de cada incidencia. Se lee solo en esta ficha.
+  const detail = getDistributionDetail(dist?.id);
+  const schema = detail?.schema ?? null;
+  // Las incidencias se enriquecen con dónde están: `distId` para que el
+  // explorador pueda pedir las posiciones por páginas, y las columnas afectadas
+  // ya resueltas, que es lo que de verdad sirve para arreglar el fichero.
+  const detailByCode = new Map((detail?.issues ?? []).map((i) => [i.code, i]));
+  const issues = (dist?.analysis?.issues ?? []).map((issue) => {
+    const withPositions = detailByCode.get(issue.code);
+    return {
+      ...issue,
+      distId: withPositions ? detail?.id : undefined,
+      columns: withPositions ? affectedColumns(withPositions) : undefined,
+    };
+  });
 
   const fmt = distMeta.format;
   // «OTRO» pasa también por el visor geográfico: las 7 distribuciones que hay
@@ -262,8 +278,7 @@ export default async function DistributionPage({
                     )
                   </>
                 ) : null}
-                , así que no hay incidencias ni puntuación que mostrar. Se comprobará en la próxima
-                ejecución.
+                , así que no hay incidencias ni puntuación que mostrar.
                 {explorerKind
                   ? " Mientras tanto, el explorador de abajo descarga el archivo y lo analiza en tu navegador."
                   : ""}
@@ -330,13 +345,47 @@ export default async function DistributionPage({
         </a>
       </div>
 
-      {/* ── Explorador del archivo ───────────────────────────────────────────
-          Un único explorador que descarga el archivo y recalcula sobre él, en vez
-          de tres secciones apiladas hablando del mismo fichero. Recalcular es lo
-          que permite recorrer las incidencias caso por caso: el informe solo
-          guarda cinco muestras de cada tipo. CSV, XLSX y JSON lo comparten y solo
-          aportan cómo se lee cada uno. */}
-      {explorerKind && (delivery === "ok" || notAnalyzed) ? (
+      {/* ── Incidencias ──────────────────────────────────────────────────────
+          Siempre desde el informe, y para todos los formatos.
+
+          Antes esta sección se sustituía por el explorador —que reanaliza el
+          archivo en el navegador— en CSV, XLSX y JSON, o sea en la mayoría del
+          catálogo. Eran dos analizadores con reglas distintas: el del navegador
+          conoce 5 de los ~19 códigos, no se ejecuta si el archivo pasa de 8 MB
+          y no llega a correr si falla la descarga. De ahí que la tarjeta dijera
+          «N incidencias» y el detalle enseñara cero, o al revés. Ahora la cifra
+          sale de un solo sitio y el explorador es lo que su nombre dice:
+          explorar el archivo. */}
+      {issues.length > 0 && (
+        <section>
+          <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-strong">
+            <AlertTriangle className="h-4 w-4 text-faint" aria-hidden />
+            Incidencias detectadas
+          </h2>
+          <IssueExplorer issues={issues} totalCells={totalCells} format={fmt} />
+        </section>
+      )}
+
+      {schema && schema.length > 0 && (
+        <section>
+          <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-strong">
+            <Layers className="h-4 w-4 text-faint" aria-hidden />
+            {isRecordShaped ? "Campos detectados" : "Esquema de columnas"}
+          </h2>
+          <SchemaExplorer
+            schema={schema}
+            unit={isRecordShaped ? "record" : "table"}
+            truncated={Boolean(dist?.analysis?.truncated)}
+          />
+        </section>
+      )}
+
+      {/* ── Visor del archivo ────────────────────────────────────────────────
+          Descarga el archivo tal y como está hoy y lo deja recorrer. Es una
+          comprobación en vivo, no la fuente de las cifras de arriba: el informe
+          es una foto fechada y el archivo puede haber cambiado desde entonces.
+          Cuando las dos cosas no cuadran, el explorador lo dice. */}
+      {explorerKind && (delivery === "ok" || notAnalyzed) && (
         <section>
           <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-strong">
             <Table2 className="h-4 w-4 text-faint" aria-hidden />
@@ -350,50 +399,24 @@ export default async function DistributionPage({
             reportTruncated={Boolean(dist?.analysis?.truncated)}
           />
         </section>
-      ) : (
-        <>
-          {isGeo && (
-            <section>
-              <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-strong">
-                <Globe className="h-4 w-4 text-faint" aria-hidden />
-                Vista previa geoespacial
-              </h2>
-              <DistributionMap
-                format={fmt}
-                url={distMeta.url}
-                datasetId={datasetId}
-                spatial={ds.spatial}
-                dead={status === "error"}
-                sizeBytes={fetchSize}
-                serviceSiblings={serviceSiblings}
-              />
-            </section>
-          )}
+      )}
 
-          {issues.length > 0 && (
-            <section>
-              <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-strong">
-                <AlertTriangle className="h-4 w-4 text-faint" aria-hidden />
-                Incidencias detectadas
-              </h2>
-              <IssueExplorer issues={issues} totalCells={totalCells} format={fmt} />
-            </section>
-          )}
-
-          {schema && schema.length > 0 && (
-            <section>
-              <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-strong">
-                <Layers className="h-4 w-4 text-faint" aria-hidden />
-                {isRecordShaped ? "Campos detectados" : "Esquema de columnas"}
-              </h2>
-              <SchemaExplorer
-                schema={schema}
-                unit={isRecordShaped ? "record" : "table"}
-                truncated={Boolean(dist?.analysis?.truncated)}
-              />
-            </section>
-          )}
-        </>
+      {isGeo && (
+        <section>
+          <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-strong">
+            <Globe className="h-4 w-4 text-faint" aria-hidden />
+            Vista previa geoespacial
+          </h2>
+          <DistributionMap
+            format={fmt}
+            url={distMeta.url}
+            datasetId={datasetId}
+            spatial={ds.spatial}
+            dead={status === "error"}
+            sizeBytes={fetchSize}
+            serviceSiblings={serviceSiblings}
+          />
+        </section>
       )}
 
       {/* La API de ESTE archivo. El slug de la dirección es el mismo que lleva

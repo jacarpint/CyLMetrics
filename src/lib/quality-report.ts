@@ -9,6 +9,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 
 // Re-export para uso en servidor; los componentes cliente deben importar
 // desde `./quality-labels` (este módulo usa node:fs y no puede empaquetarse
@@ -29,8 +30,28 @@ import {
 export type { IssueCategory } from './quality-labels';
 import { issueCategory } from './quality-labels';
 import { getScoreLevel } from './quality';
+import type { DistributionDetail, IssueDetail } from './report-bundle';
+export type {
+  DistributionDetail,
+  IssueDetail,
+  IssueColumnGroup,
+  IssuePosition,
+} from './report-bundle';
 
-const REPORT_PATH = path.join(process.cwd(), 'reports', 'data-analysis.json');
+/**
+ * Directorio del informe vigente: `index.json` (ligero, lo lee todo el portal)
+ * y `d/<id>.json` (un fragmento por distribución, solo su ficha).
+ *
+ * OJO al desplegar: estas rutas se construyen en tiempo de ejecución, así que
+ * el rastreador de Next no las ve y hay que declararlas a mano en
+ * `outputFileTracingIncludes` (`next.config.ts`). Sin eso el informe no viaja
+ * al despliegue y el portal arranca sin datos.
+ */
+const BUNDLE_DIR = path.join(process.cwd(), 'reports', 'current');
+const BUNDLE_INDEX = path.join(BUNDLE_DIR, 'index.json');
+const SHARD_DIR = path.join(BUNDLE_DIR, 'd');
+const SNAPSHOTS_PATH = path.join(BUNDLE_DIR, 'snapshots.json');
+/** Informes del formato antiguo (un JSON por ejecución). Solo como respaldo. */
 const HISTORY_DIR = path.join(process.cwd(), 'reports', 'history');
 
 /**
@@ -41,28 +62,30 @@ const HISTORY_DIR = path.join(process.cwd(), 'reports', 'history');
  */
 const MIN_DATASETS_FOR_FULL_RUN = 50;
 
-export interface IssueSample {
-  /** Row number (1-based, data row excluding header). */
-  row?: number;
-  /** Column/field name where the issue occurred. */
-  field?: string;
-  /** Column index (if field name not available). */
-  field_index?: number;
-  /** The specific cell value causing the issue. */
-  cell?: string | null;
-  /** Full row values (array of strings, may be truncated). */
-  row_values?: (string | null)[];
-  /** Header row (column names). */
-  header?: (string | null)[];
-}
-
+/**
+ * Una incidencia tal y como viaja en el ÍNDICE: código, severidad y cuántas
+ * hay. Las posiciones no vienen aquí; están en el fragmento de la distribución
+ * (`DistributionDetail`), que se abre solo al entrar en su ficha.
+ *
+ * `samples` ya no existe. Guardaba cinco posiciones mientras `count` decía
+ * 850.658, y la ficha enseñaba esas cinco: el resumen y el detalle hablaban del
+ * mismo fichero con dos cifras distintas.
+ */
 export interface IssueInfo {
   code: string;
   label: string;
   severity: 'error' | 'warning';
+  /** Ocurrencias detectadas. */
   count: number;
-  /** Sample instances of this issue with position and cell data for visual exploration. */
-  samples?: IssueSample[];
+  /**
+   * Ocurrencias con posición guardada en el fragmento. 0 significa que la
+   * incidencia es del fichero entero (no descarga, ZIP corrupto) y no hay nada
+   * que localizar dentro. Menor que `count` significa recorte, y la interfaz
+   * está obligada a decirlo.
+   */
+  stored: number;
+  /** Tipo crudo de Frictionless, como trazabilidad. */
+  source?: string;
 }
 
 export interface FetchInfo {
@@ -75,21 +98,15 @@ export interface FetchInfo {
   final_url: string | null;
 }
 
-/** Campo del esquema inferido (sobre la muestra de datos analizada). */
-export interface SchemaField {
-  name: string;
-  type: 'string' | 'number' | 'date' | 'boolean' | 'unknown';
-  /** Celdas vacías en la muestra. */
-  null_count: number;
-  /** Proporción de celdas vacías (0..1). */
-  null_pct: number;
-  /** Valores distintos (capado a 1000). */
-  distinct: number;
-  /** Rango mínimo/máximo para columnas numéricas o de fecha. */
-  min?: number | string;
-  max?: number | string;
-}
+export type { SchemaField } from './report-bundle';
 
+/**
+ * El análisis tal y como viaja en el índice.
+ *
+ * `schema` y `sample_rows` viven en el fragmento, no aquí: son lo más pesado
+ * del informe y solo los usa la ficha de la distribución. Mantenerlos en el
+ * índice obligaba a parsearlos en cada arranque en frío de cualquier página.
+ */
 export interface AnalysisInfo {
   ok: boolean;
   score: number | null;
@@ -97,10 +114,6 @@ export interface AnalysisInfo {
   metrics: Record<string, unknown>;
   issues: IssueInfo[];
   truncated?: boolean;
-  /** Esquema inferido para datos tabulares (CSV, XLSX, JSON). */
-  schema?: SchemaField[];
-  /** Primeras filas de la muestra de datos. */
-  sample_rows?: (string | null)[][];
 }
 
 export type DistributionStatus = 'ok' | 'error' | 'skipped';
@@ -116,6 +129,10 @@ export interface DistributionResult {
   fetch: FetchInfo | null;
   analysis: AnalysisInfo | null;
   duration_ms: number;
+  /** Identificador del fragmento con el detalle (sha1 de la URL). */
+  id?: string;
+  /** true si existe fragmento: hay posiciones, esquema o filas de muestra. */
+  has_detail?: boolean;
 }
 
 export interface QualityDatasetSummary {
@@ -216,10 +233,17 @@ function historyFiles(): string[] {
     .map((f) => path.join(HISTORY_DIR, f));
 }
 
-/** Candidatos a informe vigente: el recién generado y, tras él, el historial. */
+/**
+ * Candidatos a informe vigente: primero el bundle nuevo y, si no está, los
+ * informes del formato antiguo.
+ *
+ * El respaldo existe para que un checkout que aún no ha regenerado el informe
+ * siga mostrando datos en vez de una página vacía; `normalizeReport` se encarga
+ * de que los dos formatos lleguen iguales al resto del portal.
+ */
 function candidateReportPaths(): string[] {
   const paths: string[] = [];
-  if (fs.existsSync(REPORT_PATH)) paths.push(REPORT_PATH);
+  if (fs.existsSync(BUNDLE_INDEX)) paths.push(BUNDLE_INDEX);
   paths.push(...historyFiles());
   return paths;
 }
@@ -239,10 +263,36 @@ function isFullRun(report: QualityReport): boolean {
   return report.datasets.length >= MIN_DATASETS_FOR_FULL_RUN;
 }
 
+/**
+ * Deja cualquiera de los dos formatos con la forma que espera el portal.
+ *
+ * Un informe antiguo trae `issues[].samples` y no trae `stored`. Si se dejara
+ * pasar tal cual, `stored` sería `undefined` y toda la interfaz que decide si
+ * una incidencia se puede localizar leería «no» donde el informe antiguo sí
+ * traía cinco muestras. Aquí se traduce: `stored` = las muestras que hubiera.
+ */
+function normalizeReport(report: QualityReport): QualityReport {
+  for (const ds of report.datasets) {
+    for (const dist of ds.distribution_results ?? []) {
+      // El informe antiguo no trae `id`: se calcula igual que lo hace el
+      // generador, para que la ficha pueda pedir su detalle en los dos casos.
+      if (!dist.id) dist.id = distributionShardId(dist.url);
+      const issues = dist.analysis?.issues;
+      if (!issues) continue;
+      for (const issue of issues) {
+        if (typeof issue.stored === 'number') continue;
+        const legacy = issue as IssueInfo & { samples?: unknown[] };
+        issue.stored = legacy.samples?.length ?? 0;
+      }
+    }
+  }
+  return report;
+}
+
 function readReport(filePath: string): QualityReport | null {
   try {
     const parsed = JSON.parse(fs.readFileSync(filePath, 'utf-8')) as unknown;
-    return isValidReport(parsed) ? parsed : null;
+    return isValidReport(parsed) ? normalizeReport(parsed) : null;
   } catch {
     return null;
   }
@@ -272,6 +322,155 @@ export function getQualityReport(): QualityReport | null {
 
   cached = { key, report };
   return report;
+}
+
+/* ------------------------------------------------------------------ */
+/* Detalle de una distribución                                         */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Puente con el formato antiguo.
+ *
+ * Un informe anterior trae el esquema y las filas de muestra dentro de
+ * `analysis`, y las posiciones como `samples` (cinco por incidencia). Se
+ * traducen a la forma nueva para que la ficha siga enseñando lo que ya tenía
+ * mientras no se regenere el análisis. `stored` sale de las muestras que
+ * realmente había, así que la interfaz dirá «5 de 2.136» —que es la verdad de
+ * ese informe— en vez de insinuar que están todas.
+ */
+type LegacySample = { row?: number; field?: string; field_index?: number; cell?: string | null };
+type LegacyAnalysis = AnalysisInfo & {
+  schema?: DistributionDetail['schema'];
+  sample_rows?: DistributionDetail['sample_rows'];
+  issues: (IssueInfo & { samples?: LegacySample[] })[];
+};
+
+function legacyIssueDetail(
+  issue: IssueInfo & { samples?: LegacySample[] },
+  header: string[]
+): IssueDetail {
+  const byColumn = new Map<number, { field?: string; rows: number[]; cells: (string | null)[] }>();
+  const rowOnly: number[] = [];
+
+  for (const sample of issue.samples ?? []) {
+    const row = sample.row ?? 0;
+    const col =
+      sample.field != null && header.length > 0 ? header.indexOf(sample.field)
+      : sample.field_index != null ? sample.field_index - 1
+      : -1;
+    if (col < 0) { rowOnly.push(row); continue; }
+    let group = byColumn.get(col);
+    if (!group) { group = { field: sample.field, rows: [], cells: [] }; byColumn.set(col, group); }
+    group.rows.push(row);
+    group.cells.push(sample.cell ?? null);
+  }
+
+  const toDeltas = (rows: number[]): number[] => {
+    const ordered = [...rows].sort((a, b) => a - b);
+    let previous = 0;
+    return ordered.map((row) => { const delta = row - previous; previous = row; return delta; });
+  };
+
+  return {
+    code: issue.code,
+    label: issue.label,
+    severity: issue.severity,
+    count: issue.count,
+    stored: issue.stored,
+    columns: [...byColumn.entries()]
+      .sort((a, b) => a[0] - b[0])
+      .map(([col, group]) => ({
+        col,
+        field: group.field,
+        rows: toDeltas(group.rows),
+        cells: group.cells.some((c) => c != null) ? group.cells : undefined,
+      })),
+    rows: rowOnly.length > 0 ? toDeltas(rowOnly) : undefined,
+  };
+}
+
+function legacyDetail(id: string): DistributionDetail | null {
+  const report = getQualityReport();
+  if (!report) return null;
+
+  for (const ds of report.datasets) {
+    for (const dist of ds.distribution_results ?? []) {
+      if (distributionShardId(dist.url) !== id) continue;
+      const analysis = dist.analysis as LegacyAnalysis | null;
+      if (!analysis) return null;
+      const metricHeader = (analysis.metrics as { header?: unknown })?.header;
+      const header = Array.isArray(metricHeader) ? metricHeader.map((h) => String(h ?? '')) : [];
+      return {
+        id,
+        url: dist.url,
+        format: dist.format,
+        dataset_id: dist.dataset_id,
+        header,
+        issues: analysis.issues.map((issue) => legacyIssueDetail(issue, header)),
+        schema: analysis.schema,
+        sample_rows: analysis.sample_rows,
+      };
+    }
+  }
+  return null;
+}
+
+/**
+ * Caché de fragmentos abiertos. Pequeña a propósito: un fragmento con un millón
+ * de posiciones ocupa memoria, y el patrón de uso real es «una ficha, unas
+ * cuantas recargas» — no barrer el catálogo entero.
+ */
+const SHARD_CACHE_SIZE = 24;
+const shardCache = new Map<string, DistributionDetail | null>();
+
+/**
+ * Identificador del fragmento de una distribución, a partir de su URL.
+ *
+ * Tiene que dar exactamente lo mismo que `shard_id()` de
+ * `src/analysis/bundle.py`, que es quien nombra los ficheros: sha1 de la URL en
+ * UTF-8, los 16 primeros caracteres hexadecimales.
+ *
+ * Se usa la URL y no la posición porque el informe es una foto y el catálogo
+ * está vivo: un id posicional apuntaría al fragmento de otro archivo en cuanto
+ * la Junta reordene o retire una distribución, sin dar ninguna señal. Es el
+ * mismo criterio de `matchDistributions`.
+ */
+export function distributionShardId(url: string): string {
+  return crypto.createHash('sha1').update(url ?? '', 'utf8').digest('hex').slice(0, 16);
+}
+
+/**
+ * Fragmento con TODAS las posiciones de las incidencias de una distribución.
+ *
+ * Devuelve null si no hay fragmento, que es lo normal cuando la distribución no
+ * tiene nada localizable dentro del fichero (no se descargó, o descargó limpia).
+ */
+export function getDistributionDetail(id: string | undefined): DistributionDetail | null {
+  // El id es el nombre del fichero: sin esta comprobación, un id manipulado
+  // (`../../algo`) sacaría la lectura del directorio de fragmentos.
+  if (!id || !/^[0-9a-f]{6,64}$/.test(id)) return null;
+
+  const cached = shardCache.get(id);
+  if (cached !== undefined) return cached;
+
+  let detail: DistributionDetail | null = null;
+  try {
+    const parsed = JSON.parse(fs.readFileSync(path.join(SHARD_DIR, `${id}.json`), 'utf-8')) as DistributionDetail;
+    detail = Array.isArray(parsed?.issues) ? parsed : null;
+  } catch {
+    detail = null;
+  }
+  // Sin fragmento, se construye uno a partir del informe antiguo. Es lo que
+  // evita que el portal pierda el esquema y las posiciones mientras no se haya
+  // regenerado el análisis con el formato nuevo.
+  if (!detail) detail = legacyDetail(id);
+
+  if (shardCache.size >= SHARD_CACHE_SIZE) {
+    const oldest = shardCache.keys().next().value;
+    if (oldest !== undefined) shardCache.delete(oldest);
+  }
+  shardCache.set(id, detail);
+  return detail;
 }
 
 /** Información de un informe en el historial. */
@@ -355,48 +554,76 @@ export interface HistorySnapshot {
 let snapshotCache: { key: string; snapshots: HistorySnapshot[] } | null = null;
 
 /**
- * Carga los N últimos informes completos del historial como snapshots.
+ * Resume un informe ya cargado. Es la definición del snapshot y la usan las dos
+ * rutas: el script que precalcula `snapshots.json` y el respaldo de aquí.
+ */
+export function summarizeReport(report: QualityReport): HistorySnapshot {
+  let healthy = 0;
+  let warning = 0;
+  let critical = 0;
+  let unscored = 0;
+  // Los umbrales se leen de `getScoreLevel`, única fuente: aquí estaban
+  // repetidos y podían quedarse atrás si se revisaba la escala.
+  for (const ds of report.datasets) {
+    if (ds.score == null) unscored++;
+    else if (getScoreLevel(ds.score) === 'ok') healthy++;
+    else if (getScoreLevel(ds.score) === 'warn') warning++;
+    else critical++;
+  }
+  const delivery = summarizeDelivery(report);
+  return {
+    date: report.generated_at.slice(0, 10),
+    totalDistributions: delivery.total,
+    usable: delivery.ok,
+    broken: delivery.roto,
+    notDelivered: delivery.noEntrega,
+    unanalyzed: delivery.omitida,
+    avgScore: summarizeContent(report).avgScore,
+    healthyDatasets: healthy,
+    warningDatasets: warning,
+    criticalDatasets: critical,
+    unscoredDatasets: unscored,
+    totalDatasets: report.datasets.length,
+  };
+}
+
+/**
+ * Serie histórica para la pestaña Evolución.
  *
- * Las ejecuciones parciales quedan fuera, con el mismo umbral que usa
- * `build-history-index.ts`: si no, el índice contaba 2 informes y esta función
- * 3, y la página mezclaba las dos cifras.
+ * Se lee de `reports/current/snapshots.json`, que precalcula
+ * `npm run reports:snapshots`. Antes esta función abría y parseaba hasta 20
+ * informes completos —16 MB cada uno— **en cada arranque en frío**, solo para
+ * quedarse con doce cifras por informe. Con las incidencias completas el coste
+ * habría crecido con el tamaño del catálogo hasta hacer inviable la página.
+ *
+ * El respaldo sobre `reports/history/` se mantiene para que un checkout sin
+ * `snapshots.json` siga pintando la serie en lugar de una página vacía.
  */
 export function loadHistorySnapshots(maxEntries = 20): HistorySnapshot[] {
-  const entries = listHistory().slice(0, maxEntries).reverse();
-  const key = `${maxEntries}|${entries.map((e) => fileSignature(e.filePath) ?? e.filename).join(',')}`;
+  const precomputed = fileSignature(SNAPSHOTS_PATH);
+  const entries = precomputed ? [] : listHistory().slice(0, maxEntries).reverse();
+  const key = precomputed
+    ? `pre|${maxEntries}|${precomputed}`
+    : `${maxEntries}|${entries.map((e) => fileSignature(e.filePath) ?? e.filename).join(',')}`;
   if (snapshotCache && snapshotCache.key === key) return snapshotCache.snapshots;
 
-  const snapshots: HistorySnapshot[] = [];
-  for (const entry of entries) {
-    const report = readReport(entry.filePath);
-    if (!report || !isFullRun(report)) continue;
-    let healthy = 0;
-    let warning = 0;
-    let critical = 0;
-    let unscored = 0;
-    // Los umbrales se leen de `getScoreLevel`, única fuente: aquí estaban
-    // repetidos y podían quedarse atrás si se revisaba la escala.
-    for (const ds of report.datasets) {
-      if (ds.score == null) unscored++;
-      else if (getScoreLevel(ds.score) === 'ok') healthy++;
-      else if (getScoreLevel(ds.score) === 'warn') warning++;
-      else critical++;
+  let snapshots: HistorySnapshot[] = [];
+  if (precomputed) {
+    try {
+      const parsed = JSON.parse(fs.readFileSync(SNAPSHOTS_PATH, 'utf-8')) as { snapshots?: HistorySnapshot[] };
+      snapshots = (parsed.snapshots ?? []).slice(-maxEntries);
+    } catch {
+      snapshots = [];
     }
-    const delivery = summarizeDelivery(report);
-    snapshots.push({
-      date: report.generated_at.slice(0, 10),
-      totalDistributions: delivery.total,
-      usable: delivery.ok,
-      broken: delivery.roto,
-      notDelivered: delivery.noEntrega,
-      unanalyzed: delivery.omitida,
-      avgScore: summarizeContent(report).avgScore,
-      healthyDatasets: healthy,
-      warningDatasets: warning,
-      criticalDatasets: critical,
-      unscoredDatasets: unscored,
-      totalDatasets: report.datasets.length,
-    });
+  } else {
+    for (const entry of entries) {
+      const report = readReport(entry.filePath);
+      // Las ejecuciones parciales (`--limit N`) quedan fuera, con el mismo
+      // umbral que aplica `build-history-index.ts`: si no, el índice contaba un
+      // número de informes y esta función otro.
+      if (!report || !isFullRun(report)) continue;
+      snapshots.push(summarizeReport(report));
+    }
   }
 
   snapshotCache = { key, snapshots };

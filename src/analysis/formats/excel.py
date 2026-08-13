@@ -15,9 +15,14 @@ import io
 from pathlib import Path
 
 from .tabular import _collect_frictionless, _score_from_issues, _normalize, _check_column_quality, _append_quality_issues, _merge_issues, _build_schema_and_sample
+from ..occurrences import new_issue
 
-MAX_SHEETS_VALIDATED = 3
-MAX_QUALITY_ROWS = 2000
+# Hojas que valida Frictionless. Sigue acotado porque `Resource.validate()`
+# reabre y reparsea el libro entero por cada hoja, y el coste es cuadrático en
+# libros con decenas de hojas. NO limita las comprobaciones propias, que sí
+# recorren el libro completo: por eso se declara en `metrics.sheets_validated`,
+# para que la ficha pueda decir sobre qué se ha validado la estructura.
+MAX_SHEETS_FRICTIONLESS = 3
 
 
 def _analyze_with(load_fn, path: Path, ctx: dict) -> dict:
@@ -40,7 +45,7 @@ def _analyze_with(load_fn, path: Path, ctx: dict) -> dict:
         total_rows = 0
 
         # Validación tabular de las primeras hojas con Frictionless
-        for name in sheet_names[:MAX_SHEETS_VALIDATED]:
+        for name in sheet_names[:MAX_SHEETS_FRICTIONLESS]:
             try:
                 from frictionless import Dialect, Resource
                 from frictionless.formats.excel.control import ExcelControl
@@ -57,36 +62,45 @@ def _analyze_with(load_fn, path: Path, ctx: dict) -> dict:
             issues_sum += sum(i["count"] for i in sheet_issues)
 
         # Una pasada por hoja: dimensión (max_row/max_column no son fiables en
-        # read_only) + muestra de hasta MAX_QUALITY_ROWS filas para el análisis
-        # propio de calidad (tipos incoherentes y celdas vacías).
+        # read_only) y análisis propio de calidad sobre TODAS las filas de TODAS
+        # las hojas.
+        #
+        # Antes esto miraba 2.000 filas de las 3 primeras hojas
+        # (`MAX_QUALITY_ROWS`, `MAX_SHEETS_VALIDATED`) mientras `total_rows`
+        # contaba el libro entero: `metrics.error_cells` y `metrics.total_rows`
+        # salían del mismo objeto calculados sobre poblaciones distintas, y un
+        # libro de 50.000 filas declaraba las incidencias de las primeras 2.000.
         type_errors, missing_cells = 0, 0
-        all_te_samples: list[dict] = []
-        all_mc_samples: list[dict] = []
+        type_issue = new_issue("error-tipo", "Valores con un tipo distinto al mayoritario de su columna", "error")
+        missing_issue = new_issue("celda-faltante", "Celdas vacías en filas con datos", "warning")
         header: list[str] = []
         first_sheet_rows: list[list] = []
-        for idx, name in enumerate(sheet_names):
+        for name in sheet_names:
             ws = wb[name]
             row_count, col_count = 0, 0
-            sample_rows: list[list] = []
+            rows: list[list] = []
             for row in ws.iter_rows(values_only=True):
                 row_count += 1
                 col_count = max(col_count, len(row))
-                if idx < MAX_SHEETS_VALIDATED and row_count <= MAX_QUALITY_ROWS + 1:
-                    if any(v is not None and str(v).strip() for v in row):
-                        sample_rows.append(list(row))
+                if any(v is not None and str(v).strip() for v in row):
+                    rows.append(list(row))
             sheets.append({"name": name, "rows": row_count, "columns": col_count})
             total_rows += row_count
-            if idx < MAX_SHEETS_VALIDATED and len(sample_rows) > 1:
-                # Extract header from first data row
-                if not header and sample_rows:
-                    header = [str(h)[:100] if h else f"Col {i + 1}" for i, h in enumerate(sample_rows[0])]
-                    first_sheet_rows = [list(r) for r in sample_rows[1:]]
-                te, mc, te_samples, mc_samples = _check_column_quality(sample_rows[1:], header or None)
+            if len(rows) > 1:
+                sheet_header = [str(h) if h else f"Col {i + 1}" for i, h in enumerate(rows[0])]
+                if not header:
+                    header = sheet_header
+                    first_sheet_rows = [list(r) for r in rows[1:]]
+                te, mc, _, _ = _check_column_quality(
+                    rows[1:], sheet_header, sheet=name,
+                    type_issue=type_issue, missing_issue=missing_issue,
+                )
                 type_errors += te
                 missing_cells += mc
-                all_te_samples.extend(te_samples)
-                all_mc_samples.extend(mc_samples)
-        _append_quality_issues(issues, type_errors, missing_cells, all_te_samples[:5], all_mc_samples[:5])
+            # La hoja ya está contada: soltar sus filas antes de abrir la
+            # siguiente, o un libro grande retiene todas a la vez.
+            del rows
+        _append_quality_issues(issues, type_issue, missing_issue)
         issues = _merge_issues(issues)
 
         score, ok = _score_from_issues(issues)
@@ -102,9 +116,10 @@ def _analyze_with(load_fn, path: Path, ctx: dict) -> dict:
         metrics: dict = {
             "sheets": sheets, "sheet_count": len(sheet_names), "total_rows": total_rows,
             "error_cells": issues_sum + type_errors + missing_cells,
+            "sheets_validated": min(len(sheet_names), MAX_SHEETS_FRICTIONLESS),
         }
         if header:
-            metrics["header"] = header[:50]
+            metrics["header"] = header
         schema: list[dict] = []
         sample_rows_out: list[list] = []
         if header and first_sheet_rows:
@@ -168,7 +183,7 @@ def analyze_xlsx_legacy(path: Path, ctx: dict) -> dict:
     issues_sum = 0
 
     # Validación estructural con Frictionless (formato xls)
-    for sh in book.sheets()[:MAX_SHEETS_VALIDATED]:
+    for sh in book.sheets()[:MAX_SHEETS_FRICTIONLESS]:
         try:
             from frictionless import Resource
 
@@ -182,26 +197,29 @@ def analyze_xlsx_legacy(path: Path, ctx: dict) -> dict:
 
     # Comprobaciones propias de calidad de columnas (valores tipados de xlrd)
     type_errors, missing_cells = 0, 0
-    all_te_samples: list[dict] = []
-    all_mc_samples: list[dict] = []
+    type_issue = new_issue("error-tipo", "Valores con un tipo distinto al mayoritario de su columna", "error")
+    missing_issue = new_issue("celda-faltante", "Celdas vacías en filas con datos", "warning")
     header: list[str] = []
     first_sheet_rows: list[list] = []
-    for sh in book.sheets()[:MAX_SHEETS_VALIDATED]:
-        sample_rows: list[list] = []
-        for ri in range(min(sh.nrows, MAX_QUALITY_ROWS + 1)):
+    for sh in book.sheets():
+        rows: list[list] = []
+        for ri in range(sh.nrows):
             row = [sh.cell_value(ri, ci) for ci in range(sh.ncols)]
             if any(v is not None and str(v).strip() for v in row):
-                sample_rows.append(list(row))
-        if len(sample_rows) > 1:
-            if not header and sample_rows:
-                header = [str(h)[:100] if h else f"Col {i + 1}" for i, h in enumerate(sample_rows[0])]
-                first_sheet_rows = [list(r) for r in sample_rows[1:]]
-            te, mc, te_samples, mc_samples = _check_column_quality(sample_rows[1:], header or None)
+                rows.append(list(row))
+        if len(rows) > 1:
+            sheet_header = [str(h) if h else f"Col {i + 1}" for i, h in enumerate(rows[0])]
+            if not header:
+                header = sheet_header
+                first_sheet_rows = [list(r) for r in rows[1:]]
+            te, mc, _, _ = _check_column_quality(
+                rows[1:], sheet_header, sheet=sh.name,
+                type_issue=type_issue, missing_issue=missing_issue,
+            )
             type_errors += te
             missing_cells += mc
-            all_te_samples.extend(te_samples)
-            all_mc_samples.extend(mc_samples)
-    _append_quality_issues(issues, type_errors, missing_cells, all_te_samples[:5], all_mc_samples[:5])
+        del rows
+    _append_quality_issues(issues, type_issue, missing_issue)
     issues = _merge_issues(issues)
 
     # El catálogo declara XLSX pero sirve XLS: incoherencia de metadatos
@@ -222,9 +240,10 @@ def analyze_xlsx_legacy(path: Path, ctx: dict) -> dict:
     metrics: dict = {
         "sheets": sheets, "sheet_count": len(sheets), "total_rows": total_rows,
         "error_cells": issues_sum + type_errors + missing_cells,
+        "sheets_validated": min(len(sheets), MAX_SHEETS_FRICTIONLESS),
     }
     if header:
-        metrics["header"] = header[:50]
+        metrics["header"] = header
     schema: list[dict] = []
     sample_rows_out: list[list] = []
     if header and first_sheet_rows:

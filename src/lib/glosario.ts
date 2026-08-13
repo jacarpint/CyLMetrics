@@ -169,7 +169,7 @@ export const GLOSSARY: GlossaryTerm[] = [
     term: 'Sello de calidad',
     group: 'calidad',
     definition:
-      'Una imagen que muestra el índice de calidad de un conjunto de datos y se actualiza sola. Cualquiera puede incrustarla en su web.',
+      'Una imagen que muestra el índice de calidad de un conjunto de datos según el último análisis publicado. Cualquiera puede incrustarla en su web.',
   },
 
   /* ── Formatos y servicios ── */

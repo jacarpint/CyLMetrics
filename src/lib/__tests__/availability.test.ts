@@ -57,7 +57,7 @@ function withIssues(
       score: null,
       summary: '',
       metrics: {},
-      issues: codes.map((code) => ({ code, label: code, severity: 'error' as const, count: 1 })),
+      issues: codes.map((code) => ({ code, label: code, severity: 'error' as const, count: 1, stored: 0 })),
     },
   });
 }
@@ -202,8 +202,8 @@ describe('distributionsAffectedByIssue', () => {
               analysis: {
                 ok: false, score: null, summary: '', metrics: {},
                 issues: [
-                  { code: 'celda-faltante', label: '', severity: 'warning' as const, count: 9072 },
-                  { code: 'celda-faltante', label: '', severity: 'warning' as const, count: 5 },
+                  { code: 'celda-faltante', label: '', severity: 'warning' as const, count: 9072, stored: 9072 },
+                  { code: 'celda-faltante', label: '', severity: 'warning' as const, count: 5, stored: 5 },
                 ],
               },
             }),

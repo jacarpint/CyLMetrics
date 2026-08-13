@@ -265,7 +265,12 @@ export async function readXlsx(buffer: ArrayBuffer): Promise<XlsxSheet[]> {
       continue;
     }
     const [head, ...rest] = all;
-    const width = Math.max(head.length, ...rest.map((r) => r.length), 0);
+    // Bucle en vez de `Math.max(head.length, ...rest.map(...))`: el spread pasa
+    // un argumento por fila y desborda la pila de llamadas (~65.000 argumentos)
+    // en una hoja grande — precisamente el libro de 26 MB que este lector
+    // existe para poder abrir.
+    let width = head.length;
+    for (const r of rest) if (r.length > width) width = r.length;
     const header = Array.from({ length: width }, (_, i) => head[i]?.trim() || `Columna ${i + 1}`);
     sheets.push({ name, header, rows: rest });
   }

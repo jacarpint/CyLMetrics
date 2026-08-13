@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { AlertTriangle, ExternalLink, Loader2, Braces, Sheet as SheetIcon } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { AlertTriangle, ExternalLink, Loader2, Braces, Sheet as SheetIcon, X } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { JsonTree } from '@/components/quality/json-tree';
 import { TableExplorer, type ExtraTab } from '@/components/quality/table-explorer';
@@ -10,18 +10,14 @@ import { readXlsx, ZipError } from '@/lib/xlsx-read';
 import { jsonRecordTable, describeJson } from '@/lib/json-to-table';
 import { formatBytes } from '@/lib/quality-labels';
 import type { UnitVoice } from '@/lib/unit-words';
-import {
-  CLIENT_TIMEOUT_MS,
-  TABLE_AUTOLOAD_CAP,
-  PROXY_MAX_BYTES,
-  exceedsProxyLimit,
-} from '@/lib/download-budget';
+import { TABLE_AUTOLOAD_CAP, rangeChunkCount, needsRangeDownload } from '@/lib/download-budget';
+import { DownloadError, downloadResource, downloadText, probeResource, type Progress } from '@/lib/progressive-fetch';
 
 /** Formatos que el navegador sabe abrir y convertir a filas y columnas. */
 export type FileKind = 'csv' | 'xlsx' | 'json';
 
 type Status = 'loading' | 'loaded' | 'error' | 'too-big';
-type Failure = 'http' | 'empty' | 'network' | 'parse' | 'formato' | 'no-cabe';
+type Failure = 'http' | 'empty' | 'network' | 'timeout' | 'parse' | 'formato' | 'no-cabe' | 'cancelado';
 
 interface Sheet {
   name: string;
@@ -63,9 +59,13 @@ interface FileExplorerProps {
  * selector de hoja y el JSON, su árbol.
  *
  * Todo se calcula sobre el fichero completo descargado aquí, no sobre el
- * informe. Eso permite recorrer TODOS los casos de una incidencia —el informe
- * solo guarda cinco muestras— y da cifras de hoy aunque el análisis sea viejo
- * o se cortara por tamaño.
+ * informe: son las cifras de HOY, y el informe es una foto fechada. Cuando no
+ * cuadran, se dice al pie con el motivo. Las incidencias que se cuentan arriba,
+ * en la ficha, salen del informe: son la misma cifra en todas las pantallas.
+ *
+ * Los archivos grandes ya no se rechazan. `downloadResource` los trae por
+ * tramos, con barra de progreso y botón de parar; antes, por encima del techo
+ * del proxy el visor enseñaba el enlace al origen y se rendía.
  */
 export function FileExplorer({ url, kind, sizeBytes, reportedRows, reportTruncated }: FileExplorerProps) {
   const tooBig = sizeBytes != null && sizeBytes > TABLE_AUTOLOAD_CAP;
@@ -74,28 +74,49 @@ export function FileExplorer({ url, kind, sizeBytes, reportedRows, reportTruncat
   const [failure, setFailure] = useState<{ kind: Failure; detail?: string } | null>(null);
   const [source, setSource] = useState<Loaded | null>(null);
   const [sheet, setSheet] = useState(0);
+  /**
+   * Progreso de la descarga en curso, etiquetado con el intento al que
+   * pertenece. Va con clave y no suelto para no tener que ponerlo a cero al
+   * arrancar el efecto: al cambiar de archivo o reintentar, el progreso viejo
+   * deja de coincidir y se ignora solo.
+   */
+  const [progressState, setProgress] = useState<{ key: string; value: Progress } | null>(null);
+  const loadKey = `${url}|${attempt}`;
+  const progress = progressState?.key === loadKey ? progressState.value : null;
+  /** Tamaño medido con `HEAD`, cuando el origen da uno de fiar (ver `probeResource`). */
+  const [actualSize, setActualSize] = useState<number | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     if (tooBig && attempt === 0) return;
     let cancelled = false;
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), CLIENT_TIMEOUT_MS);
+    abortRef.current = controller;
+    const onProgress = (value: Progress) => setProgress({ key: loadKey, value });
 
     (async () => {
       try {
-        const res = await fetch(`/api/proxy?url=${encodeURIComponent(url)}`, { signal: controller.signal });
+        // El tamaño del catálogo falta en muchas distribuciones, y con él a
+        // `null` el aviso de «pesa mucho» se saltaba entero. El `HEAD` lo
+        // completa cuando el origen da un tamaño creíble, y dice si admite
+        // tramos; si no, se sigue con el del informe.
+        const probe = await probeResource(url, controller.signal);
         if (cancelled) return;
-        // 413 lo pone nuestro proxy al pasarse del techo, no el origen:
-        // achacárselo al publicador era culparle de un límite nuestro.
-        if (res.status === 413) { setFailure({ kind: 'no-cabe' }); setStatus('error'); return; }
-        if (!res.ok) { setFailure({ kind: 'http', detail: `HTTP ${res.status}` }); setStatus('error'); return; }
+        if (probe.size != null) setActualSize(probe.size);
+        const knownSize = probe.size ?? sizeBytes ?? null;
 
         if (kind === 'xlsx') {
-          const buffer = await res.arrayBuffer();
+          const bytes = await downloadResource(url, {
+            signal: controller.signal,
+            knownSize,
+            onProgress,
+          });
           if (cancelled) return;
-          if (buffer.byteLength === 0) { setFailure({ kind: 'empty' }); setStatus('error'); return; }
+          if (bytes.byteLength === 0) { setFailure({ kind: 'empty' }); setStatus('error'); return; }
           try {
-            setSource({ sheets: await readXlsx(buffer) });
+            // `slice()` para entregar un ArrayBuffer propio: el `Uint8Array`
+            // puede ser una vista sobre un buffer mayor.
+            setSource({ sheets: await readXlsx(bytes.slice().buffer) });
           } catch (err) {
             setFailure({
               kind: 'formato',
@@ -105,7 +126,11 @@ export function FileExplorer({ url, kind, sizeBytes, reportedRows, reportTruncat
             return;
           }
         } else {
-          const body = await res.text();
+          const body = await downloadText(url, {
+            signal: controller.signal,
+            knownSize,
+            onProgress,
+          });
           if (cancelled) return;
           if (!body.trim()) { setFailure({ kind: 'empty' }); setStatus('error'); return; }
 
@@ -134,19 +159,34 @@ export function FileExplorer({ url, kind, sizeBytes, reportedRows, reportTruncat
           }
         }
         if (!cancelled) setStatus('loaded');
-      } catch {
-        if (!cancelled) { setFailure({ kind: 'network' }); setStatus('error'); }
-      } finally {
-        clearTimeout(timer);
+      } catch (err) {
+        if (cancelled) return;
+        // El motivo viene clasificado desde `progressive-fetch`, así que el
+        // mensaje ya no tiene que adivinar entre «lento» y «no existe».
+        const reason = err instanceof DownloadError ? err.reason : 'network';
+        setFailure({
+          kind:
+            reason === 'demasiado-grande' ? 'no-cabe'
+            : reason === 'timeout' ? 'timeout'
+            : reason === 'cancelado' ? 'cancelado'
+            : reason === 'http' ? 'http'
+            : 'network',
+          detail: err instanceof DownloadError ? err.message : undefined,
+        });
+        setStatus('error');
       }
     })();
 
-    return () => { cancelled = true; clearTimeout(timer); controller.abort(); };
-  }, [url, kind, attempt, tooBig]);
+    return () => { cancelled = true; controller.abort(); };
+  }, [url, kind, attempt, tooBig, sizeBytes, loadKey]);
 
   /* ── Estados previos a los datos ── */
 
   if (status === 'too-big') {
+    // Ya no hay «esto no se puede enseñar»: con descarga por tramos cualquier
+    // tamaño se puede traer. Lo que queda es una decisión informada, con el
+    // coste por delante.
+    const chunks = sizeBytes != null ? rangeChunkCount(sizeBytes) : 1;
     return (
       <Card tone="warn">
         <CardContent className="flex items-start gap-3 p-4">
@@ -154,25 +194,18 @@ export function FileExplorer({ url, kind, sizeBytes, reportedRows, reportTruncat
           <div className="text-sm leading-relaxed text-body">
             El archivo ocupa {formatBytes(sizeBytes)}; no se abre solo para no cargar tantos datos en el
             navegador sin avisar.
-            {/*
-              Pasado el techo del proxy, «abrirlo de todos modos» no puede
-              cumplirse: el intento acabaría en un 413. Se dice el límite y se
-              deja solo la descarga, en vez de invitar a algo que va a fallar.
-            */}
-            {exceedsProxyLimit(sizeBytes) && (
-              <> Y pasa de {formatBytes(PROXY_MAX_BYTES)}, que es el máximo que este portal puede traer,
-              así que aquí no se puede enseñar.</>
+            {needsRangeDownload(sizeBytes) && (
+              <> Se traerá en {chunks.toLocaleString('es-ES')} tramos, así que tardará un poco y podrás
+              detenerlo cuando quieras.</>
             )}
             <div className="mt-2 flex flex-wrap items-center gap-3">
-              {!exceedsProxyLimit(sizeBytes) && (
-                <button
-                  type="button"
-                  onClick={() => { setStatus('loading'); setAttempt((n) => n + 1); }}
-                  className="font-medium text-link underline-offset-2 hover:underline"
-                >
-                  Abrirlo de todos modos
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={() => { setStatus('loading'); setAttempt((n) => n + 1); }}
+                className="font-medium text-link underline-offset-2 hover:underline"
+              >
+                Abrirlo de todos modos
+              </button>
               <a href={url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-medium text-link underline-offset-2 hover:underline">
                 <ExternalLink className="h-3 w-3" aria-hidden /> Descargar el archivo
               </a>
@@ -184,25 +217,54 @@ export function FileExplorer({ url, kind, sizeBytes, reportedRows, reportTruncat
   }
 
   if (status === 'loading') {
+    const total = progress?.total ?? actualSize ?? sizeBytes ?? null;
+    const pct = progress && total ? Math.min(100, Math.round((progress.loaded / total) * 100)) : null;
     return (
-      <div className="flex items-center gap-2 rounded-xl border border-border bg-fill p-4 text-sm text-faint">
-        <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> Descargando y analizando el archivo completo…
+      <div className="rounded-xl border border-border bg-fill p-4">
+        <div className="flex items-center gap-2 text-sm text-faint">
+          <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+          <span className="flex-1">
+            Descargando el archivo
+            {progress ? ` · ${formatBytes(progress.loaded)}${total ? ` de ${formatBytes(total)}` : ''}` : '…'}
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              abortRef.current?.abort();
+              setFailure({ kind: 'cancelado' });
+              setStatus('error');
+            }}
+            className="inline-flex items-center gap-1 rounded text-xs font-medium text-link underline-offset-2 hover:underline"
+          >
+            <X className="h-3 w-3" aria-hidden /> Detener
+          </button>
+        </div>
+        {/* Barra real, no un indicador indeterminado: en un archivo de 300 MB
+            la diferencia entre «va por el 4%» y «sigue girando» es la que
+            decide si alguien espera o se marcha. */}
+        <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-card" aria-hidden>
+          <div
+            className={`h-full rounded-full bg-link transition-[width] duration-200 ${pct == null ? 'animate-pulse' : ''}`}
+            style={{ width: pct == null ? '25%' : `${Math.max(pct, 2)}%` }}
+          />
+        </div>
       </div>
     );
   }
 
   if (status === 'error' || !source) {
     const message =
-      failure?.kind === 'no-cabe' ? `El archivo pasa de ${formatBytes(PROXY_MAX_BYTES)}, que es lo máximo que este portal puede traer para enseñarlo aquí. El archivo puede estar perfectamente: no cabe en el visor.`
+      failure?.kind === 'cancelado' ? 'Descarga detenida.'
+      : failure?.kind === 'no-cabe' ? `${failure.detail ?? 'El archivo no se pudo traer entero.'} Se puede descargar desde el origen y abrirlo en local.`
+      : failure?.kind === 'timeout' ? 'El origen tardó demasiado en responder. Puede estar saturado; reintentar suele funcionar.'
       : failure?.kind === 'empty' ? 'El archivo se descargó vacío.'
       : failure?.kind === 'http' ? `El servidor de origen devolvió un error (${failure.detail}) al pedir el archivo.`
       : failure?.kind === 'parse' ? 'El recurso se descargó pero su contenido no es JSON válido. La incidencia debería aparecer también en el análisis de esta distribución.'
       : failure?.kind === 'formato' ? failure.detail!
-      : 'No se pudo contactar con el origen del archivo (sin respuesta o demasiado lento).';
-    // No caber en el visor es un límite de este portal, no un defecto del
-    // archivo: se avisa en ámbar, no en rojo, y no se ofrece reintentar porque
-    // el segundo intento fallaría igual.
-    const esLimiteNuestro = failure?.kind === 'no-cabe';
+      : 'No se pudo contactar con el origen del archivo.';
+    // Detenerlo a mano o toparse con un límite nuestro no son defectos del
+    // archivo: se avisan en ámbar, no en rojo.
+    const esLimiteNuestro = failure?.kind === 'no-cabe' || failure?.kind === 'cancelado';
     return (
       <Card tone={esLimiteNuestro ? 'warn' : 'bad'}>
         <CardContent className="flex items-start gap-3 p-4">
@@ -213,13 +275,13 @@ export function FileExplorer({ url, kind, sizeBytes, reportedRows, reportTruncat
           <div className="text-sm leading-relaxed text-body">
             {message}
             <div className="mt-2 flex flex-wrap items-center gap-3">
-              {!esLimiteNuestro && (
+              {failure?.kind !== 'no-cabe' && (
                 <button
                   type="button"
                   onClick={() => { setStatus('loading'); setFailure(null); setAttempt((n) => n + 1); }}
                   className="font-medium text-link underline-offset-2 hover:underline"
                 >
-                  Reintentar
+                  {failure?.kind === 'cancelado' ? 'Volver a intentarlo' : 'Reintentar'}
                 </button>
               )}
               <a href={url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-medium text-link underline-offset-2 hover:underline">

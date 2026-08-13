@@ -14,7 +14,8 @@ import { readShapefile, describeZip, ShapefileError } from '@/lib/shapefile-read
 import { ZipError } from '@/lib/zip-read';
 import { diagnose, sniff, ogcException, type Diagnosis } from '@/lib/geo-diagnose';
 import { formatBytes } from '@/lib/quality-labels';
-import { MAP_AUTOLOAD_CAP, PROXY_MAX_BYTES, exceedsProxyLimit } from '@/lib/download-budget';
+import { MAP_AUTOLOAD_CAP, needsRangeDownload, rangeChunkCount } from '@/lib/download-budget';
+import { DownloadError, downloadResource, type Progress } from '@/lib/progressive-fetch';
 import { cn } from '@/lib/utils';
 import type { Bbox, GeoSpec, MapFeature } from '@/components/quality/geo-preview-map';
 
@@ -26,13 +27,22 @@ const GeoPreviewMap = dynamic(() => import('@/components/quality/geo-preview-map
 type OgcLayer = { name: string; title: string; bbox?: Bbox | null; queryable?: boolean; crs?: string };
 
 /**
- * Escalera de reserva cuando la capa entera no llega.
+ * Entidades por página al pedir un WFS.
  *
- * Hay capas del IDECyL cuyas entidades son polígonos enormes —200 de ellas
- * ocupan 27 MB y tardan medio minuto—, así que un único plan B de 200 tampoco
- * sirve: se va bajando hasta poder enseñar algo.
+ * Hay capas del IDECyL cuyas entidades son polígonos enormes: 200 ocupan 27 MB
+ * y tardan medio minuto. Pedir la capa entera de una vez era lo que obligaba a
+ * la escalera de reserva (`[null, 200, 25]`), que acababa enseñando 25 de
+ * 12.000. Con páginas de este tamaño cada petición responde en un tiempo
+ * razonable y el mapa se va poblando.
  */
-const WFS_FALLBACK_COUNTS = [200, 25];
+const WFS_PAGE_SIZE = 500;
+
+/**
+ * Tope de páginas: 100.000 entidades. Por encima, el navegador no las dibuja de
+ * forma útil por muchas que se traigan, y hay que acotar por si un servicio
+ * ignora la paginación.
+ */
+const WFS_MAX_PAGES = 200;
 
 interface DistributionMapProps {
   format: string;
@@ -299,6 +309,8 @@ export function DistributionMap({
   const [selectedOverride, setSelectedOverride] = useState<{ key: string; name: string } | null>(null);
   const [tileFailedFor, setTileFailedFor] = useState<string | null>(null);
   const [selectedFeature, setSelectedFeature] = useState<{ key: string; index: number } | null>(null);
+  /** Bytes recibidos del recurso geográfico, para la barra de progreso. */
+  const [progress, setProgress] = useState<Progress | null>(null);
 
   const coords = useMemo(() => getSpatialCoords(spatial), [spatial]);
 
@@ -322,16 +334,31 @@ export function DistributionMap({
     const key = sourceKey;
     const controller = new AbortController();
 
-    /** Descarga por el proxy conservando el error real del origen. */
+    /**
+     * Descarga por el proxy conservando el error real del origen.
+     *
+     * Pasa por `downloadResource`, así que un shapefile o un GeoJSON de más de
+     * lo que cabe en una petición se trae por tramos en lugar de rechazarse, y
+     * el progreso llega a la interfaz mientras baja.
+     */
     async function fetchRaw(target: string): Promise<{ buffer: ArrayBuffer; status: number }> {
-      const res = await fetch(`/api/proxy?raw=1&url=${encodeURIComponent(target)}`, { signal: controller.signal });
-      // 400 del proxy = host fuera de la lista permitida, no un fallo del origen.
-      if (res.status === 400) throw new OutsideDomain();
-      if (!res.ok) throw new ProxyFailure(res.status);
-      return {
-        buffer: await res.arrayBuffer(),
-        status: Number(res.headers.get('x-origin-status') ?? 200),
-      };
+      try {
+        const bytes = await downloadResource(target, {
+          signal: controller.signal,
+          raw: true,
+          knownSize: sizeBytes ?? null,
+          onProgress: (p) => { if (!cancelled) setProgress(p); },
+        });
+        return { buffer: bytes.slice().buffer, status: 200 };
+      } catch (err) {
+        if (err instanceof DownloadError) {
+          // 400 del proxy = host fuera de la lista permitida, no un fallo del
+          // origen; el resto se presenta como fallo del proxy, con su código.
+          if (err.status === 400) throw new OutsideDomain();
+          throw new ProxyFailure(err.status ?? 502);
+        }
+        throw err;
+      }
     }
 
     async function run(): Promise<Source> {
@@ -512,8 +539,7 @@ export function DistributionMap({
 
     (async () => {
       // `resultType=hits` devuelve solo el recuento y responde en milisegundos:
-      // sirve para saber de antemano cuántas entidades tiene la capa y para
-      // contrastar después si se han traído todas.
+      // sirve para saber de antemano cuántas entidades tiene la capa.
       let matched: number | null = null;
       try {
         const res = await fetch(request({ resultType: 'hits' }), { signal: controller.signal });
@@ -530,7 +556,6 @@ export function DistributionMap({
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         const list: unknown[] = Array.isArray(data?.features) ? data.features : [];
-        if (!list.length) throw new Error('sin entidades');
         const features: MapFeature[] = list.map((f) => {
           const feature = f as { geometry?: GeoJSON.Geometry; properties?: unknown };
           return { geometry: feature.geometry ?? null, properties: toProperties(feature.properties) };
@@ -538,26 +563,73 @@ export function DistributionMap({
         return features;
       };
 
-      // Primero la capa completa; esa es la idea. Si el servicio no puede, se
-      // baja el listón hasta poder enseñar algo, diciendo que es una parte.
+      /**
+       * Paginación, no «todo o una muestra».
+       *
+       * Antes se pedía la capa ENTERA en una sola petición y, si el servicio no
+       * podía, se reintentaba con 200 y luego con 25: hasta cuatro descargas
+       * completas encadenadas, cada una con su invocación de función, para
+       * acabar enseñando 25 entidades de 12.000 sin más explicación que «el
+       * servicio no pudo entregarla entera».
+       *
+       * Ahora se pide por páginas con `startIndex`, se dibuja lo que va
+       * llegando y el usuario ve «2.400 de 12.000». Si el servicio ignora la
+       * paginación —devuelve siempre lo mismo— se corta y se enseña lo que haya,
+       * que es la única salida honesta.
+       */
+      const collected: MapFeature[] = [];
+      const seenPages = new Set<string>();
       let lastError = 'sin respuesta';
-      for (const count of [null, ...WFS_FALLBACK_COUNTS]) {
+      let complete = false;
+
+      for (let page = 0; page < WFS_MAX_PAGES; page++) {
+        const paging: Record<string, string> = {
+          [isV2 ? 'count' : 'maxFeatures']: String(WFS_PAGE_SIZE),
+        };
+        // `startIndex` es de WFS 2.0. En 1.x no existe: solo se puede pedir la
+        // primera página, así que se para ahí y se dice que es parcial.
+        if (page > 0) {
+          if (!isV2) break;
+          paging.startIndex = String(page * WFS_PAGE_SIZE);
+        }
+
         try {
-          const features = await load(count === null ? {} : { [isV2 ? 'count' : 'maxFeatures']: String(count) });
+          const features = await load(paging);
           if (cancelled) return;
+          if (features.length === 0) { complete = true; break; }
+
+          // Un servicio que ignora `startIndex` devuelve la misma página una y
+          // otra vez. Sin esta comprobación, el bucle acumularía duplicados
+          // hasta agotar el tope de páginas.
+          const fingerprint = `${features.length}|${JSON.stringify(features[0]?.properties ?? {}).slice(0, 200)}`;
+          if (seenPages.has(fingerprint)) break;
+          seenPages.add(fingerprint);
+
+          collected.push(...features);
           setWfsResult({
             key,
-            layer: { name: selected, features, fields: fieldsOf(features) },
+            layer: { name: selected, features: [...collected], fields: fieldsOf(collected) },
             matched,
-            complete: count === null && (matched === null || features.length >= matched),
+            complete: false,
           });
-          return;
+
+          if (features.length < WFS_PAGE_SIZE) { complete = true; break; }
+          if (matched !== null && collected.length >= matched) { complete = true; break; }
         } catch (err) {
           if (cancelled || (err as Error).name === 'AbortError') return;
           lastError = (err as Error).message;
+          break;
         }
       }
-      if (!cancelled) setWfsResult({ key, error: lastError });
+
+      if (cancelled) return;
+      if (collected.length === 0) { setWfsResult({ key, error: lastError }); return; }
+      setWfsResult({
+        key,
+        layer: { name: selected, features: collected, fields: fieldsOf(collected) },
+        matched,
+        complete: complete && (matched === null || collected.length >= matched),
+      });
     })();
 
     return () => { cancelled = true; controller.abort(); };
@@ -603,40 +675,65 @@ export function DistributionMap({
   const onTileError = useCallback(() => setTileFailedFor(tileKey), [tileKey]);
   const tileFailed = tileFailedFor === tileKey;
 
+  /**
+   * Tabla de atributos de la capa activa.
+   *
+   * Memoizada porque se construía en el JSX: una copia completa de los
+   * atributos de TODAS las entidades en cada render —incluido mover el
+   * deslizador de opacidad o seleccionar una entidad—, que además obligaba a
+   * `TableExplorer` a reperfilar y reanalizar las columnas cada vez. Con 77.000
+   * entidades eso es lo que dejaba la interfaz clavada.
+   */
+  const attributeRows = useMemo(
+    () =>
+      activeLayer
+        ? activeLayer.features.map((f) => activeLayer.fields.map((k) => f.properties[k] ?? ''))
+        : [],
+    [activeLayer]
+  );
+
   if (loading) {
+    const total = progress?.total ?? sizeBytes ?? null;
+    const pct = progress && total ? Math.min(100, Math.round((progress.loaded / total) * 100)) : null;
     return (
-      <div className="flex items-center gap-2 rounded-xl border border-border bg-fill p-4 text-sm text-faint">
-        <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> Cargando y dibujando el recurso completo…
+      <div className="rounded-xl border border-border bg-fill p-4">
+        <div className="flex items-center gap-2 text-sm text-faint">
+          <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+          <span>
+            Cargando el recurso
+            {progress ? ` · ${formatBytes(progress.loaded)}${total ? ` de ${formatBytes(total)}` : ''}` : '…'}
+          </span>
+        </div>
+        <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-card" aria-hidden>
+          <div
+            className={cn('h-full rounded-full bg-link transition-[width] duration-200', pct == null && 'animate-pulse')}
+            style={{ width: pct == null ? '25%' : `${Math.max(pct, 2)}%` }}
+          />
+        </div>
       </div>
     );
   }
 
   if (source.kind === 'too-big') {
+    // Ningún tamaño impide ya dibujarlo: por encima del tope por petición se
+    // trae en tramos. Lo que queda es avisar de lo que va a costar.
+    const chunks = rangeChunkCount(source.size);
     return (
       <Banner tone="warn" icon={AlertTriangle} title={`El recurso ocupa ${formatBytes(source.size)}`}>
         <p className="mt-1">
           No se descarga solo para no cargar tantos datos en el navegador sin avisar.
-        </p>
-        {/*
-          Pasado el techo del proxy el reintento acabaría en un 413, así que se
-          dice el límite y se deja solo la descarga.
-        */}
-        {exceedsProxyLimit(source.size) && (
-          <p className="mt-1">
-            Y pasa de {formatBytes(PROXY_MAX_BYTES)}, que es el máximo que este portal puede traer, así
-            que aquí no se puede dibujar.
-          </p>
-        )}
-        <div className="mt-2 flex flex-wrap items-center gap-3">
-          {!exceedsProxyLimit(source.size) && (
-            <button
-              type="button"
-              onClick={() => setAttempt((n) => n + 1)}
-              className="font-medium text-link underline-offset-2 hover:underline"
-            >
-              Dibujarlo de todos modos
-            </button>
+          {needsRangeDownload(source.size) && (
+            <> Se traerá en {chunks.toLocaleString('es-ES')} tramos, así que tardará un poco.</>
           )}
+        </p>
+        <div className="mt-2 flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setAttempt((n) => n + 1)}
+            className="font-medium text-link underline-offset-2 hover:underline"
+          >
+            Dibujarlo de todos modos
+          </button>
           <a href={url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-medium text-link underline-offset-2 hover:underline">
             <ExternalLink className="h-3 w-3" aria-hidden /> Descargar el recurso
           </a>
@@ -792,7 +889,7 @@ export function DistributionMap({
           </h3>
           <TableExplorer
             header={activeLayer.fields}
-            rows={activeLayer.features.map((f) => activeLayer.fields.map((k) => f.properties[k] ?? ''))}
+            rows={attributeRows}
             voice="record"
             dataLabel="Entidades"
             downloadUrl={url}

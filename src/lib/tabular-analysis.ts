@@ -22,6 +22,18 @@ const TYPE_PRIORITY: Record<ValueType, number> = { number: 0, date: 1, bool: 2, 
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
+/**
+ * Número decimal corriente, y el MISMO patrón que `_NUMBER_LITERAL` en
+ * `src/analysis/formats/tabular.py`.
+ *
+ * Antes esto era `Number.isFinite(Number(v))`, que acepta cosas que el
+ * analizador no —`Number('0x1A')` vale 26, `Number('0b11')` vale 3— y rechaza
+ * otras que sí acepta —`int('1_000')` en Python vale 1000—. Cada discrepancia
+ * era un `error-tipo` que salía en una pantalla y no en la otra sobre el mismo
+ * fichero, que es justo lo que hacía dudar de las dos cifras.
+ */
+const NUMBER_LITERAL = /^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$/;
+
 /** Tipo estricto de una celda. En CSV todo llega como texto. */
 export function valueType(value: string | null | undefined): ValueType {
   if (value == null) return 'empty';
@@ -29,8 +41,7 @@ export function valueType(value: string | null | undefined): ValueType {
   if (!v) return 'empty';
   const lower = v.toLowerCase();
   if (lower === 'true' || lower === 'false') return 'bool';
-  // `Number('')` es 0 y `Number('  ')` también: por eso se comprueba antes.
-  if (Number.isFinite(Number(v))) return 'number';
+  if (NUMBER_LITERAL.test(v)) return 'number';
   if (ISO_DATE.test(v) && !Number.isNaN(Date.parse(v))) return 'date';
   return 'str';
 }
@@ -106,10 +117,23 @@ export function columnProfiles(header: string[], rows: string[][]): ColumnProfil
     };
 
     if (winner === 'number') {
-      const nums = values.map(Number).filter((n) => Number.isFinite(n));
-      if (nums.length) {
-        profile.min = Math.min(...nums);
-        profile.max = Math.max(...nums);
+      // Con bucle y no `Math.min(...nums)`: el spread pasa un argumento por
+      // valor, y una columna numérica de un CSV grande desborda la pila de
+      // llamadas (~65.000 argumentos) mucho antes de agotar la memoria. Era un
+      // fallo duro del visor, no una lentitud.
+      let min = Infinity;
+      let max = -Infinity;
+      let seen = 0;
+      for (const value of values) {
+        const n = Number(value);
+        if (!Number.isFinite(n)) continue;
+        if (n < min) min = n;
+        if (n > max) max = n;
+        seen++;
+      }
+      if (seen > 0) {
+        profile.min = min;
+        profile.max = max;
       }
     } else if (winner === 'date') {
       const dates = values.map((v) => v.trim()).filter((v) => ISO_DATE.test(v)).sort();

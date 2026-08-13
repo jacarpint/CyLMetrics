@@ -62,7 +62,36 @@ const LEGACY_ROUTES = [
   { source: "/alertas", destination: "/calidad?vista=ficheros&familia=contenido" },
 ];
 
+/**
+ * Ficheros del informe que hay que meter a mano en el bundle de las funciones.
+ *
+ * `quality-report.ts` los abre con `fs.readFileSync(path.join(process.cwd(), …))`.
+ * Esa ruta se construye en tiempo de ejecución, así que el rastreador de Next no
+ * puede verla: sin esta lista el informe NO viaja al despliegue y el portal
+ * arranca sin datos —`/api/quality` responde 503 y todas las páginas se
+ * renderizan vacías—. En local no se nota, porque ahí el fichero está en disco.
+ *
+ * El índice y los agregados del historial son pequeños y los necesita casi cada
+ * página. Los fragmentos por distribución (`reports/current/d/`) pesan y solo los
+ * lee la ficha de la distribución y la API de incidencias, así que se limitan a
+ * esas rutas para no inflar el resto de funciones.
+ */
+const REPORT_INDEX_FILES = [
+  "reports/current/index.json",
+  "reports/current/snapshots.json",
+  "reports/history-index.json",
+];
+/** Fragmentos por distribución: solo donde se abren de verdad. */
+const REPORT_DETAIL_FILES = [...REPORT_INDEX_FILES, "reports/current/d/**"];
+
 const nextConfig: NextConfig = {
+  outputFileTracingIncludes: {
+    "/*": REPORT_INDEX_FILES,
+    "/catalogo/**": REPORT_INDEX_FILES,
+    "/calidad": REPORT_INDEX_FILES,
+    "/catalogo/[datasetId]/[distIdx]": REPORT_DETAIL_FILES,
+    "/api/**": REPORT_DETAIL_FILES,
+  },
   async redirects() {
     return LEGACY_ROUTES.map((route) => ({ ...route, permanent: true }));
   },

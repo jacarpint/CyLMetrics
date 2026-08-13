@@ -255,14 +255,14 @@ export default async function MetodologiaPage() {
 
         <Card tone="muted">
           <CardContent>
-            <h3 className="text-sm font-semibold text-strong">Dos ritmos que no hay que confundir</h3>
+            <h3 className="text-sm font-semibold text-strong">Dos cosas que no hay que confundir</h3>
             <p className="mt-1.5 max-w-3xl text-sm leading-relaxed text-body">
-              El catálogo se lee <strong className="text-strong">en vivo</strong>, cada hora: un
-              conjunto de datos nuevo aparece aquí el mismo día. El análisis, en cambio, es{" "}
-              <strong className="text-strong">una foto</strong>: descargar y abrir los{" "}
-              {analyzedFiles.toLocaleString("es-ES")} archivos tarda horas, así que se ejecuta
-              periódicamente y lo publicado después figura como «sin analizar» hasta la siguiente
-              vuelta.
+              El catálogo se lee <strong className="text-strong">en vivo</strong>: un conjunto de
+              datos nuevo aparece aquí en cuanto la Junta lo publica. El análisis, en cambio, es{" "}
+              <strong className="text-strong">una foto fechada</strong>: descargar y abrir los{" "}
+              {analyzedFiles.toLocaleString("es-ES")} archivos lleva horas, y lo publicado después de
+              esa foto figura como «sin analizar». La fecha del análisis vigente aparece en la
+              portada y en cada ficha.
             </p>
             <p className="mt-2 max-w-3xl text-sm leading-relaxed text-faint">
               Por eso los totales no siempre cuadran al dígito: ahora mismo el catálogo tiene{" "}
@@ -545,7 +545,8 @@ export default async function MetodologiaPage() {
           </h2>
           <p className="mt-1 max-w-3xl text-sm leading-relaxed text-body">
             Cualquiera puede incrustar la calidad de un conjunto de datos —o la del catálogo entero—
-            como una imagen que se actualiza sola. El sello escribe siempre el nivel junto al
+            como una imagen, que refleja siempre el último análisis publicado sin tener que volver a
+            pegarla. El sello escribe siempre el nivel junto al
             porcentaje, con los umbrales de más arriba: el color no puede ser lo único que informe, y
             menos en una imagen pegada en otra web.
           </p>

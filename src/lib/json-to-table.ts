@@ -45,7 +45,11 @@ export function jsonToTable(data: unknown): JsonTable | null {
   const first = list[0];
 
   if (Array.isArray(first)) {
-    const width = Math.max(...list.map((r) => (Array.isArray(r) ? r.length : 0)));
+    // Bucle en vez de `Math.max(...)`: el spread desborda la pila de llamadas
+    // con listas largas (~65.000 argumentos), que es justo el caso de un JSON
+    // de datos abiertos.
+    let width = 0;
+    for (const r of list) if (Array.isArray(r) && r.length > width) width = r.length;
     return {
       header: Array.from({ length: width }, (_, i) => `Columna ${i + 1}`),
       rows: list.map((r) => (Array.isArray(r) ? r.map(cellText) : [])),

@@ -467,7 +467,7 @@ export default async function HomePage() {
             {
               icon: Code2,
               title: "Quiero construir algo encima",
-              text: "Todo lo que se ve aquí está también en JSON, sin registro ni clave. Y hay un distintivo de calidad que se pega en cualquier web como una imagen y se actualiza solo.",
+              text: "Todo lo que se ve aquí está también en JSON, sin registro ni clave. Y hay un distintivo de calidad que se pega en cualquier web como una imagen y refleja siempre el último análisis publicado.",
               href: "/metodologia#api",
               cta: "Ver la API",
             },

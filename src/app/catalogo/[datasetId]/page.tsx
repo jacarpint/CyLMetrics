@@ -251,8 +251,7 @@ export default async function DatasetPage({
               Los archivos marcados como «sin analizar» no estaban en el catálogo la última vez
               que se ejecutó el análisis completo (
               <time dateTime={analyzedAt}>{formatLongDate(analyzedAt)}</time>
-              ). Se comprobarán en la siguiente ejecución; entretanto puedes explorar el archivo
-              desde su ficha.
+              ). Entretanto puedes explorar el archivo desde su ficha.
             </p>
           )}
         </section>
@@ -265,7 +264,7 @@ export default async function DatasetPage({
             url: `/api/quality?dataset=${datasetId}`,
             note:
               reportDs == null
-                ? "Este conjunto todavía no está en el informe, así que ahora mismo responde 404. Estará disponible tras la siguiente ejecución del análisis."
+                ? "Este conjunto todavía no está en el informe, así que ahora mismo responde 404."
                 : undefined,
           },
           {

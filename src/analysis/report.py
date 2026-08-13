@@ -25,6 +25,11 @@ def aggregate(results: list[dict]) -> dict:
                 "scores": [],
                 "distribution_results": [],
                 "issues_by_code": Counter(),
+                # La severidad de cada código, que `issues_by_code` no puede
+                # llevar. Sin esto, quien solo tiene el agregado (el desglose de
+                # la portada, la clasificación de alertas) suma errores con
+                # avisos y presenta como «errores» un millón de celdas vacías.
+                "issue_severity": {},
             }
             datasets_order.append(key)
         ds = by_dataset[key]
@@ -41,6 +46,10 @@ def aggregate(results: list[dict]) -> dict:
         if r["analysis"] and r["analysis"].get("issues"):
             for issue in r["analysis"]["issues"]:
                 ds["issues_by_code"][issue["code"]] += issue.get("count", 1)
+                # Un código es de error si lo es en alguna distribución: nunca
+                # se degrada a aviso por haberse visto también como aviso.
+                if issue.get("severity") == "error" or issue["code"] not in ds["issue_severity"]:
+                    ds["issue_severity"][issue["code"]] = issue.get("severity", "error")
 
     datasets = []
     for key in datasets_order:
@@ -86,7 +95,10 @@ def aggregate(results: list[dict]) -> dict:
             "downloaded": stat["downloaded"],
             "avg_score": round(sum(stat["scores"]) / len(stat["scores"]), 1) if stat["scores"] else None,
             "bytes": stat["bytes"],
-            "top_issues": dict(stat["issues"].most_common(8)),
+            # Todos los códigos, no los 8 más frecuentes: el recorte dejaba
+            # fuera del resumen por formato incidencias que sí existían y solo
+            # se podían encontrar entrando dataset por dataset.
+            "top_issues": dict(stat["issues"].most_common()),
         }
 
     return {

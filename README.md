@@ -45,25 +45,26 @@ python -m src.analysis --limit 25
 # Solo formatos CSV/XLSX
 python -m src.analysis --only-formats CSV,XLSX
 
-# Con workers paralelos y tamaño máximo
-python -m src.analysis --limit 0 --workers 16 --size-cap 52428800
+# Con workers paralelos y tope de descarga
+python -m src.analysis --limit 0 --workers 16 --size-cap 536870912
 ```
 
-El informe se guarda en `reports/data-analysis.json` y se auto-copía al historial en `reports/history/`.
+El informe se escribe en `reports/current/` como un índice ligero más un
+fragmento por distribución (ver «Despliegue»). Se guardan **todas** las
+ocurrencias de cada incidencia, no una muestra: es lo que permite que el
+recuento del resumen y el detalle de la ficha sean la misma cifra.
 
 ### Gestión de informes
 
 ```bash
-npm run reports -- save       # Copiar informe al historial
-npm run reports -- list       # Listar historial
-npm run reports -- rotate 30  # Eliminar informes > 30 días
-npm run reports -- latest     # Mostrar último válido
-npm run reports:index         # Regenerar reports/history-index.json
+npm run reports:snapshots     # Regenerar reports/current/snapshots.json
+npm run reports -- list       # Listar el historial del formato antiguo
+npm run reports -- rotate 30  # Eliminar informes antiguos > 30 días
 ```
 
-`reports:index` hay que ejecutarlo después de cada `save`: es lo que alimenta la
-pestaña de evolución. Descarta las ejecuciones parciales (menos de 50 datasets),
-igual que la lectura del historial en el portal.
+`reports:snapshots` hay que ejecutarlo después de cada análisis: es lo que
+alimenta la pestaña de evolución. Descarta las ejecuciones parciales (menos de
+50 datasets), igual que la lectura del informe en el portal.
 
 ### Build, lint y comprobaciones
 
@@ -201,21 +202,37 @@ npm start
 Configura `NEXT_PUBLIC_SITE_URL` con el dominio público: es lo que usan
 `sitemap.xml` y `robots.txt` para construir las URLs absolutas.
 
-El informe de análisis (`reports/data-analysis.json`) se genera con el script
-Python y se ejecuta periódicamente. Para despliegues automatizados:
+El análisis se ejecuta **en local** y solo su resultado viaja al despliegue. No
+hay periodicidad establecida: cada informe es una foto fechada, y el portal
+enseña siempre la fecha del que está publicado.
 
 ```bash
 export NEXT_PUBLIC_SITE_URL=https://mi-dominio.es
-python -m src.analysis --limit 0   # genera reports/data-analysis.json
-npm run reports -- save            # lo archiva en reports/history/
-npm run reports:index              # regenera el índice de evolución
+python -m src.analysis --limit 0   # escribe reports/current/
+npm run reports:snapshots          # actualiza la serie de la pestaña Evolución
 npm run build
-npm start
 ```
 
-Si `reports/data-analysis.json` no existe (está en `.gitignore`), el portal usa
-el informe más reciente de `reports/history/`. La lectura está cacheada por
-firma del fichero: se reparsea solo cuando el informe cambia.
+`reports/current/` es el artefacto de despliegue y **se versiona**:
+
+| Fichero | Qué lleva |
+|---|---|
+| `index.json` | Totales, por formato y, por distribución, estado y recuento de cada incidencia |
+| `d/<id>.json` | Todas las posiciones de cada incidencia, el esquema y filas de muestra |
+| `snapshots.json` | Un punto por ejecución para la pestaña Evolución |
+
+### Al desplegar en Vercel
+
+Esos ficheros se leen con `fs` desde rutas que se construyen en tiempo de
+ejecución, así que el rastreador de Next no las ve y hay que declararlas en
+`outputFileTracingIncludes` (`next.config.ts`). Si se tocan las rutas, hay que
+tocar también esa lista: sin ella el informe no viaja al despliegue, `/api/quality`
+responde 503 y el portal se renderiza sin datos. En local no se nota, porque ahí
+los ficheros están en disco.
+
+Las rutas `/api/proxy` y `/api/ogc` declaran `maxDuration`; el valor sale de
+`PLATFORM_MAX_DURATION_S` en `src/lib/download-budget.ts`, que es también de
+donde se deriva el plazo del proxy. 60 s es el máximo del plan Hobby.
 
 ## Licencia
 

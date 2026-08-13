@@ -12,9 +12,20 @@ from __future__ import annotations
 import csv
 import datetime
 import json
+import re
 from pathlib import Path
 
 from ..checks import detect_encoding, guess_delimiter
+from ..json_records import json_record_table
+from ..occurrences import (
+    MAX_CELL_CHARS,
+    add_cell,
+    add_row,
+    finalize_issues,
+    merge_issues,
+    new_issue,
+    simple_issue,
+)
 
 # Mapeo de errores de Frictionless -> issues del portal
 ERROR_MAP = {
@@ -36,28 +47,9 @@ WARNING_SEVERITY = {"warning"}
 DEFAULT_ISSUE = ("problema", "Problema detectado durante la validación", "error")
 
 
-def _merge_issues(issues: list[dict]) -> list[dict]:
-    """Fusiona issues con el mismo código (p.ej. 'celda-faltante' de Frictionless
-    y las comprobaciones propias) sumando counts y conservando muestras."""
-    merged: dict[str, dict] = {}
-    for iss in issues:
-        code = iss.get("code", "problema")
-        if code not in merged:
-            merged[code] = dict(iss)
-            continue
-        target = merged[code]
-        target["count"] = (target.get("count") or 0) + (iss.get("count") or 0)
-        # Si cualquiera de las fuentes es un error, la incidencia fusionada es
-        # un error (nunca downgrade por mezclar una advertencia).
-        if iss.get("severity") == "error":
-            target["severity"] = "error"
-        samples = iss.get("samples") or []
-        if samples and "samples" not in target:
-            target["samples"] = []
-        if samples:
-            target["samples"] = (target.get("samples") or []) + samples
-            target["samples"] = (target["samples"])[:5]
-    return list(merged.values())
+#: Fusión de incidencias del mismo código (Frictionless + comprobaciones
+#: propias). Vive en `occurrences` porque XLSX necesita exactamente la misma.
+_merge_issues = merge_issues
 
 
 def _score_from_issues(issues: list[dict]) -> tuple[int, bool]:
@@ -71,45 +63,38 @@ def _score_from_issues(issues: list[dict]) -> tuple[int, bool]:
 
 
 def _collect_frictionless(report) -> list[dict]:
-    """Convierte un report de Frictionless en issues del portal.
+    """Convierte un report de Frictionless en acumuladores de incidencia.
 
     El code del issue es el código estable del portal (p. ej. "fila-vacia");
     el tipo crudo de Frictionless queda en el campo "source" como trazabilidad.
 
-    Para cada tipo de error, recopila hasta SAMPLE_LIMIT instancias de ejemplo
-    con la posición (fila, columna) y el valor de la celda para visualización
-    en la interfaz.
+    Se registran **todas** las posiciones, no las primeras cinco: `row_values` y
+    `header` ya no se copian en cada ocurrencia (la cabecera se guarda una vez
+    por distribución), así que guardarlas todas cuesta un entero por ocurrencia.
     """
-    SAMPLE_LIMIT = 5
     issues: dict[str, dict] = {}
 
     def _add(err) -> None:
         ftype = getattr(err, "type", "unknown")
         code, label, severity = ERROR_MAP.get(ftype, (ftype, *DEFAULT_ISSUE[1:]))
-        entry = issues.setdefault(code, {"code": code, "label": label, "severity": severity, "count": 0, "samples": []})
-        entry["count"] += 1
-        entry.setdefault("source", ftype)
-        if len(entry["samples"]) < SAMPLE_LIMIT:
-            sample: dict = {}
-            row_num = getattr(err, "row_number", None)
-            if row_num is not None:
-                sample["row"] = row_num
-            field_name = getattr(err, "field_name", None)
-            if field_name is not None:
-                sample["field"] = field_name
-            field_num = getattr(err, "field_number", None)
-            if field_num is not None and field_name is None:
-                sample["field_index"] = field_num
-            cell_val = getattr(err, "cell", None)
-            if cell_val is not None:
-                sample["cell"] = str(cell_val)[:200]
-            cells = getattr(err, "cells", None)
-            if cells is not None and isinstance(cells, (list, tuple)):
-                sample["row_values"] = [str(c)[:100] if c is not None else None for c in cells[:50]]
-            labels = getattr(err, "labels", None)
-            if labels is not None and isinstance(labels, (list, tuple)):
-                sample["header"] = [str(l)[:100] if l else None for l in labels[:50]]
-            entry["samples"].append(sample)
+        entry = issues.get(code)
+        if entry is None:
+            entry = new_issue(code, label, severity, source=ftype)
+            issues[code] = entry
+
+        row_num = getattr(err, "row_number", None)
+        field_name = getattr(err, "field_name", None)
+        field_num = getattr(err, "field_number", None)
+        cell_val = getattr(err, "cell", None)
+        # `field_number` de Frictionless es 1-based; el formato del informe usa
+        # índices de columna 0-based, como el resto del portal.
+        col = field_num - 1 if isinstance(field_num, int) and field_num > 0 else None
+        if col is None and row_num is None:
+            add_row(entry, None)
+        elif col is None:
+            add_row(entry, row_num)
+        else:
+            add_cell(entry, row_num or 0, col, field_name, cell_val)
 
     for task in getattr(report, "tasks", []):
         for err in getattr(task, "errors", []):
@@ -123,12 +108,14 @@ def _normalize(path: Path, ctx: dict, ok: bool, score: int, summary: str,
                metrics: dict, issues: list[dict],
                schema: list[dict] | None = None,
                sample_rows: list[list] | None = None) -> dict:
+    # Único punto donde las incidencias se cierran: así ningún analizador puede
+    # emitir un acumulador a medio construir en el informe.
     result = {
         "ok": ok,
         "score": score,
         "summary": summary,
         "metrics": metrics or {},
-        "issues": issues or [],
+        "issues": finalize_issues(issues or []),
         "truncated": bool(ctx.get("truncated")),
     }
     if schema:
@@ -145,12 +132,32 @@ def _normalize(path: Path, ctx: dict, ok: bool, score: int, summary: str,
 _TYPE_PRIORITY = {"number": 0, "date": 1, "bool": 2, "str": 3, "any": 4}
 
 
+#: Número decimal corriente. Deliberadamente estrecho, y deliberadamente el
+#: MISMO patrón que `NUMBER_LITERAL` en `src/lib/tabular-analysis.ts`.
+#:
+#: Antes cada lado usaba los literales de su lenguaje y contaban distinto sobre
+#: el mismo fichero: `int("1_000")` en Python vale 1000 (los guiones bajos son
+#: legales desde 3.6) y `Number("1_000")` en JavaScript es NaN; al revés,
+#: `Number("0x1A")` vale 26 y `int("0x1A")` falla. Cada discrepancia era un
+#: `error-tipo` que aparecía en una pantalla y no en la otra.
+_NUMBER_LITERAL = re.compile(r"^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$")
+
+#: Fecha ISO de calendario. `datetime.date.fromisoformat` acepta desde Python
+#: 3.11 formatos que el visor no reconoce ("20260813", "2026-W32-1", fechas con
+#: hora), así que aquí se exige la forma estricta, igual que `ISO_DATE` en TS.
+_ISO_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
 def _value_type(value) -> str:
     """Tipo 'estricto' de un valor ya parseado (str, int, float, bool, date...).
 
     int y float se fusionan en "number": mezclar 150 con 150.5 no es un error
     de calidad (en JSON es frecuente y legítimo); sí lo es un texto en una
     columna numérica o de fechas. None / "" se consideran "empty".
+
+    Las ramas de tipo nativo (int, date…) solo se alcanzan desde XLSX, donde
+    openpyxl devuelve valores ya tipados. CSV y JSON llegan aquí como texto y
+    pasan por el mismo camino que el visor del navegador.
     """
     if value is None:
         return "empty"
@@ -166,27 +173,26 @@ def _value_type(value) -> str:
             return "empty"
         if v.lower() in ("true", "false"):
             return "bool"
-        try:
-            int(v)
+        if _NUMBER_LITERAL.match(v):
             return "number"
-        except ValueError:
-            pass
-        try:
-            float(v)
-            return "number"
-        except ValueError:
-            pass
-        try:
-            datetime.date.fromisoformat(v)
-            return "date"
-        except ValueError:
-            pass
+        if _ISO_DATE.match(v):
+            try:
+                datetime.date.fromisoformat(v)
+                return "date"
+            except ValueError:
+                pass
         return "str"
     return "any"
 
 
-def _check_column_quality(rows: list[list], header: list[str] | None = None) -> tuple[int, int, list[dict], list[dict]]:
-    """Devuelve (celdas_con_tipo_incoherente, celdas_vacias, muestras_tipo, muestras_vacias).
+def _check_column_quality(
+    rows: list[list],
+    header: list[str] | None = None,
+    sheet: str | None = None,
+    type_issue: dict | None = None,
+    missing_issue: dict | None = None,
+) -> tuple[int, int, dict, dict]:
+    """Devuelve (celdas_con_tipo_incoherente, celdas_vacias, acum_tipo, acum_vacias).
 
     Analiza cada columna: si hay un tipo mayoritario estricto (int, float,
     date, bool), cualquier valor que no lo cumpla se cuenta como error de tipo.
@@ -200,21 +206,30 @@ def _check_column_quality(rows: list[list], header: list[str] | None = None) -> 
         (>= MIN_FILL de la columna). Las columnas opcionales casi vacías
         (teléfono, email, web, observaciones...) no son un fallo del dataset.
 
-    Devuelve listas de muestras de ejemplo (hasta 5 por tipo) con posición,
-    columna y valor de la celda.
+    Devuelve dos acumuladores con TODAS las posiciones (fila, columna), no una
+    muestra: el recuento y el detalle salen de la misma pasada, así que no
+    pueden discrepar.
+
+    `sheet` etiqueta las posiciones cuando el origen tiene varias hojas, y
+    `type_issue`/`missing_issue` permiten seguir acumulando sobre los mismos
+    acumuladores hoja tras hoja en lugar de sumar cifras sueltas.
     """
-    SAMPLE_LIMIT = 5
     MIN_FILL = 0.5
+    if type_issue is None:
+        type_issue = new_issue("error-tipo", "Valores con un tipo distinto al mayoritario de su columna", "error")
+    if missing_issue is None:
+        missing_issue = new_issue("celda-faltante", "Celdas vacías en filas con datos", "warning")
     if not rows:
-        return 0, 0, [], []
+        return 0, 0, type_issue, missing_issue
     ncols = max(len(r) for r in rows)
     if ncols == 0:
-        return 0, 0, [], []
+        return 0, 0, type_issue, missing_issue
     nrows = len(rows)
     cols: list[list] = [[] for _ in range(ncols)]
     missing = 0
-    type_error_samples: list[dict] = []
-    missing_samples: list[dict] = []
+
+    def _field(col_idx: int) -> str:
+        return header[col_idx] if header and col_idx < len(header) else f"Col {col_idx + 1}"
 
     for row_idx, r in enumerate(rows):
         for i in range(ncols):
@@ -252,16 +267,8 @@ def _check_column_quality(rows: list[list], header: list[str] | None = None) -> 
                 continue  # dato ausente, no error de tipo
             if _value_type(v) != winner:
                 type_errors += 1
-                if len(type_error_samples) < SAMPLE_LIMIT:
-                    col_name = header[col_idx] if header and col_idx < len(header) else f"Col {col_idx + 1}"
-                    sample_row = [str(c)[:100] if c is not None else None for c in r[:50]]
-                    type_error_samples.append({
-                        "row": row_idx + 2,  # +1 header, +1 1-based
-                        "field": col_name,
-                        "cell": str(v)[:200] if v is not None else None,
-                        "row_values": sample_row,
-                        "header": [str(h)[:100] if h else None for h in header[:50]] if header else [],
-                    })
+                # +1 por el encabezado, +1 porque la interfaz numera desde 1.
+                add_cell(type_issue, row_idx + 2, col_idx, _field(col_idx), v, sheet=sheet)
 
     # Celdas vacías solo en columnas mayoritariamente pobladas (opcionales fuera).
     for col_idx in range(ncols):
@@ -273,54 +280,34 @@ def _check_column_quality(rows: list[list], header: list[str] | None = None) -> 
                 continue
             if _value_type(r[col_idx]) == "empty":
                 missing += 1
-                if len(missing_samples) < SAMPLE_LIMIT:
-                    col_name = header[col_idx] if header and col_idx < len(header) else f"Col {col_idx + 1}"
-                    sample_row = [str(c)[:100] if c is not None else None for c in r[:50]]
-                    missing_samples.append({
-                        "row": row_idx + 2,  # +1 header, +1 1-based
-                        "field": col_name,
-                        "cell": None,
-                        "row_values": sample_row,
-                        "header": [str(h)[:100] if h else None for h in header[:50]] if header else [],
-                    })
-    return type_errors, missing, type_error_samples, missing_samples
+                add_cell(missing_issue, row_idx + 2, col_idx, _field(col_idx), sheet=sheet)
+    return type_errors, missing, type_issue, missing_issue
 
 
-def _append_quality_issues(
-    issues: list[dict],
-    type_errors: int,
-    missing_cells: int,
-    type_error_samples: list[dict] | None = None,
-    missing_samples: list[dict] | None = None,
-) -> None:
-    if type_errors:
-        entry: dict = {
-            "code": "error-tipo",
-            "label": "Valores con un tipo distinto al mayoritario de su columna",
-            "severity": "error",
-            "count": type_errors,
-        }
-        if type_error_samples:
-            entry["samples"] = type_error_samples
-        issues.append(entry)
-    if missing_cells:
-        entry = {
-            "code": "celda-faltante",
-            "label": "Celdas vacías en filas con datos",
-            "severity": "warning",
-            "count": missing_cells,
-        }
-        if missing_samples:
-            entry["samples"] = missing_samples
-        issues.append(entry)
+def _append_quality_issues(issues: list[dict], type_issue: dict, missing_issue: dict) -> None:
+    """Añade los acumuladores de las comprobaciones propias, si registraron algo.
+
+    Antes recibía los recuentos por un lado y las muestras por otro, y quien
+    llamaba podía pasar unos que no correspondían a las otras. Ahora es el mismo
+    objeto: el recuento y las posiciones no se pueden desincronizar.
+    """
+    for issue in (type_issue, missing_issue):
+        if issue.get("count"):
+            issues.append(issue)
 
 
 # ---------------------------------------------------------------------------
 # Esquema inferido y muestra de filas (para la ficha del dataset)
 # ---------------------------------------------------------------------------
 
-_SAMPLE_ROW_LIMIT = 10
-_SCHEMA_COLUMN_LIMIT = 100
+# Filas de muestra que viajan al fragmento de la distribución. Con 10 no se veía
+# ni una página de la tabla; 200 dan contexto suficiente sin arrastrar el fichero
+# entero, que para eso está el visor.
+_SAMPLE_ROW_LIMIT = 200
+# Sin tope de columnas: cortar en 100 dejaba fuera del esquema —y de las filas de
+# muestra, que se recortaban al mismo ancho— las columnas 101 en adelante, sin
+# decirlo en ninguna parte.
+_SCHEMA_COLUMN_LIMIT: int | None = None
 # Sin tope: antes se cortaba en 1.000 y la ficha mostraba "1000+" en 1.201
 # campos, así que el recuento de valores distintos no era el real. El coste es
 # memoria proporcional a los distintos de la columna, aceptable para columnas
@@ -366,7 +353,8 @@ def _build_schema_and_sample(header: list[str] | None, data_rows: list[list]) ->
     ncols = max(len(r) for r in data_rows)
     if ncols == 0:
         return [], []
-    ncols = min(ncols, _SCHEMA_COLUMN_LIMIT)
+    if _SCHEMA_COLUMN_LIMIT is not None:
+        ncols = min(ncols, _SCHEMA_COLUMN_LIMIT)
 
     cols: list[list] = [[] for _ in range(ncols)]
     for r in data_rows:
@@ -397,7 +385,7 @@ def _build_schema_and_sample(header: list[str] | None, data_rows: list[list]) ->
         distinct = len(seen)
 
         entry: dict = {
-            "name": name[:80],
+            "name": name[:200],
             "type": _TYPE_DISPLAY.get(winner, "string"),
             "null_count": null_count,
             "null_pct": round(null_count / nrows, 4) if nrows else 0,
@@ -423,7 +411,7 @@ def _build_schema_and_sample(header: list[str] | None, data_rows: list[list]) ->
         schema.append(entry)
 
     sample_rows = [
-        [str(c)[:100] if c is not None else None for c in r[:ncols]]
+        [str(c)[:MAX_CELL_CHARS] if c is not None else None for c in r[:ncols]]
         for r in data_rows[:_SAMPLE_ROW_LIMIT]
     ]
     return schema, sample_rows
@@ -474,10 +462,8 @@ def analyze_csv(path: Path, ctx: dict) -> dict:
     sample_rows: list[list] = []
     header, data_rows = _read_csv_rows_with_header(path, delimiter, encoding)
     if data_rows:
-        te, mc, te_samples, mc_samples = _check_column_quality(data_rows, header)
-        type_errors = te
-        missing_cells = mc
-        _append_quality_issues(issues, type_errors, missing_cells, te_samples, mc_samples)
+        type_errors, missing_cells, type_issue, missing_issue = _check_column_quality(data_rows, header)
+        _append_quality_issues(issues, type_issue, missing_issue)
         issues = _merge_issues(issues)
         score, ok = _score_from_issues(issues)
         if header:
@@ -500,7 +486,7 @@ def analyze_csv(path: Path, ctx: dict) -> dict:
         "error_cells": type_errors + missing_cells,
     }
     if header:
-        metrics["header"] = header[:50]
+        metrics["header"] = header
     return _normalize(path, ctx, ok, score, summary, metrics, issues, schema=schema, sample_rows=sample_rows)
 
 
@@ -589,33 +575,45 @@ def analyze_json(path: Path, ctx: dict) -> dict:
         nested = sum(1 for v in data.values() if isinstance(v, (list, dict)))
         metrics["nested_values"] = nested
 
-    # Si es una lista de objetos/arrays -> validación tabular con Frictionless
-    if isinstance(data, list) and data and isinstance(data[0], (dict, list)):
+    # Registros del documento, estén en la raíz o dentro de un envoltorio.
+    #
+    # Antes esta condición era `isinstance(data, list) and data and ...`: solo se
+    # analizaba si la lista era la RAÍZ del documento. Un JSON tan corriente como
+    # `{"document": {"date": …, "list": [ … ]}}` se archivaba como «JSON válido»,
+    # sin incidencias y con 100 puntos, mientras el visor —que sí baja a buscar
+    # la lista— encontraba la tabla y mostraba N incidencias. Ese es el caso de
+    # «el resumen dice que no hay problemas y el detalle dice que sí».
+    records = json_record_table(data)
+    if records is not None:
+        header_cols, rows_data, irregular, records_path = records
         try:
-            from frictionless import Resource
+            issues = []
+            # Frictionless solo sabe leer la lista si está en la raíz; si los
+            # registros venían envueltos, la validación estructural se salta y
+            # el análisis se apoya en las comprobaciones propias, que operan
+            # sobre la tabla ya aplanada.
+            if isinstance(data, list):
+                from frictionless import Resource
 
-            report = Resource(path=str(path), format="json").validate()
-            issues = _collect_frictionless(report)
-            stats = report.tasks[0].stats if report.tasks else {}
-            metrics["rows"] = int(stats.get("rows") or len(data))
-            metrics["columns"] = len(data[0]) if isinstance(data[0], (list, dict)) else 0
-            score, ok = _score_from_issues(issues)
+                report = Resource(path=str(path), format="json").validate()
+                issues = _collect_frictionless(report)
 
-            # Comprobación propia de calidad de columnas (valores ya tipados)
-            first = data[0]
-            header_cols: list[str] = []
-            if isinstance(first, dict):
-                header_cols = list(first.keys())
-                rows_data = [[d.get(k) for k in header_cols] for d in data]
-            else:
-                rows_data = [list(r) for r in data]
-            type_errors, missing_cells, te_samples, mc_samples = _check_column_quality(rows_data, header_cols or None)
-            _append_quality_issues(issues, type_errors, missing_cells, te_samples, mc_samples)
+            metrics["rows"] = len(rows_data)
+            metrics["columns"] = len(header_cols)
+            if records_path:
+                metrics["records_path"] = records_path
+            if irregular:
+                metrics["irregular_records"] = irregular
+
+            type_errors, missing_cells, type_issue, missing_issue = _check_column_quality(
+                rows_data, header_cols or None
+            )
+            _append_quality_issues(issues, type_issue, missing_issue)
             issues = _merge_issues(issues)
             score, ok = _score_from_issues(issues)
             metrics["error_cells"] = type_errors + missing_cells
             if header_cols:
-                metrics["header"] = header_cols[:50]
+                metrics["header"] = header_cols
 
             schema: list[dict] = []
             sample_rows: list[list] = []
@@ -623,7 +621,7 @@ def analyze_json(path: Path, ctx: dict) -> dict:
                 schema, sample_rows = _build_schema_and_sample(header_cols, rows_data)
 
             summary = (
-                f"JSON tabular válido: {metrics['rows']:,} elementos"
+                f"JSON tabular válido: {metrics['rows']:,} registros"
                 if ok
                 else f"JSON tabular con problemas: {len(issues)} tipos de incidencia"
             )

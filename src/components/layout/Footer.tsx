@@ -21,7 +21,7 @@ export function Footer() {
           >
             catálogo de datos abiertos de la Junta de Castilla y León
           </a>
-          , actualizados cada hora. El análisis de los archivos se ejecuta periódicamente y su
+          . El análisis de los archivos es una foto fechada —su fecha aparece en cada ficha— y su
           resultado se publica en{" "}
           <a href="/api/quality" className="text-link underline-offset-2 hover:underline">
             JSON

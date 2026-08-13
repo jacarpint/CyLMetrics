@@ -6,9 +6,9 @@ import zipfile
 from pathlib import Path
 
 from .tabular import _normalize
+from ..occurrences import add_row, new_issue
 
 REQUIRED_EXTS = (".shp", ".dbf", ".shx")
-NULL_GEOMETRY_SAMPLE = 2000
 
 
 def analyze_zip_shapefile(path: Path, ctx: dict) -> dict:
@@ -86,15 +86,19 @@ def analyze_zip_shapefile(path: Path, ctx: dict) -> dict:
             except Exception:
                 feature_count = -1
 
-            # Muestra de geometrías nulas (sin abrir el shape completo)
-            null_geoms = 0
+            # Geometrías nulas: TODAS, y con el número de registro de cada una.
+            #
+            # Antes se paraba a las 2.000 primeras (`NULL_GEOMETRY_SAMPLE`)
+            # mientras `metrics.features` contaba el fichero entero: una capa de
+            # 80.000 registros declaraba las geometrías vacías de las 2.000
+            # primeras y la ficha lo presentaba como el total.
+            null_geometry = new_issue("geometria-nula", "Registros con geometría vacía", "error")
             checked = 0
-            for sh in reader.iterShapes():
+            for index, sh in enumerate(reader.iterShapes(), start=1):
                 checked += 1
                 if sh.shapeType == 0 or not getattr(sh, "points", None):
-                    null_geoms += 1
-                if checked >= NULL_GEOMETRY_SAMPLE:
-                    break
+                    add_row(null_geometry, index)
+            null_geoms = null_geometry["count"]
 
             fields = [f[0] for f in reader.fields if f[0] not in ("DeletionFlag",)]
             has_prj = any(n.lower().endswith(".prj") for n in lower)
@@ -119,7 +123,7 @@ def analyze_zip_shapefile(path: Path, ctx: dict) -> dict:
         issues.append({"code": "sin-prj", "label": "El shapefile no incluye proyección (.prj)", "severity": "warning", "count": 1})
         score -= 5
     if null_geoms > 0:
-        issues.append({"code": "geometria-nula", "label": "Registros con geometría vacía", "severity": "error", "count": null_geoms})
+        issues.append(null_geometry)
         score -= 15
     if feature_count == 0:
         issues.append({"code": "sin-features", "label": "El shapefile no contiene features", "severity": "error", "count": 1})
@@ -131,7 +135,10 @@ def analyze_zip_shapefile(path: Path, ctx: dict) -> dict:
         else f"SHP con problemas: {feature_count:,} features, {len(missing)} componentes ausentes"
     )
     return _normalize(path, ctx, ok, max(0, score), summary,
-                      {"features": feature_count, "fields": len(fields), "field_names": fields[:20],
+                      {"features": feature_count, "fields": len(fields), "field_names": fields,
                        "has_projection": has_prj, "missing_components": missing,
-                       "null_geometry_sample": null_geoms},
+                       # Ya no es una muestra: se recorre el fichero entero, así
+                       # que `null_geometry` y `features` se cuentan sobre la
+                       # misma población y son comparables.
+                       "null_geometry": null_geoms, "geometries_checked": checked},
                       issues)

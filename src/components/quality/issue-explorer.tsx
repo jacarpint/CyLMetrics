@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   AlertTriangle,
   XCircle,
@@ -9,21 +9,18 @@ import {
   ChevronRight,
   Info,
   BarChart3,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { issueExplanation } from "@/lib/quality-labels";
 import { presentationForFormat, type IssuePresentation } from "@/lib/unit-words";
-import type { IssueInfo, IssueSample } from "@/lib/quality-report";
+import type { IssueInfo } from "@/lib/quality-report";
+import type { AffectedColumn, IssuePosition } from "@/lib/report-bundle";
 
-/** Índice de la columna afectada dentro de la muestra, o -1. */
-function affectedIndex(sample: IssueSample, header?: (string | null)[]): number {
-  if (sample.field && header?.length) {
-    const idx = header.findIndex((h) => h === sample.field);
-    if (idx >= 0) return idx;
-  }
-  if (sample.field_index != null) return sample.field_index - 1;
-  return -1;
-}
+/** Posiciones que se piden de una vez. */
+const PAGE = 50;
+/** Columnas afectadas que se listan antes de plegar el resto. */
+const VISIBLE_COLUMNS = 8;
 
 function isEmptyValue(v: string | null | undefined): boolean {
   return v === null || v === undefined || v === "" || v === "None";
@@ -33,198 +30,280 @@ function EmptyMark() {
   return <span className="italic text-faint">(vacío)</span>;
 }
 
-/* ── 1. Tabular: CSV, XLSX… ── */
+/* ------------------------------------------------------------------ */
+/* Dónde está el problema                                              */
+/* ------------------------------------------------------------------ */
 
-function SampleTable({ samples }: { samples: IssueSample[] }) {
-  const header = samples.find((s) => s.header && s.header.length > 0)?.header;
-  if (!header || header.length === 0) return <SamplePlain samples={samples} />;
+const UNIT_LABEL: Record<IssuePresentation, { position: string; group: string }> = {
+  table: { position: "Fila", group: "Columna" },
+  record: { position: "Registro", group: "Campo" },
+  plain: { position: "Posición", group: "Elemento" },
+};
 
+/**
+ * Columnas afectadas, de más a menos.
+ *
+ * Es lo primero que se enseña porque es lo que sirve para arreglar: «FECHA_ALTA
+ * concentra 12.400 de los 12.600 casos» dice dónde mirar, y una lista de 12.400
+ * posiciones no dice nada. Las posiciones vienen después, para quien necesite
+ * ir a la fila concreta.
+ */
+function AffectedColumns({
+  columns,
+  presentation,
+}: {
+  columns: AffectedColumn[];
+  presentation: IssuePresentation;
+}) {
+  const [showAll, setShowAll] = useState(false);
+  if (columns.length === 0) return null;
+
+  const visible = showAll ? columns : columns.slice(0, VISIBLE_COLUMNS);
+  const hidden = columns.length - visible.length;
+  const max = columns[0]?.count ?? 1;
+  const noun = UNIT_LABEL[presentation].group.toLowerCase();
+
+  return (
+    <div className="rounded-md border border-border bg-card p-3">
+      <p className="eyebrow mb-2">
+        {columns.length === 1 ? `${UNIT_LABEL[presentation].group} afectada` : `${UNIT_LABEL[presentation].group}s afectadas`}
+      </p>
+      <ul className="space-y-1.5">
+        {visible.map((column) => (
+          <li key={`${column.sheet ?? ""}|${column.col}`} className="flex items-center gap-2 text-xs">
+            <span className="min-w-0 flex-1 truncate font-mono text-body" title={column.field ?? undefined}>
+              {column.sheet && <span className="text-faint">{column.sheet} · </span>}
+              {column.field || `${noun} ${column.col + 1}`}
+            </span>
+            <span className="h-1.5 w-24 shrink-0 overflow-hidden rounded-full bg-fill" aria-hidden>
+              <span
+                className="block h-full rounded-full bg-faint"
+                style={{ width: `${Math.max(Math.round((column.count / max) * 100), 3)}%` }}
+              />
+            </span>
+            <span className="w-16 shrink-0 text-right font-semibold tabular-nums text-body">
+              {column.count.toLocaleString("es-ES")}
+            </span>
+          </li>
+        ))}
+      </ul>
+      {hidden > 0 && (
+        <button
+          type="button"
+          onClick={() => setShowAll(true)}
+          className="mt-2 rounded text-xs text-faint underline-offset-2 hover:text-body hover:underline"
+        >
+          … mostrar {hidden} más
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** Tabla de posiciones concretas, paginada contra el fragmento del informe. */
+function Positions({
+  positions,
+  presentation,
+  showValue,
+}: {
+  positions: IssuePosition[];
+  presentation: IssuePresentation;
+  showValue: boolean;
+}) {
+  const labels = UNIT_LABEL[presentation];
   return (
     <div className="overflow-x-auto rounded-lg border border-border">
       <table className="w-full border-collapse text-[11px]">
-        <caption className="sr-only">Filas de ejemplo afectadas por esta incidencia</caption>
+        <caption className="sr-only">Posiciones afectadas por esta incidencia</caption>
         <thead>
           <tr>
-            <th scope="col" className="w-14 border-b border-border bg-fill px-2 py-1.5 text-left font-semibold text-faint">
-              Fila
+            <th scope="col" className="w-20 border-b border-border bg-fill px-2 py-1.5 text-left font-semibold text-faint">
+              {labels.position}
             </th>
-            {header.map((h, i) => (
-              <th
-                key={i}
-                scope="col"
-                className="max-w-[140px] truncate border-b border-border bg-fill px-2 py-1.5 text-left font-semibold text-faint"
-                title={h ?? undefined}
-              >
-                {h ?? `(col ${i + 1})`}
+            <th scope="col" className="border-b border-border bg-fill px-2 py-1.5 text-left font-semibold text-faint">
+              {labels.group}
+            </th>
+            {showValue && (
+              <th scope="col" className="border-b border-border bg-fill px-2 py-1.5 text-left font-semibold text-faint">
+                Valor
               </th>
-            ))}
+            )}
           </tr>
         </thead>
         <tbody>
-          {samples.map((sample, i) => {
-            const values = sample.row_values ?? [];
-            // Cada muestra resalta SU columna: usar la de la primera señalaba
-            // la celda equivocada cuando la incidencia afecta a varias.
-            const fieldIdx = affectedIndex(sample, header);
-            return (
-              <tr key={i} className="border-b border-border last:border-0">
-                <th scope="row" className="bg-fill px-2 py-1.5 text-center font-mono font-normal text-faint">
-                  {sample.row ?? "—"}
-                </th>
-                {header.map((_, colIdx) => {
-                  const val = colIdx < values.length ? values[colIdx] : null;
-                  const highlighted = fieldIdx === colIdx;
-                  const empty = isEmptyValue(val);
-                  return (
-                    <td
-                      key={colIdx}
-                      className={cn(
-                        "max-w-[160px] truncate px-2 py-1.5 font-mono",
-                        highlighted
-                          ? "bg-bad-surface font-semibold text-bad"
-                          : empty
-                          ? "text-faint"
-                          : "text-body"
-                      )}
-                      title={val ?? undefined}
-                    >
-                      {empty ? <EmptyMark /> : val}
-                    </td>
-                  );
-                })}
-              </tr>
-            );
-          })}
+          {positions.map((position, i) => (
+            <tr key={`${position.row}-${position.col}-${i}`} className="border-b border-border last:border-0">
+              <th scope="row" className="bg-fill px-2 py-1.5 text-center font-mono font-normal text-faint">
+                {position.row?.toLocaleString("es-ES") ?? "—"}
+              </th>
+              <td className="max-w-[220px] truncate px-2 py-1.5 font-mono text-body" title={position.field ?? undefined}>
+                {position.sheet && <span className="text-faint">{position.sheet} · </span>}
+                {position.field ?? (position.col == null ? "—" : `${labels.group} ${position.col + 1}`)}
+              </td>
+              {showValue && (
+                <td className="max-w-[260px] truncate px-2 py-1.5 font-mono text-bad" title={position.cell ?? undefined}>
+                  {isEmptyValue(position.cell) ? <EmptyMark /> : position.cell}
+                </td>
+              )}
+            </tr>
+          ))}
         </tbody>
       </table>
     </div>
   );
 }
 
-/* ── 2. Registro: JSON ── */
+/* ------------------------------------------------------------------ */
+/* Carga perezosa de posiciones                                        */
+/* ------------------------------------------------------------------ */
 
-const RECORD_CONTEXT_KEYS = 6;
-
-function JsonRecord({ sample }: { sample: IssueSample }) {
-  const [showAll, setShowAll] = useState(false);
-  const header = sample.header ?? [];
-  const values = sample.row_values ?? [];
-  const fieldIdx = affectedIndex(sample, header);
-
-  const entries = header.map((key, i) => ({
-    key: key ?? `campo_${i + 1}`,
-    value: i < values.length ? values[i] : null,
-    offending: i === fieldIdx,
-  }));
-
-  // Se muestran las primeras claves como contexto, más la que falla siempre.
-  const visible = showAll
-    ? entries
-    : entries.filter((e, i) => i < RECORD_CONTEXT_KEYS || e.offending);
-  const hidden = entries.length - visible.length;
-
-  return (
-    <div className="overflow-hidden rounded-lg border border-border bg-card">
-      <div className="flex flex-wrap items-center gap-2 border-b border-border bg-fill px-3 py-1.5">
-        {sample.row != null && (
-          <span className="font-mono text-[11px] text-faint">Registro nº {sample.row.toLocaleString("es-ES")}</span>
-        )}
-        {sample.field && (
-          <span className="text-[11px] text-faint">
-            clave <strong className="font-mono font-semibold text-bad">{sample.field}</strong>
-          </span>
-        )}
-      </div>
-      <div className="overflow-x-auto p-3 font-mono text-[11px] leading-relaxed">
-        <div className="text-faint">{"{"}</div>
-        <div className="pl-4">
-          {visible.map((e, i) => (
-            <div
-              key={`${e.key}-${i}`}
-              className={cn("-mx-1 flex gap-1 rounded px-1", e.offending && "bg-bad-surface")}
-            >
-              <span className={cn("shrink-0", e.offending ? "font-semibold text-bad" : "font-medium text-strong")}>
-                &quot;{e.key}&quot;
-              </span>
-              <span className="text-faint">:</span>
-              <span className={cn("min-w-0 break-all", e.offending ? "font-semibold text-bad" : "text-body")}>
-                {isEmptyValue(e.value) ? <EmptyMark /> : <>&quot;{e.value}&quot;</>}
-              </span>
-              {e.offending && (
-                <span className="ml-auto shrink-0 pl-3 text-[11px] font-normal text-bad">← incidencia</span>
-              )}
-            </div>
-          ))}
-          {hidden > 0 && (
-            <button
-              type="button"
-              onClick={() => setShowAll(true)}
-              className="mt-0.5 rounded text-faint underline-offset-2 hover:text-body hover:underline"
-            >
-              … mostrar {hidden} clave{hidden === 1 ? "" : "s"} restante{hidden === 1 ? "" : "s"}
-            </button>
-          )}
-          {showAll && entries.length > RECORD_CONTEXT_KEYS && (
-            <button
-              type="button"
-              onClick={() => setShowAll(false)}
-              className="mt-0.5 rounded text-faint underline-offset-2 hover:text-body hover:underline"
-            >
-              … plegar
-            </button>
-          )}
-        </div>
-        <div className="text-faint">{"}"}</div>
-      </div>
-    </div>
-  );
+interface PositionsState {
+  items: IssuePosition[];
+  total: number;
+  loading: boolean;
+  error: string | null;
 }
 
-function SampleRecords({ samples }: { samples: IssueSample[] }) {
-  const usable = samples.filter((s) => (s.header?.length ?? 0) > 0);
-  if (usable.length === 0) return <SamplePlain samples={samples} />;
-  return (
-    <div className="space-y-2">
-      {usable.map((sample, i) => (
-        <JsonRecord key={i} sample={sample} />
-      ))}
-    </div>
-  );
+/**
+ * Pide una página de posiciones. Función suelta y sin estado a propósito: así
+ * el efecto de arranque y el botón de «cargar más» comparten la petición pero
+ * cada uno decide qué hacer con el resultado.
+ */
+async function fetchPositions(
+  distId: string,
+  code: string,
+  offset: number,
+  signal?: AbortSignal
+): Promise<{ positions: IssuePosition[]; total: number }> {
+  const params = new URLSearchParams({ dist: distId, code, offset: String(offset), limit: String(PAGE) });
+  const res = await fetch(`/api/quality/issues?${params}`, { signal });
+  if (!res.ok) throw new Error(String(res.status));
+  return (await res.json()) as { positions: IssuePosition[]; total: number };
 }
 
-/* ── 3. Plano: XML, RDF, KML, SHP, ZIP… ── */
+/**
+ * Panel de detalle de una incidencia.
+ *
+ * Las posiciones se piden al abrir, no al renderizar la lista: una distribución
+ * puede traer cientos de miles y bajarlas todas para enseñar cincuenta es lo
+ * que hacía inservible el visor en los ficheros grandes.
+ */
+function IssueDetailPanel({
+  distId,
+  code,
+  stored,
+  count,
+  presentation,
+  columns,
+}: {
+  distId: string | undefined;
+  code: string;
+  stored: number;
+  count: number;
+  presentation: IssuePresentation;
+  columns?: AffectedColumn[];
+}) {
+  // Arranca ya en «cargando» cuando hay algo que pedir: así el efecto de abajo
+  // no tiene que ponerlo, que es lo que encadenaba un render de más nada más
+  // desplegar la incidencia.
+  const [state, setState] = useState<PositionsState>({
+    items: [],
+    total: stored,
+    loading: stored > 0 && Boolean(distId),
+    error: null,
+  });
 
-function SamplePlain({ samples }: { samples: IssueSample[] }) {
-  const withInfo = samples.filter((s) => s.row != null || s.field || s.cell != null);
-  if (withInfo.length === 0) {
+  const loadMore = useCallback(async () => {
+    if (!distId) return;
+    setState((s) => ({ ...s, loading: true, error: null }));
+    try {
+      const data = await fetchPositions(distId, code, state.items.length);
+      setState((s) => ({
+        items: [...s.items, ...data.positions],
+        total: data.total,
+        loading: false,
+        error: null,
+      }));
+    } catch {
+      setState((s) => ({ ...s, loading: false, error: "No se pudieron cargar las posiciones." }));
+    }
+  }, [distId, code, state.items.length]);
+
+  // Primera página al desplegar la incidencia. La petición se aborta si el
+  // panel se cierra antes de que llegue.
+  useEffect(() => {
+    if (stored === 0 || !distId) return;
+    const controller = new AbortController();
+    (async () => {
+      try {
+        const data = await fetchPositions(distId, code, 0, controller.signal);
+        setState({ items: data.positions, total: data.total, loading: false, error: null });
+      } catch (err) {
+        if ((err as Error).name === "AbortError") return;
+        setState((s) => ({ ...s, loading: false, error: "No se pudieron cargar las posiciones." }));
+      }
+    })();
+    return () => controller.abort();
+  }, [stored, distId, code]);
+
+  if (stored === 0) {
     return (
       <p className="text-xs text-body">
-        El analizador no registró ubicaciones concretas para esta incidencia.
+        Esta incidencia afecta al archivo entero, así que no hay una posición concreta que señalar dentro de él.
       </p>
     );
   }
+
+  if (!distId) {
+    return (
+      <p className="text-xs text-body">
+        Las posiciones concretas están en la ficha de este archivo.
+      </p>
+    );
+  }
+
+  // Solo tiene sentido enseñar la columna «Valor» si alguna posición la trae:
+  // en «celda vacía» el valor es vacío por definición y la columna sobra.
+  const showValue = state.items.some((p) => p.cell !== undefined);
+  const remaining = state.total - state.items.length;
+
   return (
-    <ul className="space-y-1.5">
-      {withInfo.map((sample, i) => (
-        <li key={i} className="rounded-lg border border-border bg-card px-3 py-2 text-xs">
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            {sample.row != null && (
-              <span className="rounded bg-fill px-1.5 py-0.5 font-mono text-[11px] text-faint">
-                Posición {sample.row.toLocaleString("es-ES")}
-              </span>
-            )}
-            {sample.field && (
-              <span className="text-faint">
-                Elemento <strong className="font-mono text-body">{sample.field}</strong>
-              </span>
-            )}
-          </div>
-          {sample.cell != null && (
-            <p className="mt-1 break-all font-mono text-[11px] text-bad">{sample.cell}</p>
+    <div className="space-y-2">
+      {stored < count && (
+        <p className="rounded-md border border-warn-line bg-warn-surface px-3 py-2 text-xs text-warn">
+          Se registraron {count.toLocaleString("es-ES")} casos y se guardaron las posiciones de los{" "}
+          {stored.toLocaleString("es-ES")} primeros.
+        </p>
+      )}
+      {columns && columns.length > 0 && <AffectedColumns columns={columns} presentation={presentation} />}
+      {state.items.length > 0 && (
+        <div className="rounded-md border border-border bg-card p-3">
+          <p className="eyebrow mb-2">
+            Posiciones · mostrando {state.items.length.toLocaleString("es-ES")} de{" "}
+            {state.total.toLocaleString("es-ES")}
+          </p>
+          <Positions positions={state.items} presentation={presentation} showValue={showValue} />
+          {remaining > 0 && (
+            <button
+              type="button"
+              onClick={() => void loadMore()}
+              disabled={state.loading}
+              className="mt-2 inline-flex items-center gap-1.5 rounded text-xs text-faint underline-offset-2 hover:text-body hover:underline disabled:opacity-60"
+            >
+              {state.loading && <Loader2 className="h-3 w-3 animate-spin" aria-hidden />}
+              Cargar {Math.min(remaining, PAGE).toLocaleString("es-ES")} más
+            </button>
           )}
-        </li>
-      ))}
-    </ul>
+        </div>
+      )}
+      {state.loading && state.items.length === 0 && (
+        <p className="inline-flex items-center gap-1.5 text-xs text-faint">
+          <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+          Cargando posiciones…
+        </p>
+      )}
+      {state.error && <p className="text-xs text-bad">{state.error}</p>}
+    </div>
   );
 }
 
@@ -236,9 +315,16 @@ function SamplePlain({ samples }: { samples: IssueSample[] }) {
  * Incidencia con el formato del recurso del que salió. La ficha de dataset
  * agrega incidencias de varias distribuciones a la vez (un CSV y un JSON del
  * mismo dataset), así que la presentación se decide por incidencia y no por
- * pantalla.
+ * pantalla — y por eso cada una lleva también el fragmento donde están sus
+ * posiciones.
  */
-export type IssueWithFormat = IssueInfo & { format?: string };
+export type IssueWithFormat = IssueInfo & {
+  format?: string;
+  /** Fragmento del informe con las posiciones (sha1 de la URL del recurso). */
+  distId?: string;
+  /** Columnas afectadas, resueltas en el servidor al leer el fragmento. */
+  columns?: AffectedColumn[];
+};
 
 interface IssueExplorerProps {
   issues: IssueWithFormat[];
@@ -256,17 +342,18 @@ interface IssueExplorerProps {
 function mergeIssues(issues: IssueWithFormat[]): (IssueWithFormat & { key: string })[] {
   const merged = new Map<string, IssueWithFormat & { key: string }>();
   for (const issue of issues) {
-    const key = `${issue.code}|${issue.format ?? ""}`;
+    // El fragmento entra en la clave: dos CSV del mismo dataset con la misma
+    // incidencia son dos archivos distintos, y fundirlos dejaba las posiciones
+    // de uno colgando del recuento de los dos.
+    const key = `${issue.code}|${issue.format ?? ""}|${issue.distId ?? ""}`;
     const existing = merged.get(key);
     if (!existing) {
-      merged.set(key, { ...issue, key, samples: issue.samples ? [...issue.samples] : undefined });
+      merged.set(key, { ...issue, key });
       continue;
     }
     existing.count += issue.count;
+    existing.stored += issue.stored;
     if (issue.severity === "error") existing.severity = "error";
-    if (issue.samples?.length && (existing.samples?.length ?? 0) < 5) {
-      existing.samples = [...(existing.samples ?? []), ...issue.samples].slice(0, 5);
-    }
   }
   return [...merged.values()];
 }
@@ -282,12 +369,6 @@ function ImpactBar({ count, max, severity }: { count: number; max: number; sever
     </div>
   );
 }
-
-const SAMPLES_LABEL: Record<IssuePresentation, string> = {
-  table: "Filas de ejemplo afectadas",
-  record: "Registros de ejemplo afectados",
-  plain: "Ubicaciones de ejemplo",
-};
 
 export function IssueExplorer({ issues, totalCells, format, className }: IssueExplorerProps) {
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -352,8 +433,6 @@ export function IssueExplorer({ issues, totalCells, format, className }: IssueEx
         {sorted.map((issue) => {
           const isExpanded = expanded === issue.key;
           const explanation = issueExplanation(issue.code);
-          const samples = issue.samples ?? [];
-          const hasSamples = samples.length > 0;
           const isError = issue.severity === "error";
           const panelId = `incidencia-${issue.key.replace(/\W+/g, "-")}`;
           const presentation = presentationForFormat(issue.format ?? format);
@@ -414,18 +493,14 @@ export function IssueExplorer({ issues, totalCells, format, className }: IssueEx
                       <p className="text-xs leading-relaxed text-body">{explanation}</p>
                     </div>
                   )}
-                  {hasSamples && (
-                    <div className="rounded-md border border-border bg-card p-3">
-                      <p className="eyebrow mb-2">{SAMPLES_LABEL[presentation]}</p>
-                      {presentation === "table" ? (
-                        <SampleTable samples={samples} />
-                      ) : presentation === "record" ? (
-                        <SampleRecords samples={samples} />
-                      ) : (
-                        <SamplePlain samples={samples} />
-                      )}
-                    </div>
-                  )}
+                  <IssueDetailPanel
+                    distId={issue.distId}
+                    code={issue.code}
+                    stored={issue.stored}
+                    count={issue.count}
+                    presentation={presentation}
+                    columns={issue.columns}
+                  />
                 </div>
               )}
             </div>

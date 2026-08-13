@@ -30,8 +30,8 @@ export const PIPELINE: PipelineStep[] = [
     short:
       'Del catálogo oficial se extraen los metadatos de cada conjunto de datos: título, licencia, organismo, temática y la dirección de cada archivo.',
     long:
-      'Del catálogo oficial se extrae cada conjunto de datos con su título, licencia, organismo, temática, fechas, periodicidad y la dirección de cada archivo. El portal lo vuelve a leer cada hora; si el servicio no responde, sigue sirviendo la última copia buena en vez de quedarse en blanco.',
-    detail: 'una petición · se relee cada hora · copia de respaldo si el origen falla',
+      'Del catálogo oficial se extrae cada conjunto de datos con su título, licencia, organismo, temática, fechas, periodicidad declarada y la dirección de cada archivo. El portal lo lee en vivo; si el servicio no responde, sigue sirviendo la última copia buena en vez de quedarse en blanco.',
+    detail: 'una petición · lectura en vivo · copia de respaldo si el origen falla',
   },
   {
     icon: 'descarga',
