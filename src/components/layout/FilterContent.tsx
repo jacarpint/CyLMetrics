@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import type { CatalogStats, Category, DataFormat, License } from '@/lib/types';
 import { categoryIcons } from '@/data/categories';
 import {
+  ANALYSIS_LABELS,
   buildFilterUrl,
   filtersAreActive,
   LICENSE_DESCRIPTIONS,
@@ -114,7 +115,7 @@ export function FilterContent({ stats, onApply }: FilterContentProps) {
 
   const countBadge = (n: number) =>
     n > 0 ? (
-      <span className="ml-1 rounded-full bg-ok-surface px-1.5 py-0.5 text-[10px] font-semibold text-ok">{n}</span>
+      <span className="ml-1 rounded-full bg-ok-surface px-1.5 py-0.5 text-[11px] font-semibold text-ok">{n}</span>
     ) : null;
 
   return (
@@ -125,11 +126,11 @@ export function FilterContent({ stats, onApply }: FilterContentProps) {
         <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-faint" aria-hidden />
         <input
           type="search"
-          placeholder="Buscar dataset…"
+          placeholder="Buscar conjunto de datos…"
           value={draft.q ?? ''}
           onChange={(e: React.ChangeEvent<HTMLInputElement>) => setQ(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') applyFilters(); }}
-          aria-label="Buscar dataset por título, descripción o palabras clave"
+          aria-label="Buscar conjuntos de datos por título, descripción o palabras clave"
           className="h-9 w-full rounded-md border border-field bg-card pl-8 pr-3 text-sm text-body placeholder:text-faint transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
         />
       </div>
@@ -155,7 +156,7 @@ export function FilterContent({ stats, onApply }: FilterContentProps) {
                     />
                     <Icon className="h-3.5 w-3.5 text-faint" aria-hidden />
                     <span className="flex-1 truncate text-sm text-body">{name}</span>
-                    <span className="text-[10px] tabular-nums text-faint">{count}</span>
+                    <span className="text-[11px] tabular-nums text-faint">{count}</span>
                   </label>
                 );
               })}
@@ -187,7 +188,7 @@ export function FilterContent({ stats, onApply }: FilterContentProps) {
                     onCheckedChange={() => toggle('formatos', fmt)}
                   />
                   <span className="flex-1 font-mono text-sm text-body">{fmt}</span>
-                  <span className="text-[10px] tabular-nums text-faint">{count}</span>
+                  <span className="text-[11px] tabular-nums text-faint">{count}</span>
                 </label>
               ))}
             </div>
@@ -204,10 +205,10 @@ export function FilterContent({ stats, onApply }: FilterContentProps) {
             <div className="space-y-1">
               {([
                 { value: undefined, label: 'Todos' },
-                { value: 'ok', label: 'Todos los archivos abren' },
-                { value: 'parcial', label: 'Algunos archivos fallan' },
-                { value: 'error', label: 'Ningún archivo abre' },
-                { value: 'sin-datos', label: 'Sin analizar' },
+                { value: 'ok', label: ANALYSIS_LABELS.ok },
+                { value: 'parcial', label: ANALYSIS_LABELS.parcial },
+                { value: 'error', label: ANALYSIS_LABELS.error },
+                { value: 'sin-datos', label: ANALYSIS_LABELS['sin-datos'] },
               ] as const).map(({ value, label }) => (
                 <button
                   key={label}
@@ -251,7 +252,7 @@ export function FilterContent({ stats, onApply }: FilterContentProps) {
                     onCheckedChange={() => toggle('licencias', lic)}
                   />
                   <span className="flex-1 truncate text-sm text-body">{lic}</span>
-                  <span className="text-[10px] tabular-nums text-faint">{count}</span>
+                  <span className="text-[11px] tabular-nums text-faint">{count}</span>
                 </label>
               ))}
             </div>
@@ -304,7 +305,7 @@ export function FilterContent({ stats, onApply }: FilterContentProps) {
           {selectedCount > 0 && (
             // `current` es el color de texto del botón, que ya voltea con el
             // tema; `bg-white/20` desaparecía sobre el verde claro del oscuro.
-            <span className="ml-1 rounded-full bg-current/20 px-1.5 py-0.5 text-[10px] font-semibold">{selectedCount}</span>
+            <span className="ml-1 rounded-full bg-current/20 px-1.5 py-0.5 text-[11px] font-semibold">{selectedCount}</span>
           )}
         </Button>
         {filtersAreActive(draft) && (

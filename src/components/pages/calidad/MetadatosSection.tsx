@@ -8,6 +8,7 @@ import {
 import { Card, CardContent } from '@/components/ui/card';
 import { DownloadButton } from '@/components/ui/download-button';
 import { cn } from '@/lib/utils';
+import { toCsv } from '@/lib/csv-write';
 import { METADATA_GAPS, type MetadataGapCode } from '@/lib/metadata-gaps';
 
 /** Lo mínimo de cada dataset que necesita esta vista. */
@@ -27,11 +28,11 @@ export interface MetadataGapGroup {
 
 interface MetadatosSectionProps {
   totalDatasets: number;
-  /** Un grupo por hueco, ya ordenados de mayor a menor. */
+  /** Un grupo por campo pendiente, ya ordenados de mayor a menor. */
   groups: MetadataGapGroup[];
-  /** Datasets con retraso demostrable: publican dct:modified y lo han pasado. */
+  /** Conjuntos con retraso demostrable: publican dct:modified y lo han pasado. */
   overdue: MetadataDatasetLite[];
-  /** Hueco preseleccionado al llegar desde un enlace de Prioridades. */
+  /** Campo pendiente preseleccionado al llegar desde un enlace de Prioridades. */
   initialGap?: string;
 }
 
@@ -45,29 +46,30 @@ const AXIS_STYLE = {
   recomendacion: { label: 'Recomendación', className: 'border-border bg-fill text-faint' },
 } as const;
 
-function toCsv(rows: MetadataDatasetLite[], code: string): string {
-  const esc = (v: unknown) => {
-    const s = String(v ?? '');
-    return /[";\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-  };
-  const header = ['hueco', 'campo_dcat', 'dataset', 'ficha', 'periodicidad', 'periodos_transcurridos'];
+const CSV_HEADER = [
+  'campo_pendiente', 'campo_dcat', 'conjunto_de_datos', 'ficha', 'periodicidad',
+  'periodos_transcurridos',
+];
+
+function gapsToCsv(rows: MetadataDatasetLite[], code: string): string {
+  // `code` puede ser un pseudocódigo de vista («vencidos»), que no está en la
+  // tabla de huecos: en ese caso se escribe tal cual y sin campo DCAT.
   const info = METADATA_GAPS[code as MetadataGapCode];
-  const lines = rows.map((r) =>
-    [
+  return toCsv(
+    CSV_HEADER,
+    rows.map((r) => [
       info?.label ?? code, info?.field ?? '', r.title, `/catalogo/${r.slug}`,
       r.periodicity ?? '', r.periodsLate ?? '',
-    ].map(esc).join(';')
+    ])
   );
-  return `﻿${header.join(';')}\n${lines.join('\n')}`;
 }
 
 /**
- * Los huecos de la ficha DCAT, como lista de tareas.
+ * Los campos pendientes de la ficha, como lista de tareas.
  *
- * Esto no existía. `computeQuality` calculaba la completitud y la actualidad y
- * devolvía el desglose sin que nadie lo consumiera, así que un publicador veía
- * «metadatos 78%» y no tenía forma de saber qué campo le faltaba ni por qué
- * perdía puntos de actualidad.
+ * Un porcentaje de metadatos no se puede corregir; una lista de campos con el
+ * nombre del elemento y los conjuntos afectados, sí. Por eso esta vista desglosa
+ * lo que `computeQuality` resume en una cifra.
  */
 export function MetadatosSection({
   totalDatasets, groups, overdue, initialGap = '',
@@ -84,6 +86,9 @@ export function MetadatosSection({
   }, [groups]);
 
   const unverifiable = groups.find((g) => g.code === 'sin-fecha-actualizacion');
+  /* «No se puede verificar» tiene tarjeta propia arriba, junto a los vencidos de
+     verdad, así que no se repite en la rejilla del resto del eje. */
+  const otherFreshnessGaps = byAxis.actualidad.filter((g) => g.code !== 'sin-fecha-actualizacion');
 
   if (groups.length === 0) {
     return (
@@ -93,8 +98,8 @@ export function MetadatosSection({
           <div>
             <h2 className="text-sm font-semibold text-strong">Fichas completas</h2>
             <p className="mt-1 text-sm text-body">
-              Los {totalDatasets.toLocaleString('es-ES')} datasets del catálogo declaran todos los
-              campos que evalúa el portal.
+              Los {totalDatasets.toLocaleString('es-ES')} conjuntos de datos del catálogo declaran
+              todos los campos que evalúa el portal.
             </p>
           </div>
         </CardContent>
@@ -105,17 +110,17 @@ export function MetadatosSection({
   return (
     <div className="space-y-8">
       <p className="max-w-3xl text-sm leading-relaxed text-faint">
-        Lo que falta en la ficha DCAT de cada dataset. Son las correcciones más baratas del catálogo
-        —se editan en el gestor de metadatos, sin tocar los datos— y las que más rinden: un campo
-        bien puesto mejora a la vez la búsqueda, la puntuación y la recolección por parte de
-        datos.gob.es.
+        Lo que falta en la ficha de cada conjunto de datos. Son las correcciones más baratas del
+        catálogo —se editan en el gestor de metadatos, sin tocar los datos— y las que más rinden: un
+        campo bien puesto mejora a la vez la búsqueda, la puntuación y la recogida automática por
+        parte de datos.gob.es.
       </p>
 
-      {/* ── Actualidad: la separación que importa ────────────────────────────
-          Un retraso aparente y un retraso demostrado no son lo mismo, y hasta
-          ahora el portal no distinguía: medía desde la fecha de PUBLICACIÓN
-          cuando no había fecha de actualización, así que un dataset que se
-          refresca a diario podía figurar con siglos de retraso. */}
+      {/* ── Actualidad ───────────────────────────────────────────────────────
+          Un retraso aparente y un retraso demostrado se separan a propósito.
+          Medir desde la fecha de publicación cuando falta la de actualización
+          hace que un conjunto que se refresca a diario figure con siglos de
+          retraso: eso no es un dato viejo, es un metadato que falta. */}
       <section>
         <h2 className="flex items-center gap-2 text-base font-semibold text-strong">
           <CalendarClock className="h-4 w-4 text-faint" aria-hidden />
@@ -140,20 +145,20 @@ export function MetadatosSection({
 
           {overdue.length > 0 && (
             <Card tone="bad">
-              <CardContent className="p-5">
-                <span className={cn('inline-flex items-center rounded-md border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide', AXIS_STYLE.actualidad.className)}>
+              <CardContent>
+                <span className={cn('inline-flex items-center rounded-md border px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide', AXIS_STYLE.actualidad.className)}>
                   Actualidad
                 </span>
                 <p className="mt-2.5 text-3xl font-bold tabular-nums text-bad">
                   {overdue.length.toLocaleString('es-ES')}
                 </p>
                 <h3 className="mt-1 text-sm font-semibold text-strong">
-                  Datasets vencidos de verdad
+                  Conjuntos vencidos de verdad
                 </h3>
                 <p className="mt-1.5 text-sm leading-relaxed text-body">
-                  Publican <code className="font-mono text-xs">dct:modified</code> y ha pasado más
-                  de un periodo declarado desde esa fecha. Aquí el retraso está demostrado: no es un
-                  metadato que falte, es el dato que no se ha refrescado.
+                  Declaran su fecha de última actualización y ha pasado más de un periodo desde
+                  entonces. Aquí el retraso está demostrado: no es un metadato que falte, es el dato
+                  que no se ha refrescado.
                 </p>
                 <p className="mt-2 flex items-start gap-1.5 text-sm leading-relaxed text-body">
                   <Wrench className="mt-0.5 h-3.5 w-3.5 shrink-0 text-faint" aria-hidden />
@@ -165,19 +170,17 @@ export function MetadatosSection({
           )}
         </div>
 
-        {byAxis.actualidad.filter((g) => g.code !== 'sin-fecha-actualizacion').length > 0 && (
+        {otherFreshnessGaps.length > 0 && (
           <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
-            {byAxis.actualidad
-              .filter((g) => g.code !== 'sin-fecha-actualizacion')
-              .map((g) => (
-                <GapCard
-                  key={g.code}
-                  code={g.code}
-                  datasets={g.datasets}
-                  total={totalDatasets}
-                  defaultOpen={initialGap === g.code}
-                />
-              ))}
+            {otherFreshnessGaps.map((g) => (
+              <GapCard
+                key={g.code}
+                code={g.code}
+                datasets={g.datasets}
+                total={totalDatasets}
+                defaultOpen={initialGap === g.code}
+              />
+            ))}
           </div>
         )}
       </section>
@@ -206,9 +209,7 @@ export function MetadatosSection({
         </section>
       )}
 
-      {/* ── Apertura, ahora accionable ───────────────────────────────────────
-          El Panel decía «45% con CC-BY». Un porcentaje no se puede corregir;
-          una lista de datasets, sí. */}
+      {/* ── Apertura ── */}
       {byAxis.apertura.length > 0 && (
         <section>
           <h2 className="flex items-center gap-2 text-base font-semibold text-strong">
@@ -241,7 +242,13 @@ export function MetadatosSection({
           </h2>
           <p className="mt-1 max-w-3xl text-sm text-faint">
             No entran en la puntuación y no afectan a ninguna cifra del portal. Se listan porque
-            DCAT-AP las recomienda y hoy no las publica ningún dataset del catálogo.
+            DCAT-AP las recomienda y en el catálogo apenas se publican.{" "}
+            {/* Derivado y no escrito a mano: en cuanto un solo conjunto declare
+                `dct:identifier`, la frase se ajusta en vez de contradecir el
+                recuento de la tarjeta de al lado. */}
+            {byAxis.recomendacion.every((g) => g.datasets.length === totalDatasets)
+              ? "Ahora mismo no las declara ninguno."
+              : "Los recuentos de cada tarjeta dicen a cuántos les falta."}
           </p>
           <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
             {byAxis.recomendacion.map((g) => (
@@ -278,8 +285,8 @@ function GapCard({
 
   return (
     <Card tone={muted ? 'muted' : info.axis === 'actualidad' ? 'warn' : 'default'}>
-      <CardContent className="p-5">
-        <span className={cn('inline-flex items-center rounded-md border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide', axis.className)}>
+      <CardContent>
+        <span className={cn('inline-flex items-center rounded-md border px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide', axis.className)}>
           {axis.label}
         </span>
 
@@ -287,13 +294,17 @@ function GapCard({
           {datasets.length.toLocaleString('es-ES')}
         </p>
         <p className="text-xs text-faint">
-          de {total.toLocaleString('es-ES')} datasets · {pct}%
+          de {total.toLocaleString('es-ES')} conjuntos de datos · {pct}%
         </p>
 
-        <h3 className="mt-2 text-sm font-semibold text-strong">
-          {headline ?? info.label}{' '}
-          <code className="font-mono text-xs font-normal text-faint">{info.field}</code>
-        </h3>
+        {/* El nombre del elemento va en una línea propia y rotulada, no dentro
+            del título: quien publica lo necesita para saber dónde tocar, y para
+            el resto es ruido en el encabezado. */}
+        <h3 className="mt-2 text-sm font-semibold text-strong">{headline ?? info.label}</h3>
+        <p className="mt-0.5 text-xs text-faint">
+          Campo del catálogo:{' '}
+          <code className="font-mono text-body">{info.field}</code>
+        </p>
 
         <p className="mt-1.5 flex items-start gap-1.5 text-sm leading-relaxed text-body">
           <HelpCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-faint" aria-hidden />
@@ -336,10 +347,10 @@ function DatasetList({
           {open
             ? <ChevronDown className="h-3.5 w-3.5" aria-hidden />
             : <ChevronRight className="h-3.5 w-3.5" aria-hidden />}
-          {open ? 'Ocultar' : 'Ver'} los datasets afectados
+          {open ? 'Ocultar' : 'Ver'} los conjuntos de datos afectados
         </button>
         <DownloadButton
-          content={() => toCsv(datasets, code)}
+          content={() => gapsToCsv(datasets, code)}
           filename={`metadatos-${code}.csv`}
           mimeType="text/csv;charset=utf-8"
           label="CSV"
@@ -358,10 +369,16 @@ function DatasetList({
                 >
                   {d.title}
                 </Link>
+                {/* Se leía «×2,5 (mensual)». El símbolo de multiplicar no dice
+                    qué se multiplica: fuera de quien escribió el cálculo, nadie
+                    puede saber que son periodos de retraso. Ahora lo dice. */}
                 {showPeriods && d.periodsLate != null && (
-                  <span className="shrink-0 tabular-nums text-faint">
-                    ×{d.periodsLate.toLocaleString('es-ES', { maximumFractionDigits: 1 })}{' '}
-                    {d.periodicity ? <span className="text-faint">({d.periodicity})</span> : null}
+                  <span className="shrink-0 text-faint">
+                    <span className="tabular-nums">
+                      {d.periodsLate.toLocaleString('es-ES', { maximumFractionDigits: 1 })}
+                    </span>{' '}
+                    {d.periodsLate === 1 ? 'periodo' : 'periodos'} de retraso
+                    {d.periodicity ? ` · ${d.periodicity}` : ''}
                   </span>
                 )}
               </li>

@@ -7,6 +7,7 @@ import {
   Tag,
   FileText,
   Globe,
+  History,
   Scale,
   ChevronRight,
   AlertTriangle,
@@ -22,17 +23,18 @@ import {
   getQualityReport,
   distributionVolume,
   formatBytes,
+  formatLongDate,
   matchDistributions,
   type DistributionResult,
 } from "@/lib/quality-report";
 import { classifyDelivery, deliveryCause } from "@/lib/availability";
-import { spatialLabel } from "@/lib/vocabularies";
+import { periodicityLabel, spatialLabel } from "@/lib/vocabularies";
 import { distributionSlugs } from "@/lib/distribution-slug";
 import { categoryIcons } from "@/data/categories";
 import { datasetSlug, cn } from "@/lib/utils";
 import { scoreForDataset } from "@/lib/quality";
 import { ScoreGauge } from "@/components/quality/score-gauge";
-import { DatasetApi } from "@/components/quality/dataset-api";
+import { ApiPanel } from "@/components/quality/api-panel";
 
 export const revalidate = 3600;
 
@@ -49,16 +51,14 @@ export async function generateStaticParams() {
 }
 
 /**
- * Metadatos por dataset.
+ * Metadatos propios de cada conjunto, para que las fichas no salgan
+ * indistinguibles en un buscador ni al compartir el enlace.
  *
- * Las 825 fichas compartían el título y la descripción del portal, así que en un
- * buscador o al compartir un enlace eran indistinguibles entre sí.
- *
- * Si el dataset no aparece, NO se llama a `notFound()` aquí: quien decide es el
- * cuerpo de la página. Hacerlo en los metadatos horneaba un 404 permanente en la
- * salida estática cuando durante el build un worker se quedaba con la copia local
- * de respaldo —que tiene un dataset menos que el catálogo en vivo— y ese 404 se
- * seguía sirviendo para un slug que sí existe.
+ * Si el conjunto no aparece, NO se llama a `notFound()` aquí: decide el cuerpo de
+ * la página. Hacerlo en los metadatos hornea un 404 permanente en la salida
+ * estática cuando un worker del build usa la copia local de respaldo —que puede
+ * ir un conjunto por detrás del catálogo en vivo—, y ese 404 se sigue sirviendo
+ * para un slug que sí existe.
  */
 export async function generateMetadata({
   params,
@@ -68,36 +68,18 @@ export async function generateMetadata({
   const { datasetId } = await params;
   const catalog = await getCatalog();
   const ds = catalog.datasets.find((d) => datasetSlug(d.id) === datasetId);
-  if (!ds) return { title: "Dataset no encontrado | JCyL Data Quality Portal" };
+  if (!ds) return { title: "Conjunto de datos no encontrado" };
 
   const description = ds.description
     ? ds.description.slice(0, 200)
     : `Formatos, licencia y calidad de los archivos de «${ds.title}» en el catálogo de datos abiertos de Castilla y León.`;
 
   return {
-    title: `${ds.title} | Datos Abiertos de Castilla y León`,
+    title: ds.title,
     description,
     keywords: ds.keywords,
     openGraph: { title: ds.title, description, type: "article", locale: "es_ES" },
   };
-}
-
-/** Fecha ISO del catálogo → «1 de marzo de 2022». */
-function formatDate(value: string | undefined): string | null {
-  if (!value) return null;
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleDateString("es-ES", { day: "numeric", month: "long", year: "numeric" });
-}
-
-function periodicityLabel(months: number | null | undefined): string | null {
-  if (months == null) return null;
-  if (months === 1) return "Mensual";
-  if (months === 3) return "Trimestral";
-  if (months === 6) return "Semestral";
-  if (months === 12) return "Anual";
-  if (months < 1) return "Continua";
-  return `Cada ${months} meses`;
 }
 
 export default async function DatasetPage({
@@ -116,25 +98,35 @@ export default async function DatasetPage({
   const composite = scoreForDataset(ds.qualityScore, reportDs);
 
   /**
-   * La organización se omite: los 825 datasets del catálogo declaran el mismo
-   * organismo, así que repetirlo en cada ficha no informa de nada.
+   * Metadatos de la ficha. Los campos sin valor no se pintan, en vez de dejar un
+   * hueco rotulado: el `filter` de abajo los descarta y estrecha el tipo.
    *
-   * «Temática» usa el mismo valor, nombre e icono que el filtro del catálogo.
-   * Antes había un campo «Tema» con el sector NTI-RISP en crudo, que es de
-   * donde sale la categoría: dos etiquetas parecidas para el mismo dato.
+   * La organización se omite a propósito: todos los conjuntos del catálogo
+   * declaran el mismo organismo, así que repetirlo no informa de nada. Y
+   * «Temática» reutiliza el valor, el nombre y el icono del filtro del catálogo,
+   * para no tener dos etiquetas parecidas del mismo dato.
    */
-  const metaItems: { icon: React.ElementType; label: string; value: string; href?: string }[] = [
+  type MetaItem = { icon: React.ElementType; label: string; value: string | null; href?: string };
+  const allMetaItems: MetaItem[] = [
     {
       icon: categoryIcons[ds.category] ?? Layers,
       label: "Temática",
       value: ds.category,
       href: `/catalogo?categorias=${encodeURIComponent(ds.category)}`,
     },
-    { icon: Calendar, label: "Publicación", value: formatDate(ds.lastUpdated) },
-    { icon: BarChart3, label: "Periodicidad", value: periodicityLabel(ds.periodicityMonths) },
+    { icon: Calendar, label: "Publicación", value: formatLongDate(ds.lastUpdated) },
+    // La última actualización faltaba en la ficha, siendo el dato con el que el
+    // portal juzga la actualidad y el que la tarjeta del catálogo rotula como
+    // «Actualizado hace…». Solo se muestra si el conjunto la declara: el resto
+    // del portal insiste en que ausencia de fecha no es lo mismo que dato viejo.
+    { icon: History, label: "Última actualización", value: formatLongDate(ds.modified) },
+    { icon: BarChart3, label: "Periodicidad", value: periodicityLabel(ds.periodicityMonths, { capitalized: true }) },
     { icon: Scale, label: "Licencia", value: ds.license ?? null },
-    { icon: Tag, label: "Cobertura espacial", value: spatialLabel(ds.spatial) },
-  ].flatMap((item) => (item.value ? [{ ...item, value: item.value }] : []));
+    { icon: Tag, label: "Cobertura territorial", value: spatialLabel(ds.spatial) },
+  ];
+  const metaItems = allMetaItems.filter(
+    (item): item is MetaItem & { value: string } => item.value != null
+  );
 
   const keywords = ds.keywords ?? [];
   const slugs = distributionSlugs(ds.distributionUrls.map((d) => d.format));
@@ -168,23 +160,22 @@ export default async function DatasetPage({
           )}
         </div>
         {composite != null && (
-          <ScoreGauge score={composite} size="md" label="Calidad global" className="shrink-0" />
+          <ScoreGauge score={composite} label="Índice de calidad" className="shrink-0" />
         )}
       </header>
 
       {/* ── Metadatos ─────────────────────────────────────────────────────────
-          Rejilla tipográfica sin cajas: antes cada dato iba en un recuadro con
-          el icono en otro recuadro, dentro de la tarjeta. Tres marcos anidados
-          para cinco datos cortos era más ruido que información.
-          Las palabras clave ocupan el hueco que dejan los metadatos en la
-          última fila, en lugar de un bloque aparte debajo. */}
+          Rejilla tipográfica sin cajas: un recuadro por dato, con el icono en
+          otro recuadro dentro de la tarjeta, son tres marcos anidados para un
+          puñado de datos cortos. Las palabras clave aprovechan el hueco que
+          dejan los metadatos en la última fila. */}
       <section>
         <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-strong">
           <FileText className="h-4 w-4 text-faint" aria-hidden />
           Metadatos
         </h2>
         <Card>
-          <CardContent className="p-5">
+          <CardContent>
             <dl className="grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-3">
               {metaItems.map(({ icon: Icon, label, value, href }) => (
                 <div key={label} className="min-w-0">
@@ -228,16 +219,15 @@ export default async function DatasetPage({
         </Card>
       </section>
 
-      {/* ── Distribuciones ───────────────────────────────────────────────────
-          Antes había dos secciones: "Distribuciones" listaba formato y nota, y
-          "Análisis de contenido" repetía debajo lo mismo con más detalle. Aquí
-          van unificadas: una tarjeta por distribución, y toda ella es el enlace
-          a su ficha. */}
+      {/* ── Archivos ─────────────────────────────────────────────────────────
+          Una tarjeta por archivo, y toda ella es el enlace a su ficha. Formato,
+          estado y cifras van juntos: separarlos en una lista de formatos y otra
+          de análisis obliga a leer lo mismo dos veces. */}
       {ds.distributionUrls.length > 0 && (
         <section className="space-y-3">
           <h2 className="flex items-center gap-2 text-sm font-semibold text-strong">
             <Globe className="h-4 w-4 text-faint" aria-hidden />
-            Distribuciones
+            Archivos y servicios
             <span className="font-normal text-faint">({ds.distributionUrls.length})</span>
           </h2>
 
@@ -258,11 +248,9 @@ export default async function DatasetPage({
               decir por qué en lugar de dejar el hueco. */}
           {analyzedAt && results.some((r) => r == null) && (
             <p className="text-xs leading-relaxed text-faint">
-              Las distribuciones marcadas como «sin analizar» no estaban en el catálogo la última vez
+              Los archivos marcados como «sin analizar» no estaban en el catálogo la última vez
               que se ejecutó el análisis completo (
-              <time dateTime={analyzedAt}>
-                {new Date(analyzedAt).toLocaleDateString("es-ES", { day: "numeric", month: "long", year: "numeric" })}
-              </time>
+              <time dateTime={analyzedAt}>{formatLongDate(analyzedAt)}</time>
               ). Se comprobarán en la siguiente ejecución; entretanto puedes explorar el archivo
               desde su ficha.
             </p>
@@ -270,7 +258,23 @@ export default async function DatasetPage({
         </section>
       )}
 
-      <DatasetApi slug={datasetId} analyzed={reportDs != null} />
+      <ApiPanel
+        endpoints={[
+          {
+            label: "Resultado del análisis de este conjunto de datos",
+            url: `/api/quality?dataset=${datasetId}`,
+            note:
+              reportDs == null
+                ? "Este conjunto todavía no está en el informe, así que ahora mismo responde 404. Estará disponible tras la siguiente ejecución del análisis."
+                : undefined,
+          },
+          {
+            label: "Su ficha completa en el catálogo",
+            url: `/api/catalog?q=${encodeURIComponent(ds.title)}&limit=1`,
+          },
+        ]}
+        sealUrl={`/api/sello?dataset=${datasetId}`}
+      />
     </div>
   );
 }
@@ -285,12 +289,12 @@ const FORMAT_TILE: Record<string, string> = {
 };
 
 /**
- * Una distribución. La tarjeta entera es el enlace a su ficha, en lugar del
- * botón «Ver archivo» que competía con el enlace al recurso de origen.
+ * Un archivo del conjunto. La tarjeta entera es el enlace a su ficha: un botón
+ * «Ver archivo» competiría con el enlace al recurso de origen, que está al lado.
  *
- * El formato es el ancla visual —es lo único que distingue dos distribuciones
- * del mismo dataset—, y las cifras van en una sola línea. No hay título de
- * relleno tipo «Distribución en CSV»: repetía lo que ya dice el cuadro.
+ * El cuadro del formato es el ancla visual, porque es lo único que distingue dos
+ * archivos del mismo conjunto, y por eso no hay título de relleno tipo
+ * «Distribución en CSV» que repita lo que el cuadro ya dice.
  */
 function DistributionRow({
   href, format, url, result,
@@ -345,7 +349,7 @@ function DistributionRow({
               cuadro de formato ya identifica de qué distribución se trata. */}
           <Link href={href} className="outline-none">
             <span className="absolute inset-0" aria-hidden />
-            <span className="sr-only">Ver la distribución en {format}</span>
+            <span className="sr-only">Ver el archivo en {format}</span>
           </Link>
 
           {degraded && cause ? (

@@ -55,27 +55,35 @@ function fetchOutcome(dist: DistributionResult): FetchOutcome {
   return 'fallido';
 }
 
+/**
+ * Etiquetas en masculino, concordando con «archivo».
+ *
+ * Estaban en femenino porque concordaban con «distribución», pero las tablas que
+ * las pintan llaman «archivo» a la fila: se leía «archivo … Rota». Es el rastro
+ * visible de haber tenido cuatro nombres —distribución, fichero, archivo,
+ * recurso— para la misma cosa.
+ */
 export const DELIVERY_LABELS: Record<DeliveryState, string> = {
   ok: 'Se descarga y se abre',
-  roto: 'No se puede descargar o abrir',
+  roto: 'No se puede descargar ni abrir',
   'no-entrega': 'La URL no devuelve el archivo',
-  omitida: 'No analizada',
+  omitida: 'Sin analizar',
 };
 
 export const DELIVERY_SHORT: Record<DeliveryState, string> = {
-  ok: 'Correcta',
-  roto: 'Rota',
-  'no-entrega': 'No entrega archivo',
-  omitida: 'No analizada',
+  ok: 'Correcto',
+  roto: 'No abre',
+  'no-entrega': 'No entrega el archivo',
+  omitida: 'Sin analizar',
 };
 
-/** Explicación de por qué una distribución quedó sin analizar. */
+/** Explicación de cada estado que no es «se descarga y se abre». */
 export const DELIVERY_EXPLANATIONS: Record<Exclude<DeliveryState, 'ok'>, string> = {
-  roto: 'El servidor no devolvió el recurso o el archivo no se pudo interpretar. El dato no es reutilizable tal cual.',
+  roto: 'El servidor no devolvió el archivo, o el archivo llegó y no se pudo interpretar. El dato no es reutilizable tal cual.',
   'no-entrega':
     'La URL responde, pero devuelve una página web en lugar del archivo de datos. Bloquea la reutilización automatizada; suele ser un problema de la plataforma de publicación, no del dato en sí, y por eso no penaliza la puntuación.',
   omitida:
-    'El analizador no llegó a evaluar el recurso (por ejemplo, porque supera el tamaño máximo descargable o no declara URL de acceso).',
+    'El análisis no llegó a comprobar este archivo (por ejemplo, porque supera el tamaño máximo descargable o no declara URL de acceso).',
 };
 
 function issueCodes(dist: DistributionResult): string[] {
@@ -303,6 +311,84 @@ export function distributionsAffectedByIssue(report: QualityReport | null): Reco
     }
   }
   return counts;
+}
+
+/* ------------------------------------------------------------------ */
+/* Consecuencias para quien reutiliza                                  */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Un problema técnico contado por lo que impide hacer, con su cifra real.
+ *
+ * Varios códigos distintos rompen la reutilización por el mismo motivo —un
+ * encabezado vacío y uno duplicado estropean igual la carga automática—, así
+ * que se agrupan: quien lee la portada necesita el efecto, no el código.
+ */
+export interface ReuseConsequence {
+  /** Clave del icono; cada página la resuelve con su propio import. */
+  icon: 'enlace' | 'no-archivo' | 'encabezado' | 'tipo';
+  /** `bad` impide abrir el archivo; `warn` obliga a limpiarlo antes de usarlo. */
+  severity: 'bad' | 'warn';
+  /** Distribuciones afectadas, sumadas sobre los códigos del grupo. */
+  count: number;
+  title: string;
+  text: string;
+}
+
+/** Códigos que comparten consecuencia, y cómo se cuenta cada grupo. */
+const CONSEQUENCE_GROUPS: ReadonlyArray<Omit<ReuseConsequence, 'count'> & { codes: string[] }> = [
+  {
+    codes: ['descarga'],
+    icon: 'enlace',
+    severity: 'bad',
+    title: 'Un enlace roto es un dato que no existe',
+    text: 'Da igual lo bien documentado que esté: si el servidor no responde, quien lo necesita se encuentra un error. Es la diferencia entre publicar y estar disponible.',
+  },
+  {
+    codes: ['no-es-archivo', 'no-es-imagen'],
+    icon: 'no-archivo',
+    severity: 'warn',
+    title: 'Un archivo que no es un archivo',
+    text: 'La URL responde, pero devuelve una página web en lugar del CSV o el mapa. Una persona lo sortea a mano; un programa que actualiza datos cada noche, no.',
+  },
+  {
+    codes: ['encabezado-vacio', 'encabezado-duplicado'],
+    icon: 'encabezado',
+    severity: 'warn',
+    title: 'Encabezados vacíos o repetidos',
+    text: 'Las columnas sin nombre o con el nombre duplicado rompen la carga automática en hojas de cálculo y en cualquier programa. Obligan a limpiar a mano antes de poder empezar.',
+  },
+  {
+    codes: ['error-tipo'],
+    icon: 'tipo',
+    severity: 'warn',
+    title: 'Tipos mezclados en una misma columna',
+    text: 'Un texto colado en una columna de números o fechas no da error: da un resultado equivocado. Son los fallos más caros porque nadie los ve venir.',
+  },
+];
+
+/**
+ * Consecuencias presentes en este catálogo, de mayor a menor impacto.
+ *
+ * Se descartan las que no ocurren —una consecuencia con cero afectados es
+ * ruido—. El orden es gravedad primero y volumen después, no volumen a secas:
+ * lo que impide abrir el archivo va antes que lo que solo obliga a limpiarlo,
+ * aunque afecte a menos archivos. Es el mismo criterio que separa las dos
+ * preguntas del portal, y ordenar solo por cantidad lo contradecía.
+ */
+const SEVERITY_ORDER: Record<ReuseConsequence['severity'], number> = { bad: 0, warn: 1 };
+
+export function reuseConsequences(report: QualityReport | null): ReuseConsequence[] {
+  const affected = distributionsAffectedByIssue(report);
+  return CONSEQUENCE_GROUPS.map(({ codes, ...rest }) => ({
+    ...rest,
+    count: codes.reduce((sum, code) => sum + (affected[code] ?? 0), 0),
+  }))
+    .filter((consequence) => consequence.count > 0)
+    .sort(
+      (a, b) =>
+        SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity] || b.count - a.count
+    );
 }
 
 /* ------------------------------------------------------------------ */

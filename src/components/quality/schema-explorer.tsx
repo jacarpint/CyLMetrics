@@ -3,19 +3,9 @@
 import { Columns3 } from "lucide-react";
 import type { SchemaField } from "@/lib/quality-report";
 import { schemaTypeLabel } from "@/lib/quality-labels";
+import { unitWords, capitalize, type UnitVoice } from "@/lib/unit-words";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-
-/**
- * En CSV/XLSX la unidad es la fila y la columna; en JSON, el registro y el
- * campo. Solo cambia el vocabulario: el perfil se calcula igual.
- */
-export type SchemaUnit = "row" | "record";
-
-const UNIT_WORDS: Record<SchemaUnit, { field: string; fields: string; rows: string; preview: string }> = {
-  row: { field: "Columna", fields: "Columnas", rows: "filas", preview: "Vista previa de datos (muestra)" },
-  record: { field: "Campo", fields: "Campos", rows: "registros", preview: "Registros de ejemplo (muestra)" },
-};
 
 const TYPE_BADGE: Record<string, "default" | "success" | "warning" | "destructive" | "info" | "format"> = {
   number: "info",
@@ -33,8 +23,8 @@ function formatRange(field: SchemaField): string {
   return `${min ?? "…"} … ${max ?? "…"}`;
 }
 
-export function SchemaTable({ schema, unit = "row" }: { schema: SchemaField[]; unit?: SchemaUnit }) {
-  const words = UNIT_WORDS[unit];
+export function SchemaTable({ schema, unit = "table" }: { schema: SchemaField[]; unit?: UnitVoice }) {
+  const words = unitWords(unit);
   const nullPctTotal = schema.reduce((s, f) => s + (f.null_pct || 0), 0) / Math.max(1, schema.length);
   const completeness = Math.round((1 - nullPctTotal) * 100);
 
@@ -42,7 +32,7 @@ export function SchemaTable({ schema, unit = "row" }: { schema: SchemaField[]; u
     <div>
       <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div className="rounded-lg border border-border bg-fill px-3 py-2">
-          <p className="eyebrow">{words.fields}</p>
+          <p className="eyebrow">{capitalize(words.cols)}</p>
           <p className="text-lg font-bold tabular-nums text-strong">{schema.length}</p>
         </div>
         <div className="rounded-lg border border-border bg-fill px-3 py-2">
@@ -64,7 +54,7 @@ export function SchemaTable({ schema, unit = "row" }: { schema: SchemaField[]; u
         <table className="w-full text-xs">
           <thead>
             <tr className="border-b border-border bg-fill text-left">
-              <th scope="col" className="px-3 py-2 font-semibold text-faint">{words.field}</th>
+              <th scope="col" className="px-3 py-2 font-semibold text-faint">{capitalize(words.col)}</th>
               <th scope="col" className="px-3 py-2 font-semibold text-faint">Tipo</th>
               <th scope="col" className="px-3 py-2 font-semibold text-faint">Nulos</th>
               <th scope="col" className="px-3 py-2 text-right font-semibold text-faint">Distintos</th>
@@ -84,7 +74,7 @@ export function SchemaTable({ schema, unit = "row" }: { schema: SchemaField[]; u
                     {field.name}
                   </th>
                   <td className="px-3 py-2">
-                    <Badge variant={TYPE_BADGE[field.type] ?? "default"} className="text-[10px]">
+                    <Badge variant={TYPE_BADGE[field.type] ?? "default"} className="text-[11px]">
                       {schemaTypeLabel(field.type)}
                     </Badge>
                   </td>
@@ -117,11 +107,11 @@ export function SchemaTable({ schema, unit = "row" }: { schema: SchemaField[]; u
 
 export function SchemaExplorer({
   schema,
-  unit = "row",
+  unit = "table",
   truncated = false,
 }: {
   schema: SchemaField[];
-  unit?: SchemaUnit;
+  unit?: UnitVoice;
   /** La descarga se cortó por tamaño: las cifras son de la parte analizada. */
   truncated?: boolean;
 }) {

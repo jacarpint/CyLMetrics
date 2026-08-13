@@ -13,6 +13,8 @@
  * tocas una regla en Python, tócala aquí — y al revés.
  */
 
+import type { UnitVoice } from '@/lib/unit-words';
+
 export type ValueType = 'empty' | 'number' | 'date' | 'bool' | 'str';
 
 /** Orden de preferencia al desempatar, igual que `_TYPE_PRIORITY`. */
@@ -147,11 +149,12 @@ const MIN_VALUES_FOR_TYPE = 3;
 /**
  * Un JSON de registros se analiza con las mismas reglas que una tabla, pero
  * llamarle «celda» a un campo de un objeto no ayuda a nadie: el vocabulario
- * cambia, la detección no.
+ * cambia, la detección no. El eje está en `unit-words.ts`; aquí solo se usa.
+ *
+ * Lo de abajo no es vocabulario general sino el enunciado de cada regla, que es
+ * propio de este analizador: por eso se queda aquí y no se mudó con las palabras.
  */
-export type IssueVoice = 'table' | 'record';
-
-const WORDING: Record<string, Record<IssueVoice, { label: string; rule: string }>> = {
+const WORDING: Record<string, Record<UnitVoice, { label: string; rule: string }>> = {
   'error-tipo': {
     table: {
       label: 'Valores con un tipo distinto al mayoritario de su columna',
@@ -204,7 +207,7 @@ const WORDING: Record<string, Record<IssueVoice, { label: string; rule: string }
   },
 };
 
-function wording(code: string, voice: IssueVoice): { label: string; rule: string } {
+function wording(code: string, voice: UnitVoice): { label: string; rule: string } {
   return WORDING[code][voice];
 }
 
@@ -219,7 +222,7 @@ function wording(code: string, voice: IssueVoice): { label: string; rule: string
 export function findTabularIssues(
   header: string[],
   rows: string[][],
-  voice: IssueVoice = 'table'
+  voice: UnitVoice = 'table'
 ): TabularIssue[] {
   const issues: TabularIssue[] = [];
   const ncols = header.length;

@@ -15,7 +15,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { XMLParser } from 'fast-xml-parser';
 import type { CatalogData, CatalogStats, Category, DataFormat, Dataset, DatasetStatus, DistributionUrl, License } from '@/lib/types';
-import { timeAgo } from '@/lib/quality';
+import { METADATA_WEIGHTS, getScoreLevel, timeAgo, type ScoreLevel } from '@/lib/quality';
 import {
   completenessRatio,
   diagnoseFreshness,
@@ -151,29 +151,6 @@ function toArray<T>(value: T | T[] | undefined | null): T[] {
   return Array.isArray(value) ? value : [value];
 }
 
-/** Derive a readable publisher name from the foaf:Agent node or the URI. */
-function publisherNameOf(value: unknown, uri: string): string {
-  if (value != null && typeof value === 'object') {
-    const obj = value as Record<string, unknown>;
-    const agent = obj['Agent'];
-    if (agent != null && typeof agent === 'object') {
-      const name = textOf((agent as Record<string, unknown>)['name']);
-      if (name) return name;
-    }
-  }
-  if (!uri) return '';
-  try {
-    const segments = uri.replace(/\/+$/, '').split('/');
-    const meaningful = [...segments].reverse().find((s) => s && !/^\d+$/.test(s));
-    if (!meaningful) return uri;
-    return meaningful
-      .replace(/[-_]/g, ' ')
-      .replace(/\b\w/g, (c) => c.toUpperCase());
-  } catch {
-    return uri;
-  }
-}
-
 function mapFormat(mimeType: string): DataFormat {
   return IMT_TO_FORMAT[mimeType.trim().toLowerCase()] ?? 'OTRO';
 }
@@ -218,15 +195,30 @@ function formatOpenness(format: DataFormat): number {
 }
 
 /**
- * Calcula el índice de calidad de un dataset (0-100) a partir SOLO de
- * metadatos presentes en el RDF:
+ * `DatasetStatus` es el nombre que este módulo da a los niveles de calidad.
+ * Se traduce desde `ScoreLevel` en vez de recalcular los umbrales, que es lo que
+ * hacía antes con su propio `score >= 80 ? … : …`.
+ */
+const DATASET_STATUS_BY_LEVEL: Record<ScoreLevel, DatasetStatus> = {
+  ok: 'healthy',
+  warn: 'warning',
+  bad: 'critical',
+};
+
+/**
+ * Calcula el índice de calidad de un dataset (0-100) a partir SOLO de los
+ * metadatos presentes en el RDF, con cuatro factores:
  *
- * - Completitud de metadatos (40%): título, descripción, licencia, publisher,
- *   fecha de publicación, idioma, ámbito espacial, temas y palabras clave.
- * - Disponibilidad de formatos abiertos (25%): mejor formato disponible con
- *   bonificación por diversidad de formatos.
- * - Frescura (25%): usa dct:modified si existe, si no dct:issued vs periodicidad declarada.
- * - Apertura de licencia (10%): CC-BY-4.0 (100) / IGCYL-NC (55).
+ * - Completitud: título, descripción, licencia, publisher, fecha de publicación,
+ *   idioma, ámbito espacial, temas y palabras clave.
+ * - Formatos abiertos: el mejor formato disponible, con bonificación por
+ *   diversidad.
+ * - Frescura: dct:modified si existe, si no dct:issued, contra la periodicidad
+ *   declarada.
+ * - Apertura de licencia: CC-BY-4.0 (100) / IGCYL-NC (55) / sin identificar (60).
+ *
+ * Los pesos de los cuatro están en `METADATA_WEIGHTS` (`lib/quality.ts`), que es
+ * también de donde los lee la página de Metodología para publicarlos.
  */
 export function computeQuality(dataset: {
   title: string;
@@ -259,14 +251,14 @@ export function computeQuality(dataset: {
 } {
   const { now } = dataset;
 
-  // 1) Completitud de metadatos (40%)
+  // 1) Completitud de metadatos.
   // Derivada de `findMetadataGaps`, que es la única definición de qué campos
   // cuentan: si la nota se calculara aparte de la lista de huecos, acabarían
   // discrepando (el mismo fallo que tuvo `classifyDelivery`).
   const gaps = findMetadataGaps(dataset);
   const completeness = completenessRatio(gaps) * 100;
 
-  // 2) Disponibilidad de formatos abiertos (25%)
+  // 2) Disponibilidad de formatos abiertos.
   let formatScore = 0;
   if (dataset.formats.length > 0) {
     const best = Math.max(...dataset.formats.map(formatOpenness));
@@ -274,7 +266,7 @@ export function computeQuality(dataset: {
     formatScore = 0.8 * best + 0.2 * diversity;
   }
 
-  // 3) Frescura (25%): preferir dct:modified sobre dct:issued
+  // 3) Frescura: preferir dct:modified sobre dct:issued
   let freshness: number;
   let freshnessSource: 'modified' | 'issued' | 'none' = 'none';
   const modified = dataset.modified ? parseIssued(dataset.modified) : null;
@@ -295,11 +287,18 @@ export function computeQuality(dataset: {
     freshness = 40;
   }
 
-  // 4) Apertura de licencia (10%)
+  // 4) Apertura de licencia.
   const licenseScore = dataset.license === 'CC-BY-4.0' ? 100 : dataset.license === 'IGCYL-NC' ? 55 : 60;
 
-  const score = Math.round(0.4 * completeness + 0.25 * formatScore + 0.25 * freshness + 0.1 * licenseScore);
-  const status: DatasetStatus = score >= 80 ? 'healthy' : score >= 50 ? 'warning' : 'critical';
+  // Los pesos y los umbrales viven en `lib/quality.ts`, que es de donde los lee
+  // también la página de Metodología para publicarlos.
+  const score = Math.round(
+    METADATA_WEIGHTS.completeness * completeness +
+      METADATA_WEIGHTS.formats * formatScore +
+      METADATA_WEIGHTS.freshness * freshness +
+      METADATA_WEIGHTS.license * licenseScore
+  );
+  const status: DatasetStatus = DATASET_STATUS_BY_LEVEL[getScoreLevel(score)];
 
   return {
     score,
@@ -380,7 +379,6 @@ export function parseCatalog(
       const theme = themes[0] ?? '';
       const keywords = toArray(d.keyword).map(textOf).filter(Boolean);
       const publisher = resourceOf(d.publisher);
-      const publisherName = publisherNameOf(d.publisher, publisher) || undefined;
       const license = mapLicense(d.license);
       const issued = textOf(d.issued);
       const modified = textOf(d.modified);
@@ -442,10 +440,7 @@ export function parseCatalog(
           ? (freshnessSource === 'modified' ? 'Actualizado ' : 'Publicado ') + timeAgo(referenceDate.toISOString(), now)
           : 'Fecha desconocida',
         freshnessSource,
-        statusLabel: status === 'healthy' ? '✓ Al día' : status === 'warning' ? '🕒 Revisar' : '⚠️ Crítico',
         publisher,
-        publisherName,
-        records: 0,
         theme: theme || undefined,
         spatial: spatial || undefined,
         keywords: keywords.length > 0 ? keywords : undefined,

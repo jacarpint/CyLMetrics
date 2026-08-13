@@ -17,11 +17,10 @@ function makeDataset(overrides: Partial<Dataset> & { id: string }): Dataset {
     category: overrides.category ?? 'Otros',
     license: overrides.license ?? 'CC-BY-4.0',
     lastUpdated: overrides.lastUpdated ?? '2024-01-01',
+    modified: overrides.modified,
     updatedAgo: '—',
     freshnessSource: 'issued',
-    statusLabel: '—',
     publisher: overrides.publisher ?? 'http://example.org/1',
-    records: 0,
     distributionUrls: [],
     metadataGaps: overrides.metadataGaps ?? [],
     freshness: overrides.freshness ?? { diagnosis: 'al-dia', periodsLate: 0, reference: 'issued' },
@@ -111,6 +110,73 @@ describe('sortDatasets', () => {
   it('sorts by date asc', () => {
     const sorted = sortDatasets(datasets, 'date-asc');
     expect(sorted[0].lastUpdated).toBe('2020-01-01');
+  });
+
+  /**
+   * El orden por calidad tiene que usar el índice COMPUESTO, que es el que pinta
+   * la tarjeta y el que publica la API en `scores.overall`. Ordenar por el eje de
+   * metadatos mientras se muestra el compuesto devolvía tarjetas con números en
+   * aparente desorden.
+   */
+  describe('con el análisis: ordena por el índice compuesto', () => {
+    /**
+     * Metadatos altos pero ningún archivo que abra, y al revés. Los IDs acaban
+     * en dígitos porque `datasetSlug` toma justo ese número, como en el catálogo
+     * real.
+     */
+    const conAnalisis = [
+      makeDataset({ id: 'https://example.org/ds/100', title: 'Ficha buena', qualityScore: 100 }),
+      makeDataset({ id: 'https://example.org/ds/200', title: 'Datos buenos', qualityScore: 50 }),
+    ];
+    const analysisBySlug = {
+      // 100 en metadatos, 0 de disponibilidad y 0 de contenido → 40
+      '100': { availability_pct: 0, score: 0 },
+      // 50 en metadatos, todo abre y está limpio → 20 + 30 + 30 = 80
+      '200': { availability_pct: 100, score: 100 },
+    } as unknown as Parameters<typeof sortDatasets>[2];
+
+    it('un conjunto usable adelanta a uno con la ficha impecable que no abre', () => {
+      const sorted = sortDatasets(conAnalisis, 'quality-desc', analysisBySlug);
+      expect(sorted.map((d) => d.title)).toEqual(['Datos buenos', 'Ficha buena']);
+    });
+
+    it('el orden ascendente es el inverso exacto', () => {
+      const sorted = sortDatasets(conAnalisis, 'quality-asc', analysisBySlug);
+      expect(sorted.map((d) => d.title)).toEqual(['Ficha buena', 'Datos buenos']);
+    });
+
+    it('sin análisis cae al eje de metadatos, sin romperse', () => {
+      const sorted = sortDatasets(conAnalisis, 'quality-desc');
+      expect(sorted.map((d) => d.title)).toEqual(['Ficha buena', 'Datos buenos']);
+    });
+
+    it('los que no tienen puntuación van al final en los dos sentidos', () => {
+      // `availability` presente y `metadata` nulo no da null; para forzar el null
+      // hace falta un conjunto sin nota de metadatos y sin analizar.
+      const sinNota = makeDataset({ id: 'https://example.org/ds/300', title: 'Sin nota' });
+      sinNota.qualityScore = null as unknown as number;
+      const lista = [sinNota, ...conAnalisis];
+      for (const sort of ['quality-desc', 'quality-asc'] as const) {
+        const sorted = sortDatasets(lista, sort, analysisBySlug);
+        expect(sorted.at(-1)!.title, sort).toBe('Sin nota');
+      }
+    });
+  });
+
+  /**
+   * La tarjeta rotula «Actualizado hace…» usando dct:modified cuando existe, así
+   * que ordenar solo por dct:issued colocaba un conjunto refrescado ayer entre
+   * los de 2011, contradiciendo su propia etiqueta.
+   */
+  it('el orden por fecha usa la última modificación, no solo la publicación', () => {
+    const lista = [
+      makeDataset({ id: 'https://example.org/ds/401', title: 'Refrescado ayer', lastUpdated: '2011-01-01', modified: '2026-08-12' }),
+      makeDataset({ id: 'https://example.org/ds/402', title: 'Publicado y olvidado', lastUpdated: '2024-01-01' }),
+    ];
+    expect(sortDatasets(lista, 'date-desc').map((d) => d.title)).toEqual([
+      'Refrescado ayer',
+      'Publicado y olvidado',
+    ]);
   });
 });
 

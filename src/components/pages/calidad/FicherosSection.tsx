@@ -14,8 +14,9 @@ import { issueLabel, formatBytes } from '@/lib/quality-labels';
 import { isGeoFormat } from '@/lib/geo';
 import {
   DELIVERY_EXPLANATIONS, DELIVERY_SHORT, groupByField,
-  type FileIssueRow, type IssueFamily,
+  type DeliveryState, type FileIssueRow, type IssueFamily,
 } from '@/lib/availability';
+import { toCsv } from '@/lib/csv-write';
 import type { FormatSummary } from '@/lib/quality-report';
 
 interface FicherosSectionProps {
@@ -31,45 +32,52 @@ interface FicherosSectionProps {
 }
 
 type FamilyFilter = 'todas' | IssueFamily;
+
+/** Filas por página, y las que añade cada «Mostrar más». */
 const PAGE = 50;
 
 const FAMILY_TABS: { id: FamilyFilter; label: string; hint: string }[] = [
-  { id: 'todas', label: 'Todos', hint: 'Todos los ficheros con algún defecto' },
+  { id: 'todas', label: 'Todos', hint: 'Todos los archivos con algún problema' },
   { id: 'entrega', label: 'No se pueden usar', hint: 'No llegan, o llegan y no se pueden interpretar' },
-  { id: 'contenido', label: 'Abren con errores', hint: 'Se pueden leer, pero los datos vienen con errores' },
+  { id: 'contenido', label: 'Abren con errores', hint: 'Se pueden leer, pero los datos requieren limpieza' },
 ];
 
-/** Tono de la etiqueta de estado de cada fila. */
-const ROW_TONE: Record<string, { text: string; surface: string; border: string }> = {
+/**
+ * Tono de la etiqueta de estado de cada fila.
+ *
+ * Las filas de contenido reutilizan el tono de `ok` —el archivo se entrega bien,
+ * el problema está dentro— y por eso la clave se escoge en `rowTone`.
+ */
+const ROW_TONE: Record<DeliveryState, { text: string; surface: string; border: string }> = {
   roto: { text: 'text-bad', surface: 'bg-bad-surface', border: 'border-bad-line' },
   'no-entrega': { text: 'text-warn', surface: 'bg-warn-surface', border: 'border-warn-line' },
   omitida: { text: 'text-faint', surface: 'bg-fill', border: 'border-border' },
   ok: { text: 'text-warn', surface: 'bg-warn-surface', border: 'border-warn-line' },
 };
 
+function rowTone(row: FileIssueRow) {
+  return ROW_TONE[row.family === 'contenido' ? 'ok' : row.state];
+}
+
 /** Etiqueta corta de la fila: el estado de entrega, o «contenido» si abre. */
 function rowStateLabel(row: FileIssueRow): string {
   return row.family === 'contenido' ? 'Contenido' : DELIVERY_SHORT[row.state];
 }
 
-function toCsv(rows: FileIssueRow[]): string {
-  const esc = (v: unknown) => {
-    const s = String(v ?? '');
-    return /[";\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-  };
-  const header = [
-    'familia', 'estado', 'formato', 'dataset', 'categoria', 'causa', 'codigo_causa',
-    'errores_contenido', 'http', 'url', 'ficha',
-  ];
-  const lines = rows.map((r) =>
-    [
+const CSV_HEADER = [
+  'dimension', 'estado', 'formato', 'conjunto_de_datos', 'tematica', 'causa', 'codigo_causa',
+  'errores_contenido', 'http', 'url', 'ficha',
+];
+
+function rowsToCsv(rows: FileIssueRow[]): string {
+  return toCsv(
+    CSV_HEADER,
+    rows.map((r) => [
       r.family, rowStateLabel(r), r.format, r.datasetTitle, r.category,
       issueLabel(r.causeCode), r.causeCode, r.errorIssues ?? '', r.httpStatus ?? '', r.url,
       `/catalogo/${r.datasetSlug}/${r.distSlug}`,
-    ].map(esc).join(';')
+    ])
   );
-  // BOM para que Excel en castellano no rompa los acentos.
-  return `﻿${header.join(';')}\n${lines.join('\n')}`;
 }
 
 /**
@@ -122,6 +130,9 @@ export function FicherosSection({
     setCategory('');
     setQuery('');
     setLimit(PAGE);
+    // La fila abierta sobrevivía al borrado de filtros y podía quedar fuera de
+    // la lista resultante: el detalle seguía "abierto" sin nada que mostrar.
+    setExpanded(null);
   };
 
   if (rows.length === 0) {
@@ -130,10 +141,9 @@ export function FicherosSection({
         <CardContent className="flex items-start gap-3 p-6">
           <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-ok" aria-hidden />
           <div>
-            <h2 className="text-sm font-semibold text-strong">Ningún fichero con defectos</h2>
+            <h2 className="text-sm font-semibold text-strong">Ningún archivo con problemas</h2>
             <p className="mt-1 text-sm text-body">
-              Todas las distribuciones analizadas se descargan, se abren y no traen errores de
-              contenido.
+              Todos los archivos analizados se descargan, se abren y no traen errores de contenido.
             </p>
           </div>
         </CardContent>
@@ -144,22 +154,24 @@ export function FicherosSection({
   return (
     <div className="space-y-6">
       <p className="max-w-3xl text-sm leading-relaxed text-faint">
-        Inventario completo, fichero a fichero. Cada fila enlaza con su ficha, donde el explorador
+        Inventario completo, archivo a archivo. Cada fila enlaza con su ficha, donde el explorador
         descarga el archivo real y permite recorrer las incidencias caso por caso. Las celdas vacías
-        no generan fila propia —son el 98% de las incidencias del catálogo y ahogarían la lista—: se
-        revisan en la ficha de cada distribución.
+        no generan fila propia —son la inmensa mayoría de las incidencias del catálogo y ahogarían la
+        lista—: se revisan en la ficha de cada archivo.
       </p>
 
       {/* ── Filtro por familia: son dos trabajos distintos ── */}
       <div className="flex flex-wrap items-center gap-2">
-        <div className="flex flex-wrap items-center gap-1 rounded-lg border border-border p-1" role="group" aria-label="Filtrar por tipo de defecto">
+        <div className="flex flex-wrap items-center gap-1 rounded-lg border border-border p-1" role="group" aria-label="Filtrar por dimensión de calidad">
           {FAMILY_TABS.map((tab) => (
             <button
               key={tab.id}
               type="button"
-              onClick={() => { setFamily(tab.id); setLimit(PAGE); }}
+              onClick={() => { setFamily(tab.id); setLimit(PAGE); setExpanded(null); }}
               aria-pressed={family === tab.id}
-              title={tab.hint}
+              // La pista va en el nombre accesible y no en `title`: un tooltip
+              // nativo no existe en táctil y no se anuncia al tabular.
+              aria-label={`${tab.label}: ${tab.hint}`}
               className={cn(
                 'inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
                 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-canvas',
@@ -174,22 +186,29 @@ export function FicherosSection({
           ))}
         </div>
 
+        {/* La pista del filtro activo, visible: hasta ahora solo existía como
+            tooltip, así que la diferencia entre las dos familias —que es la
+            distinción central de esta vista— no se leía en pantalla. */}
+        <p className="order-last w-full text-xs text-faint" aria-live="polite">
+          {FAMILY_TABS.find((tab) => tab.id === family)?.hint}
+        </p>
+
         <div className="relative min-w-0 flex-1 sm:max-w-xs">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-faint" aria-hidden />
           <input
             type="search"
             value={query}
             onChange={(e) => { setQuery(e.target.value); setLimit(PAGE); }}
-            placeholder="Filtrar por dataset, área o URL…"
-            aria-label="Filtrar la lista de ficheros"
+            placeholder="Filtrar por conjunto de datos, temática o URL…"
+            aria-label="Filtrar la lista de archivos"
             className="h-9 w-full rounded-lg border border-field bg-card pl-8 pr-3 text-xs text-body placeholder:text-faint focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
           />
         </div>
 
         {/* El CSV se genera al pulsar, respetando los filtros activos. */}
         <DownloadButton
-          content={() => toCsv(filtered)}
-          filename="ficheros-con-defectos.csv"
+          content={() => rowsToCsv(filtered)}
+          filename="archivos-con-problemas.csv"
           mimeType="text/csv;charset=utf-8"
           label={`Descargar CSV (${filtered.length.toLocaleString('es-ES')})`}
         />
@@ -200,7 +219,7 @@ export function FicherosSection({
         <section>
           <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-strong">
             <Building2 className="h-4 w-4 text-faint" aria-hidden />
-            Áreas temáticas más afectadas
+            Temáticas más afectadas
           </h2>
           <div className="flex flex-wrap gap-2">
             {categories.slice(0, 10).map((c) => (
@@ -242,7 +261,7 @@ export function FicherosSection({
             )}
             {category && (
               <button onClick={() => setCategory('')} className="inline-flex items-center gap-1 rounded-md border border-border bg-fill px-2 py-0.5 text-body hover:bg-fill-strong">
-                área: {category}
+                temática: {category}
                 <X className="h-3 w-3" aria-hidden />
               </button>
             )}
@@ -255,19 +274,19 @@ export function FicherosSection({
         {filtered.length === 0 ? (
           <Card tone="muted">
             <CardContent className="p-6 text-center text-sm text-faint">
-              Ningún fichero coincide con estos filtros.
+              Ningún archivo coincide con estos filtros.
             </CardContent>
           </Card>
         ) : (
           <div className="overflow-hidden rounded-xl border border-border">
             <table className="w-full text-xs">
-              <caption className="sr-only">Distribuciones con defectos de entrega o de contenido</caption>
+              <caption className="sr-only">Archivos con problemas de disponibilidad o de contenido</caption>
               <thead>
                 <tr className="border-b border-border bg-fill text-left">
                   <th scope="col" className="px-3 py-2 font-semibold text-faint">Estado</th>
                   <th scope="col" className="px-3 py-2 font-semibold text-faint">Formato</th>
-                  <th scope="col" className="px-3 py-2 font-semibold text-faint">Dataset</th>
-                  <th scope="col" className="hidden px-3 py-2 font-semibold text-faint lg:table-cell">Área temática</th>
+                  <th scope="col" className="px-3 py-2 font-semibold text-faint">Conjunto de datos</th>
+                  <th scope="col" className="hidden px-3 py-2 font-semibold text-faint lg:table-cell">Temática</th>
                   <th scope="col" className="px-3 py-2 font-semibold text-faint">Qué le pasa</th>
                   <th scope="col" className="px-3 py-2 font-semibold text-faint"><span className="sr-only">Acciones</span></th>
                 </tr>
@@ -275,12 +294,12 @@ export function FicherosSection({
               <tbody>
                 {shown.map((r) => {
                   const id = `${r.datasetSlug}-${r.distSlug}-${r.family}`;
-                  const tone = ROW_TONE[r.family === 'contenido' ? 'ok' : r.state];
+                  const tone = rowTone(r);
                   const isOpen = expanded === id;
                   return (
                     <tr key={id} className="border-b border-border last:border-0 align-top hover:bg-fill">
                       <td className="px-3 py-2">
-                        <span className={cn('inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-medium', tone.border, tone.surface, tone.text)}>
+                        <span className={cn('inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] font-medium', tone.border, tone.surface, tone.text)}>
                           {r.family === 'contenido'
                             ? <SearchCode className="h-3 w-3" aria-hidden />
                             : <FileWarning className="h-3 w-3" aria-hidden />}
@@ -288,7 +307,7 @@ export function FicherosSection({
                         </span>
                       </td>
                       <td className="px-3 py-2">
-                        <Badge variant="format" className="text-[10px]">{r.format}</Badge>
+                        <Badge variant="format" className="text-[11px]">{r.format}</Badge>
                       </td>
                       <td className="max-w-[26rem] px-3 py-2">
                         <Link
@@ -297,7 +316,7 @@ export function FicherosSection({
                         >
                           {r.datasetTitle}
                         </Link>
-                        <p className="mt-0.5 truncate text-[10px] text-faint lg:hidden">{r.category}</p>
+                        <p className="mt-0.5 truncate text-[11px] text-faint lg:hidden">{r.category}</p>
                       </td>
                       <td className="hidden max-w-[16rem] px-3 py-2 text-faint lg:table-cell">
                         <span className="line-clamp-2">{r.category}</span>
@@ -307,6 +326,7 @@ export function FicherosSection({
                           type="button"
                           onClick={() => setExpanded(isOpen ? null : id)}
                           aria-expanded={isOpen}
+                          aria-controls={`detalle-${id}`}
                           className="flex items-start gap-1 text-left text-body hover:text-strong"
                         >
                           {isOpen
@@ -323,16 +343,16 @@ export function FicherosSection({
                           </span>
                         </button>
                         {isOpen && (
-                          <div className="mt-2 space-y-1.5 rounded-md border border-border bg-card p-2">
+                          <div id={`detalle-${id}`} className="mt-2 space-y-1.5 rounded-md border border-border bg-card p-2">
                             <p className="text-[11px] leading-relaxed text-body">
                               {r.family === 'contenido'
-                                ? 'El fichero se descarga y se abre; el problema está en los datos. Se puede reutilizar, pero obliga a limpiar antes.'
+                                ? 'El archivo se descarga y se abre; el problema está en los datos. Se puede reutilizar, pero obliga a limpiar antes.'
                                 : DELIVERY_EXPLANATIONS[r.state as Exclude<typeof r.state, 'ok'>]}
                             </p>
                             {r.noteIdx != null && notes[r.noteIdx] && (
                               <p className="text-[11px] leading-relaxed text-faint">{notes[r.noteIdx]}</p>
                             )}
-                            <p className="break-all font-mono text-[10px] text-faint">{r.url}</p>
+                            <p className="break-all font-mono text-[11px] text-faint">{r.url}</p>
                           </div>
                         )}
                       </td>
@@ -342,7 +362,7 @@ export function FicherosSection({
                           target="_blank"
                           rel="noreferrer"
                           className="inline-flex items-center gap-1 rounded p-1 text-faint transition-colors hover:bg-fill hover:text-body"
-                          aria-label={`Abrir el recurso original de ${r.datasetTitle}`}
+                          aria-label={`Abrir el archivo original de ${r.datasetTitle}`}
                         >
                           <ExternalLink className="h-3.5 w-3.5" aria-hidden />
                         </a>
@@ -356,10 +376,13 @@ export function FicherosSection({
             {filtered.length > shown.length && (
               <div className="border-t border-border bg-fill p-3 text-center">
                 <button
-                  onClick={() => setLimit((n) => n + PAGE * 2)}
+                  onClick={() => setLimit((n) => n + PAGE)}
                   className="rounded-lg border border-field bg-card px-3 py-1.5 text-xs font-medium text-body transition-colors hover:bg-fill"
                 >
-                  Mostrar más ({(filtered.length - shown.length).toLocaleString('es-ES')} restantes)
+                  Mostrar {Math.min(PAGE, filtered.length - shown.length)} más
+                  <span className="ml-1 text-faint">
+                    ({(filtered.length - shown.length).toLocaleString('es-ES')} restantes)
+                  </span>
                 </button>
               </div>
             )}
@@ -380,10 +403,10 @@ export function FicherosSection({
               <thead>
                 <tr className="border-b border-border text-left text-[11px] uppercase tracking-wider text-faint">
                   <th scope="col" className="px-5 py-2 font-medium">Formato</th>
-                  <th scope="col" className="px-3 py-2 text-right font-medium">Total</th>
+                  <th scope="col" className="px-3 py-2 text-right font-medium">Archivos</th>
                   <th scope="col" className="px-3 py-2 text-right font-medium">Sin incidencias</th>
-                  <th scope="col" className="px-3 py-2 text-right font-medium">Con errores</th>
-                  <th scope="col" className="px-3 py-2 text-right font-medium">Omitidas</th>
+                  <th scope="col" className="px-3 py-2 text-right font-medium">Con alguna incidencia</th>
+                  <th scope="col" className="px-3 py-2 text-right font-medium">Sin analizar</th>
                   <th scope="col" className="px-3 py-2 text-right font-medium">Calidad media</th>
                   <th scope="col" className="px-5 py-2 text-right font-medium">Descargado</th>
                 </tr>
@@ -394,7 +417,7 @@ export function FicherosSection({
                     <td className="px-5 py-2.5">
                       <span className="inline-flex items-center gap-1.5">
                         <Badge variant="format">{fmt}</Badge>
-                        {isGeoFormat(fmt) && <span className="text-[10px] text-faint">geo</span>}
+                        {isGeoFormat(fmt) && <span className="text-[11px] text-faint">geo</span>}
                       </span>
                     </td>
                     <td className="px-3 py-2.5 text-right tabular-nums text-body">{f.total}</td>
@@ -409,10 +432,14 @@ export function FicherosSection({
                 ))}
               </tbody>
             </table>
+            {/* «Con alguna incidencia» agrupa cosas de gravedad muy distinta, así
+                que la tabla necesita esta aclaración. Los rótulos evitan a
+                propósito «errores» y «omitidas», que sugieren archivos
+                inutilizables cuando la mayoría solo necesita limpieza. */}
             <p className="px-5 py-3 text-[11px] leading-relaxed text-faint">
-              «Con errores» son las distribuciones con alguna incidencia de severidad error según el
-              analizador, incluidas las que se descargan y abren sin problema. Es el contador del
-              motor de análisis, no el de ficheros inutilizables.
+              «Con alguna incidencia» cuenta los archivos en los que el análisis anotó algo, incluidos
+              los que se descargan y abren sin problema y solo necesitan limpieza. Para ver cuáles no
+              se pueden usar, filtra arriba por «No se pueden usar».
             </p>
           </div>
         </details>

@@ -1,11 +1,10 @@
 import { isAllowedHost, isAllowedResponse } from "@/lib/proxy-allow";
+import { PROXY_MAX_BYTES, PROXY_TIMEOUT_MS } from "@/lib/download-budget";
 
 export const revalidate = 3600;
 
-// 32 MB: por encima del tope de descarga del analizador (25 MB), para que el
-// visor de tabla pueda mostrar el fichero completo y no una parte.
-const MAX_BYTES = 32 * 1024 * 1024;
-const TIMEOUT_MS = 25000;
+// El techo y el plazo viven en , junto a los topes del
+// visor que dependen de ellos.
 
 /**
  * Proxy de solo lectura para recursos de *.jcyl.es. Evita el bloqueo CORS del
@@ -30,7 +29,7 @@ export async function GET(request: Request) {
   }
 
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), PROXY_TIMEOUT_MS);
   try {
     const upstream = await fetch(url, {
       signal: controller.signal,
@@ -53,7 +52,7 @@ export async function GET(request: Request) {
     }
 
     const len = Number(upstream.headers.get("content-length") ?? "0");
-    if (len > MAX_BYTES) {
+    if (len > PROXY_MAX_BYTES) {
       return new Response(JSON.stringify({ error: "Recurso demasiado grande" }), {
         status: 413,
         headers: { "content-type": "application/json" },
@@ -61,7 +60,7 @@ export async function GET(request: Request) {
     }
 
     const buf = await upstream.arrayBuffer();
-    if (buf.byteLength > MAX_BYTES) {
+    if (buf.byteLength > PROXY_MAX_BYTES) {
       return new Response(JSON.stringify({ error: "Recurso demasiado grande" }), {
         status: 413,
         headers: { "content-type": "application/json" },

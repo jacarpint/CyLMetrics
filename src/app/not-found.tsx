@@ -3,7 +3,7 @@ import { ArrowRight, Compass, Database, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export const metadata = {
-  title: "Página no encontrada | JCyL Data Quality Portal",
+  title: "Página no encontrada",
 };
 
 /**

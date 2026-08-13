@@ -9,16 +9,19 @@ import { parseTable } from '@/lib/csv-parse';
 import { readXlsx, ZipError } from '@/lib/xlsx-read';
 import { jsonRecordTable, describeJson } from '@/lib/json-to-table';
 import { formatBytes } from '@/lib/quality-labels';
-
-const FETCH_TIMEOUT_MS = 30_000;
-/** Por encima de esto no se descarga solo: son megas en el navegador. */
-const AUTOLOAD_CAP = 8 * 1024 * 1024;
+import type { UnitVoice } from '@/lib/unit-words';
+import {
+  CLIENT_TIMEOUT_MS,
+  TABLE_AUTOLOAD_CAP,
+  PROXY_MAX_BYTES,
+  exceedsProxyLimit,
+} from '@/lib/download-budget';
 
 /** Formatos que el navegador sabe abrir y convertir a filas y columnas. */
 export type FileKind = 'csv' | 'xlsx' | 'json';
 
 type Status = 'loading' | 'loaded' | 'error' | 'too-big';
-type Failure = 'http' | 'empty' | 'network' | 'parse' | 'formato';
+type Failure = 'http' | 'empty' | 'network' | 'parse' | 'formato' | 'no-cabe';
 
 interface Sheet {
   name: string;
@@ -38,7 +41,7 @@ interface Loaded {
 }
 
 /** Un JSON es una lista de registros con campos; un CSV, filas con columnas. */
-const VOICE = { csv: 'table', xlsx: 'table', json: 'record' } as const;
+const VOICE: Record<FileKind, UnitVoice> = { csv: 'table', xlsx: 'table', json: 'record' };
 
 interface FileExplorerProps {
   url: string;
@@ -65,7 +68,7 @@ interface FileExplorerProps {
  * o se cortara por tamaño.
  */
 export function FileExplorer({ url, kind, sizeBytes, reportedRows, reportTruncated }: FileExplorerProps) {
-  const tooBig = sizeBytes != null && sizeBytes > AUTOLOAD_CAP;
+  const tooBig = sizeBytes != null && sizeBytes > TABLE_AUTOLOAD_CAP;
   const [attempt, setAttempt] = useState(0);
   const [status, setStatus] = useState<Status>(tooBig ? 'too-big' : 'loading');
   const [failure, setFailure] = useState<{ kind: Failure; detail?: string } | null>(null);
@@ -76,12 +79,15 @@ export function FileExplorer({ url, kind, sizeBytes, reportedRows, reportTruncat
     if (tooBig && attempt === 0) return;
     let cancelled = false;
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+    const timer = setTimeout(() => controller.abort(), CLIENT_TIMEOUT_MS);
 
     (async () => {
       try {
         const res = await fetch(`/api/proxy?url=${encodeURIComponent(url)}`, { signal: controller.signal });
         if (cancelled) return;
+        // 413 lo pone nuestro proxy al pasarse del techo, no el origen:
+        // achacárselo al publicador era culparle de un límite nuestro.
+        if (res.status === 413) { setFailure({ kind: 'no-cabe' }); setStatus('error'); return; }
         if (!res.ok) { setFailure({ kind: 'http', detail: `HTTP ${res.status}` }); setStatus('error'); return; }
 
         if (kind === 'xlsx') {
@@ -148,13 +154,25 @@ export function FileExplorer({ url, kind, sizeBytes, reportedRows, reportTruncat
           <div className="text-sm leading-relaxed text-body">
             El archivo ocupa {formatBytes(sizeBytes)}; no se abre solo para no cargar tantos datos en el
             navegador sin avisar.
+            {/*
+              Pasado el techo del proxy, «abrirlo de todos modos» no puede
+              cumplirse: el intento acabaría en un 413. Se dice el límite y se
+              deja solo la descarga, en vez de invitar a algo que va a fallar.
+            */}
+            {exceedsProxyLimit(sizeBytes) && (
+              <> Y pasa de {formatBytes(PROXY_MAX_BYTES)}, que es el máximo que este portal puede traer,
+              así que aquí no se puede enseñar.</>
+            )}
             <div className="mt-2 flex flex-wrap items-center gap-3">
-              <button
-                onClick={() => { setStatus('loading'); setAttempt((n) => n + 1); }}
-                className="font-medium text-link underline-offset-2 hover:underline"
-              >
-                Abrirlo de todos modos
-              </button>
+              {!exceedsProxyLimit(sizeBytes) && (
+                <button
+                  type="button"
+                  onClick={() => { setStatus('loading'); setAttempt((n) => n + 1); }}
+                  className="font-medium text-link underline-offset-2 hover:underline"
+                >
+                  Abrirlo de todos modos
+                </button>
+              )}
               <a href={url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-medium text-link underline-offset-2 hover:underline">
                 <ExternalLink className="h-3 w-3" aria-hidden /> Descargar el archivo
               </a>
@@ -175,24 +193,35 @@ export function FileExplorer({ url, kind, sizeBytes, reportedRows, reportTruncat
 
   if (status === 'error' || !source) {
     const message =
-      failure?.kind === 'empty' ? 'El archivo se descargó vacío.'
+      failure?.kind === 'no-cabe' ? `El archivo pasa de ${formatBytes(PROXY_MAX_BYTES)}, que es lo máximo que este portal puede traer para enseñarlo aquí. El archivo puede estar perfectamente: no cabe en el visor.`
+      : failure?.kind === 'empty' ? 'El archivo se descargó vacío.'
       : failure?.kind === 'http' ? `El servidor de origen devolvió un error (${failure.detail}) al pedir el archivo.`
       : failure?.kind === 'parse' ? 'El recurso se descargó pero su contenido no es JSON válido. La incidencia debería aparecer también en el análisis de esta distribución.'
       : failure?.kind === 'formato' ? failure.detail!
       : 'No se pudo contactar con el origen del archivo (sin respuesta o demasiado lento).';
+    // No caber en el visor es un límite de este portal, no un defecto del
+    // archivo: se avisa en ámbar, no en rojo, y no se ofrece reintentar porque
+    // el segundo intento fallaría igual.
+    const esLimiteNuestro = failure?.kind === 'no-cabe';
     return (
-      <Card tone="bad">
+      <Card tone={esLimiteNuestro ? 'warn' : 'bad'}>
         <CardContent className="flex items-start gap-3 p-4">
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-bad" aria-hidden />
+          <AlertTriangle
+            className={`mt-0.5 h-4 w-4 shrink-0 ${esLimiteNuestro ? 'text-warn' : 'text-bad'}`}
+            aria-hidden
+          />
           <div className="text-sm leading-relaxed text-body">
             {message}
             <div className="mt-2 flex flex-wrap items-center gap-3">
-              <button
-                onClick={() => { setStatus('loading'); setFailure(null); setAttempt((n) => n + 1); }}
-                className="font-medium text-link underline-offset-2 hover:underline"
-              >
-                Reintentar
-              </button>
+              {!esLimiteNuestro && (
+                <button
+                  type="button"
+                  onClick={() => { setStatus('loading'); setFailure(null); setAttempt((n) => n + 1); }}
+                  className="font-medium text-link underline-offset-2 hover:underline"
+                >
+                  Reintentar
+                </button>
+              )}
               <a href={url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-medium text-link underline-offset-2 hover:underline">
                 <ExternalLink className="h-3 w-3" aria-hidden /> Abrir el archivo
               </a>

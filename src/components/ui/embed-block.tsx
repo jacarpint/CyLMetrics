@@ -19,7 +19,7 @@ export default function EmbedBlock({ url, label }: { url: string; label: string 
       absolute && typeof window !== 'undefined'
         ? new URL(url, window.location.origin).toString()
         : url;
-    return `<img src="${src}" alt="Calidad de los datos — JCyL Data Quality Portal" />`;
+    return `<img src="${src}" alt="Calidad de los datos — Portal de Calidad de Datos Abiertos de Castilla y León" />`;
   };
 
   const copy = async () => {

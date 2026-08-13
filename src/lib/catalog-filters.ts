@@ -12,6 +12,7 @@
 import type { Category, DataFormat, Dataset, License } from '@/lib/types';
 import type { QualityDatasetLite } from '@/lib/quality-report';
 import { isGeoFormat } from '@/lib/geo';
+import { compositeScore } from '@/lib/quality';
 import { datasetSlug } from '@/lib/utils';
 
 export const DEFAULT_PAGE_SIZE = 24;
@@ -24,9 +25,8 @@ export type PageSort = 'quality-desc' | 'quality-asc' | 'title-asc' | 'date-desc
 /**
  * Orden por defecto: lo más reciente primero.
  *
- * Antes se ordenaba por calidad descendente, lo que dejaba siempre arriba los
- * mismos datasets y escondía las publicaciones nuevas, que es lo que la gente
- * suele venir a ver.
+ * No por calidad: eso deja arriba siempre los mismos conjuntos y esconde las
+ * publicaciones nuevas, que es lo que la mayoría viene a ver.
  */
 export const DEFAULT_SORT: PageSort = 'date-desc';
 
@@ -87,9 +87,9 @@ function splitList(value: string | undefined): string[] {
  * `strictPageSize` es lo que distingue la interfaz de la API. En la interfaz el
  * tamaño de página tiene que ser uno de los del desplegable, o el `<select>` se
  * queda en blanco. La API, en cambio, es un endpoint documentado con `?limit=`:
- * ahí cualquier valor razonable vale, acotado a `MAX_PAGE_SIZE`. Antes se
- * aplicaba la regla estricta a las dos, así que `/api/catalog?limit=1`
- * respondía silenciosamente con 24 elementos.
+ * ahí vale cualquier valor razonable, acotado a `MAX_PAGE_SIZE`. Con la regla
+ * estricta aplicada a las dos, `/api/catalog?limit=1` respondía en silencio con
+ * 24 elementos.
  */
 export function parseActiveFilters(params: SearchParams, strictPageSize = true): ActiveFilters {
   const page = Math.max(1, parseInt(readParam(params, 'page') ?? '1', 10) || 1);
@@ -100,8 +100,9 @@ export function parseActiveFilters(params: SearchParams, strictPageSize = true):
       : DEFAULT_PAGE_SIZE
     : Math.min(Math.max(limitRaw, 1), MAX_PAGE_SIZE);
 
-  // Un `sort` desconocido caía en el `default:` de `sortDatasets`, que devolvía
-  // la lista sin ordenar, y dejaba el `<select>` de la interfaz sin valor.
+  // Un `sort` desconocido tiene que caer al valor por defecto aquí: `sortDatasets`
+  // ya no tiene rama para lo inesperado, y un valor libre dejaría además el
+  // `<select>` de la interfaz sin ninguna opción seleccionada.
   const sortRaw = readParam(params, 'sort');
   const sort = sortRaw && SORT_VALUES.has(sortRaw) ? (sortRaw as PageSort) : DEFAULT_SORT;
 
@@ -172,22 +173,77 @@ export function applyFilters(
   });
 }
 
-/** Ordena datasets según el criterio seleccionado. */
-export function sortDatasets(datasets: Dataset[], sort: PageSort): Dataset[] {
+/**
+ * El índice de calidad que la interfaz ENSEÑA para un conjunto de datos.
+ *
+ * `ds.qualityScore` es solo el eje de metadatos. La tarjeta del catálogo y la API
+ * publican el compuesto, que además incluye si los archivos abren y cómo está su
+ * contenido. Ordenar por uno mientras se muestra el otro dejaba «Mayor calidad»
+ * devolviendo tarjetas con números en aparente desorden —lo peor que puede pasar
+ * en un portal cuya materia es precisamente la calidad—.
+ */
+export function displayedScore(
+  ds: Dataset,
+  analysisBySlug?: Record<string, QualityDatasetLite>
+): number | null {
+  const lite = analysisBySlug?.[datasetSlug(ds.id)];
+  return compositeScore({
+    metadata: ds.qualityScore,
+    availability: lite?.availability_pct ?? null,
+    content: lite?.score ?? null,
+  });
+}
+
+/**
+ * Fecha con la que se ordena por antigüedad.
+ *
+ * La misma que decide el texto «Actualizado / Publicado hace…» de la tarjeta:
+ * `dct:modified` si el conjunto la declara y, si no, `dct:issued`. Ordenar solo
+ * por `issued` colocaba un conjunto refrescado ayer entre los de 2011 porque se
+ * publicó entonces, contradiciendo su propia etiqueta.
+ */
+function sortableDate(ds: Dataset): string {
+  return ds.modified ?? ds.lastUpdated;
+}
+
+/** Los que no tienen puntuación van al final en los dos sentidos. */
+function compareNullableScores(a: number | null, b: number | null, descending: boolean): number {
+  if (a == null) return b == null ? 0 : 1;
+  if (b == null) return -1;
+  return descending ? b - a : a - b;
+}
+
+/**
+ * Ordena los conjuntos de datos según el criterio seleccionado.
+ *
+ * `analysisBySlug` hace falta para los criterios de calidad: sin él no se puede
+ * componer el índice que se muestra, y el orden cae al eje de metadatos.
+ */
+export function sortDatasets(
+  datasets: Dataset[],
+  sort: PageSort,
+  analysisBySlug?: Record<string, QualityDatasetLite>
+): Dataset[] {
   const sorted = [...datasets];
   switch (sort) {
     case 'quality-desc':
-      return sorted.sort((a, b) => b.qualityScore - a.qualityScore);
-    case 'quality-asc':
-      return sorted.sort((a, b) => a.qualityScore - b.qualityScore);
+    case 'quality-asc': {
+      // El índice se calcula una vez por conjunto: dentro del comparador se
+      // recalcularía O(n log n) veces.
+      const scores = new Map(sorted.map((ds) => [ds.id, displayedScore(ds, analysisBySlug)]));
+      const descending = sort === 'quality-desc';
+      return sorted.sort(
+        (a, b) =>
+          compareNullableScores(scores.get(a.id) ?? null, scores.get(b.id) ?? null, descending) ||
+          a.title.localeCompare(b.title, 'es')
+      );
+    }
     case 'title-asc':
       return sorted.sort((a, b) => a.title.localeCompare(b.title, 'es'));
     case 'date-desc':
-      return sorted.sort((a, b) => b.lastUpdated.localeCompare(a.lastUpdated));
+      return sorted.sort((a, b) => sortableDate(b).localeCompare(sortableDate(a)));
     case 'date-asc':
-      return sorted.sort((a, b) => a.lastUpdated.localeCompare(b.lastUpdated));
-    default:
-      return sorted;
+      return sorted.sort((a, b) => sortableDate(a).localeCompare(sortableDate(b)));
   }
 }
 
@@ -208,6 +264,23 @@ export function buildFilterUrl(f: ActiveFilters, base = '/catalogo'): string {
   const qs = params.toString();
   return qs ? `${base}?${qs}` : base;
 }
+
+/**
+ * Estado de los archivos de un conjunto de datos, con UNA sola redacción.
+ *
+ * Es la etiqueta de `?analisis=`, y aparece a la vez en el panel de filtros, en
+ * el chip del filtro activo y en los enlaces de la portada. Cada sitio con su
+ * propia redacción daba tres nombres distintos al mismo filtro en una sola
+ * pantalla, así que todos leen de aquí.
+ */
+export type AnalysisState = NonNullable<ActiveFilters['analisis']>;
+
+export const ANALYSIS_LABELS: Record<AnalysisState, string> = {
+  ok: 'Todos los archivos abren',
+  parcial: 'Algunos archivos no abren',
+  error: 'Ningún archivo abre',
+  'sin-datos': 'Sin analizar',
+};
 
 /** Descripciones cortas para las licencias reales del catálogo. */
 export const LICENSE_DESCRIPTIONS: Record<string, string> = {

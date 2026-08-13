@@ -6,35 +6,48 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { summarizeDelivery, summarizeContent, type SystemicCause } from "@/lib/availability";
-import { buildRepairActions, FAMILY_LABELS, type ActionFamily, type RepairAction } from "@/lib/repair-actions";
+import { buildRepairActions, DIMENSION_LABELS, type ActionFamily, type RepairAction } from "@/lib/repair-actions";
 import type { CatalogData } from "@/lib/types";
 import type { QualityReport } from "@/lib/quality-report";
 
 /** Cuántas acciones se pintan antes de remitir a la pestaña correspondiente. */
 const VISIBLE_ACTIONS = 12;
 
-const FAMILY_STYLE: Record<ActionFamily, { badge: string; icon: typeof FileWarning; tab: string }> = {
-  entrega: { badge: "border-bad-line bg-bad-surface text-bad", icon: FileWarning, tab: "ficheros" },
-  contenido: { badge: "border-warn-line bg-warn-surface text-warn", icon: SearchCode, tab: "ficheros" },
-  metadatos: { badge: "border-info-line bg-info-surface text-info", icon: Tags, tab: "metadatos" },
+/** Distintivo e icono de cada familia. El destino lo trae ya cada acción en `href`. */
+const FAMILY_STYLE: Record<ActionFamily, { badge: string; icon: typeof FileWarning }> = {
+  entrega: { badge: "border-bad-line bg-bad-surface text-bad", icon: FileWarning },
+  contenido: { badge: "border-warn-line bg-warn-surface text-warn", icon: SearchCode },
+  metadatos: { badge: "border-info-line bg-info-surface text-info", icon: Tags },
 };
 
 /**
  * Lo primero que ve quien publica: su lista de tareas.
  *
- * Sustituye al Panel, que era un cuadro de mando de indicadores agregados —media
- * de calidad, reparto por temática, formatos más usados— del que no se podía
- * sacar ninguna tarea. Aquí las tres familias de defecto se presentan juntas y
- * ordenadas por lo que se recupera al corregirlas, con el «qué hacer» al lado.
+ * Las tres familias de defecto se presentan juntas y ordenadas por lo que se
+ * recupera al corregirlas, cada una con su «qué hacer» al lado. Deliberadamente
+ * no es un cuadro de mando de indicadores agregados —media de calidad, reparto
+ * por temática, formatos más usados—: de una media no sale ninguna tarea.
  */
 export function PrioridadesSection({
   catalog,
   report,
   causes,
+  contentAffected,
 }: {
   catalog: CatalogData;
   report: QualityReport | null;
   causes: SystemicCause[];
+  /**
+   * Archivos que abren pero traen algún error de contenido, contados una sola
+   * vez cada uno.
+   *
+   * Llega calculado desde la página, de las mismas filas que alimentan la pestaña
+   * Archivos, para que las dos vistas no puedan dar cifras distintas del mismo
+   * hecho. No se puede derivar aquí a partir de las acciones: el máximo de
+   * `affected` entre ellas es el recuento de la incidencia más frecuente, no el
+   * de archivos afectados, y sale siempre por debajo del real.
+   */
+  contentAffected: number;
 }) {
   const delivery = summarizeDelivery(report);
   const content = summarizeContent(report);
@@ -43,10 +56,6 @@ export function PrioridadesSection({
   const shown = actions.slice(0, VISIBLE_ACTIONS);
   const hidden = actions.length - shown.length;
 
-  // Recursos que abren pero traen alguna incidencia de contenido.
-  const dirty = actions
-    .filter((a) => a.family === "contenido")
-    .reduce((max, a) => Math.max(max, a.affected), 0);
   const metadataDatasets = new Set<string>();
   for (const ds of catalog.datasets) {
     if (ds.metadataGaps.some((g) => g !== "sin-identificador" && g !== "sin-punto-contacto")) {
@@ -54,25 +63,25 @@ export function PrioridadesSection({
     }
   }
 
-  const STATE = [
+  const stateCards = [
     {
       family: "entrega" as const,
       value: (delivery.roto + delivery.noEntrega).toLocaleString("es-ES"),
-      label: "ficheros que no se pueden usar",
+      label: "archivos que no se pueden usar",
       detail: `${delivery.roto.toLocaleString("es-ES")} no abren · ${delivery.noEntrega.toLocaleString("es-ES")} no entregan el archivo`,
       href: "/calidad?vista=ficheros",
     },
     {
       family: "contenido" as const,
-      value: dirty.toLocaleString("es-ES"),
-      label: "ficheros abren con datos sucios",
+      value: contentAffected.toLocaleString("es-ES"),
+      label: "archivos que abren con errores en los datos",
       detail: `sobre los ${content.scored.toLocaleString("es-ES")} que se pueden leer`,
       href: "/calidad?vista=ficheros&familia=contenido",
     },
     {
       family: "metadatos" as const,
       value: metadataDatasets.size.toLocaleString("es-ES"),
-      label: "datasets con la ficha incompleta",
+      label: "conjuntos de datos con la ficha incompleta",
       detail: `de ${catalog.stats.totalDatasets.toLocaleString("es-ES")} publicados`,
       href: "/calidad?vista=metadatos",
     },
@@ -93,9 +102,8 @@ export function PrioridadesSection({
 
       {/* ── Estado en tres cifras ── */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        {STATE.map((s) => {
-          const style = FAMILY_STYLE[s.family];
-          const Icon = style.icon;
+        {stateCards.map((s) => {
+          const Icon = FAMILY_STYLE[s.family].icon;
           return (
             <Link
               key={s.family}
@@ -104,7 +112,7 @@ export function PrioridadesSection({
             >
               <p className="eyebrow mb-3 flex items-center gap-1.5">
                 <Icon className="h-3.5 w-3.5" aria-hidden />
-                {FAMILY_LABELS[s.family]}
+                {DIMENSION_LABELS[s.family]}
               </p>
               <p className="text-3xl font-bold tabular-nums text-strong">{s.value}</p>
               <p className="mt-1 text-sm font-medium text-body">{s.label}</p>
@@ -125,8 +133,8 @@ export function PrioridadesSection({
           Qué arreglar primero
         </h2>
         <p className="mt-1 max-w-3xl text-sm text-faint">
-          Un mismo fallo repetido en muchos recursos no son N incidencias: es una. Cuando algo falla
-          en todos los recursos de un formato aparece arriba, porque delata un proceso de publicación
+          Un mismo fallo repetido en muchos archivos no son N incidencias: es una. Cuando algo falla
+          en todos los archivos de un formato aparece arriba, porque delata un proceso de publicación
           y se corrige de una vez.
         </p>
 
@@ -137,8 +145,8 @@ export function PrioridadesSection({
               <div>
                 <h3 className="text-sm font-semibold text-strong">Nada pendiente</h3>
                 <p className="mt-1 text-sm text-body">
-                  El análisis no ha encontrado fallos de entrega, de contenido ni huecos de metadatos
-                  en el catálogo.
+                  El análisis no ha encontrado problemas de disponibilidad, de contenido ni campos de
+                  metadatos pendientes en el catálogo.
                 </p>
               </div>
             </CardContent>
@@ -155,9 +163,9 @@ export function PrioridadesSection({
             {hidden > 0 && (
               <p className="mt-4 text-sm text-faint">
                 Y {hidden.toLocaleString("es-ES")} {hidden === 1 ? "tarea" : "tareas"} más de menor
-                alcance. El detalle completo, recurso a recurso, está en{" "}
+                alcance. El detalle completo, archivo a archivo, está en{" "}
                 <Link href="/calidad?vista=ficheros" className="font-medium text-link underline-offset-2 hover:underline">
-                  Ficheros
+                  Archivos
                 </Link>{" "}
                 y{" "}
                 <Link href="/calidad?vista=metadatos" className="font-medium text-link underline-offset-2 hover:underline">
@@ -188,18 +196,18 @@ function ActionCard({ action, position }: { action: RepairAction; position: numb
           <div className="mb-1.5 flex flex-wrap items-center gap-2">
             <span
               className={cn(
-                "inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+                "inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide",
                 style.badge
               )}
             >
               <Icon className="h-3 w-3" aria-hidden />
-              {FAMILY_LABELS[action.family]}
+              {DIMENSION_LABELS[action.family]}
             </span>
-            {action.format && <Badge variant="format" className="text-[10px]">{action.format}</Badge>}
+            {action.format && <Badge variant="format" className="text-[11px]">{action.format}</Badge>}
             {action.wholeFormat && (
-              <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-bad">
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-bad">
                 <AlertTriangle className="h-3 w-3" aria-hidden />
-                Formato entero
+                Todo el formato
               </span>
             )}
           </div>
@@ -213,11 +221,15 @@ function ActionCard({ action, position }: { action: RepairAction; position: numb
               : ""}{" "}
             {action.unit}
             {action.datasets != null && (
-              <> · {action.datasets.toLocaleString("es-ES")} {action.datasets === 1 ? "dataset" : "datasets"}</>
+              <>
+                {" "}· {action.datasets.toLocaleString("es-ES")}{" "}
+                {action.datasets === 1 ? "conjunto de datos" : "conjuntos de datos"}
+              </>
             )}
           </p>
 
-          {/* El «qué hacer» es lo que el portal no decía en ninguna parte. */}
+          {/* El «qué hacer»: sin esto la tarjeta describe el fallo y deja al
+              publicador con la tarea sin empezar. */}
           <p className="mt-2 flex items-start gap-1.5 text-sm leading-relaxed text-body">
             <Wrench className="mt-0.5 h-3.5 w-3.5 shrink-0 text-faint" aria-hidden />
             <span>{action.action}</span>
@@ -231,7 +243,7 @@ function ActionCard({ action, position }: { action: RepairAction; position: numb
             href={action.href}
             className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-link underline-offset-2 hover:underline"
           >
-            Ver los {action.unit === "datasets" ? "datasets" : "ficheros"} afectados
+            Ver los {action.unit} afectados
             <ArrowRight className="h-3 w-3" aria-hidden />
           </Link>
         </div>

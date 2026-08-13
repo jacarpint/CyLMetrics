@@ -6,16 +6,11 @@ import {
   Table2, Columns3, TriangleAlert, Locate, type LucideIcon,
 } from 'lucide-react';
 import { SchemaTable } from '@/components/quality/schema-explorer';
-import { columnProfiles, findTabularIssues, type IssueVoice, type Occurrence } from '@/lib/tabular-analysis';
+import { columnProfiles, findTabularIssues, type Occurrence } from '@/lib/tabular-analysis';
+import { unitWords, capitalize, type UnitVoice } from '@/lib/unit-words';
 import { cn } from '@/lib/utils';
 
 const ROWS_PER_PAGE = 50;
-
-/** Cómo se nombran filas y columnas según lo que se esté mirando. */
-const WORDS: Record<IssueVoice, { row: string; rows: string; cols: string; colsLower: string }> = {
-  table: { row: 'fila', rows: 'filas', cols: 'Columnas', colsLower: 'columna' },
-  record: { row: 'registro', rows: 'registros', cols: 'Campos', colsLower: 'campo' },
-};
 
 export interface ExtraTab {
   id: string;
@@ -28,7 +23,7 @@ export interface TableExplorerProps {
   header: string[];
   rows: string[][];
   /** Vocabulario: una tabla tiene filas y columnas; un JSON o un mapa, registros y campos. */
-  voice: IssueVoice;
+  voice: UnitVoice;
   /** Etiqueta de la primera pestaña: «Datos», «Entidades»… */
   dataLabel?: string;
   /** Texto informativo a la derecha de las pestañas. */
@@ -68,7 +63,7 @@ export function TableExplorer({
   selectedRow = null,
   onSelectRow,
 }: TableExplorerProps) {
-  const words = WORDS[voice];
+  const words = unitWords(voice);
   const tabsId = useId();
 
   const [tab, setTab] = useState<string>('datos');
@@ -154,7 +149,7 @@ export function TableExplorer({
 
   const TABS: { id: string; label: string; icon: LucideIcon; badge?: number }[] = [
     { id: 'datos', label: dataLabel, icon: Table2 },
-    { id: 'columnas', label: words.cols, icon: Columns3, badge: header.length },
+    { id: 'columnas', label: capitalize(words.cols), icon: Columns3, badge: header.length },
     { id: 'incidencias', label: 'Incidencias', icon: TriangleAlert, badge: totalIssues || undefined },
     ...extraTabs.map((t) => ({ id: t.id, label: t.label, icon: t.icon })),
   ];
@@ -228,6 +223,7 @@ export function TableExplorer({
           </span>
           <div className="flex items-center gap-1">
             <button
+              type="button"
               onClick={() => goToOccurrence(activeIssue.code, tracking!.index - 1)}
               aria-label="Caso anterior"
               className="rounded-md border border-field bg-card p-1 text-body transition-colors hover:bg-fill"
@@ -238,6 +234,7 @@ export function TableExplorer({
               {(tracking!.index + 1).toLocaleString('es-ES')} de {activeIssue.occurrences.length.toLocaleString('es-ES')}
             </span>
             <button
+              type="button"
               onClick={() => goToOccurrence(activeIssue.code, tracking!.index + 1)}
               aria-label="Caso siguiente"
               className="rounded-md border border-field bg-card p-1 text-body transition-colors hover:bg-fill"
@@ -249,7 +246,7 @@ export function TableExplorer({
             <span className="text-[11px] text-faint">
               {activeOccurrence.row >= 0
                 ? `${words.row} ${(activeOccurrence.row + 1).toLocaleString('es-ES')}`
-                : 'encabezado'} · {words.colsLower}{' '}
+                : 'encabezado'} · {words.col}{' '}
               <strong className="font-medium text-body">{header[activeOccurrence.col]}</strong>
             </span>
           )}
@@ -258,6 +255,7 @@ export function TableExplorer({
             <kbd className="rounded border border-field bg-card px-1 font-sans">→</kbd> para avanzar
           </span>
           <button
+            type="button"
             onClick={() => setTracking(null)}
             className="ml-auto inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs text-faint transition-colors hover:bg-card hover:text-body"
           >
@@ -282,7 +280,7 @@ export function TableExplorer({
                 className="h-8 w-full rounded-lg border border-field bg-card pl-8 pr-7 text-xs text-body placeholder:text-faint focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-canvas disabled:opacity-50"
               />
               {query && (
-                <button onClick={() => { setQuery(''); setPage(0); }} aria-label="Limpiar búsqueda"
+                <button type="button" onClick={() => { setQuery(''); setPage(0); }} aria-label="Limpiar búsqueda"
                   className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-0.5 text-faint hover:text-body">
                   <X className="h-3.5 w-3.5" aria-hidden />
                 </button>
@@ -295,6 +293,7 @@ export function TableExplorer({
             )}
             {onSelectRow && selectedRow !== null && (
               <button
+                type="button"
                 onClick={() => onSelectRow(null)}
                 className="inline-flex items-center gap-1 rounded-md border border-field px-2 py-1 text-[11px] text-body transition-colors hover:bg-fill"
               >
@@ -384,19 +383,19 @@ export function TableExplorer({
                 Página {(safePage + 1).toLocaleString('es-ES')} de {totalPages.toLocaleString('es-ES')}
               </span>
               <div className="flex items-center gap-1">
-                <button onClick={() => setPage(0)} disabled={safePage === 0}
+                <button type="button" onClick={() => setPage(0)} disabled={safePage === 0}
                   className="rounded-md border border-field px-2 py-1 text-[11px] text-body transition-colors hover:bg-card disabled:opacity-40">
                   Primera
                 </button>
-                <button onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={safePage === 0} aria-label="Página anterior"
+                <button type="button" onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={safePage === 0} aria-label="Página anterior"
                   className="rounded-md border border-field p-1 text-body transition-colors hover:bg-card disabled:opacity-40">
                   <ChevronLeft className="h-3.5 w-3.5" aria-hidden />
                 </button>
-                <button onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))} disabled={safePage >= totalPages - 1} aria-label="Página siguiente"
+                <button type="button" onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))} disabled={safePage >= totalPages - 1} aria-label="Página siguiente"
                   className="rounded-md border border-field p-1 text-body transition-colors hover:bg-card disabled:opacity-40">
                   <ChevronRight className="h-3.5 w-3.5" aria-hidden />
                 </button>
-                <button onClick={() => setPage(totalPages - 1)} disabled={safePage >= totalPages - 1}
+                <button type="button" onClick={() => setPage(totalPages - 1)} disabled={safePage >= totalPages - 1}
                   className="rounded-md border border-field px-2 py-1 text-[11px] text-body transition-colors hover:bg-card disabled:opacity-40">
                   Última
                 </button>
@@ -453,6 +452,7 @@ export function TableExplorer({
                     <p className="mt-1 max-w-2xl text-xs leading-relaxed text-body">{issue.rule}</p>
                   </div>
                   <button
+                    type="button"
                     onClick={() => goToOccurrence(issue.code, 0)}
                     className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-field bg-card px-2.5 py-1.5 text-xs font-medium text-body transition-colors hover:bg-fill"
                   >

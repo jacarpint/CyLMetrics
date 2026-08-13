@@ -14,6 +14,7 @@ import { readShapefile, describeZip, ShapefileError } from '@/lib/shapefile-read
 import { ZipError } from '@/lib/zip-read';
 import { diagnose, sniff, ogcException, type Diagnosis } from '@/lib/geo-diagnose';
 import { formatBytes } from '@/lib/quality-labels';
+import { MAP_AUTOLOAD_CAP, PROXY_MAX_BYTES, exceedsProxyLimit } from '@/lib/download-budget';
 import { cn } from '@/lib/utils';
 import type { Bbox, GeoSpec, MapFeature } from '@/components/quality/geo-preview-map';
 
@@ -24,12 +25,6 @@ const GeoPreviewMap = dynamic(() => import('@/components/quality/geo-preview-map
 
 type OgcLayer = { name: string; title: string; bbox?: Bbox | null; queryable?: boolean; crs?: string };
 
-/**
- * Por encima de esto no se descarga sin preguntar: son megas que hay que
- * parsear en el navegador. Está por debajo del tope del proxy (32 MB) y por
- * encima del shapefile más grande que se lee bien (20,3 MB).
- */
-const AUTOLOAD_CAP = 24 * 1024 * 1024;
 /**
  * Escalera de reserva cuando la capa entera no llega.
  *
@@ -367,7 +362,7 @@ export function DistributionMap({
         }
 
         // Archivos: primero se mira si conviene descargarlos sin preguntar.
-        if (sizeBytes != null && sizeBytes > AUTOLOAD_CAP && attempt === 0) {
+        if (sizeBytes != null && sizeBytes > MAP_AUTOLOAD_CAP && attempt === 0) {
           return { kind: 'too-big', size: sizeBytes };
         }
 
@@ -622,13 +617,26 @@ export function DistributionMap({
         <p className="mt-1">
           No se descarga solo para no cargar tantos datos en el navegador sin avisar.
         </p>
+        {/*
+          Pasado el techo del proxy el reintento acabaría en un 413, así que se
+          dice el límite y se deja solo la descarga.
+        */}
+        {exceedsProxyLimit(source.size) && (
+          <p className="mt-1">
+            Y pasa de {formatBytes(PROXY_MAX_BYTES)}, que es el máximo que este portal puede traer, así
+            que aquí no se puede dibujar.
+          </p>
+        )}
         <div className="mt-2 flex flex-wrap items-center gap-3">
-          <button
-            onClick={() => setAttempt((n) => n + 1)}
-            className="font-medium text-link underline-offset-2 hover:underline"
-          >
-            Dibujarlo de todos modos
-          </button>
+          {!exceedsProxyLimit(source.size) && (
+            <button
+              type="button"
+              onClick={() => setAttempt((n) => n + 1)}
+              className="font-medium text-link underline-offset-2 hover:underline"
+            >
+              Dibujarlo de todos modos
+            </button>
+          )}
           <a href={url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-medium text-link underline-offset-2 hover:underline">
             <ExternalLink className="h-3 w-3" aria-hidden /> Descargar el recurso
           </a>

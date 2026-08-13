@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { presentationForFormat } from '@/components/quality/issue-explorer';
+import { presentationForFormat } from '@/lib/unit-words';
 
 /**
  * La cuadrícula de filas y columnas solo describe bien a los formatos

@@ -24,7 +24,9 @@ export async function GET(request: NextRequest) {
   const reportBySlug = new Map((report?.datasets ?? []).map((d) => [datasetSlug(d.dataset_id), d]));
 
   const filtered = applyFilters(catalog.datasets, filters, analysisBySlug);
-  const sorted = sortDatasets(filtered, filters.sort);
+  // Con el análisis, para que `?sort=quality-desc` ordene por el mismo número que
+  // esta respuesta publica en `scores.overall`.
+  const sorted = sortDatasets(filtered, filters.sort, analysisBySlug);
   const total = sorted.length;
   const totalPages = Math.max(1, Math.ceil(total / filters.limit));
 

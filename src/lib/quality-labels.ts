@@ -156,10 +156,12 @@ export function schemaTypeLabel(type: string): string {
 
 const SCHEMA_TYPE_LABELS: Record<string, string> = {
   string: 'Texto',
-  number: 'Numérico',
+  number: 'Número',
   date: 'Fecha',
-  boolean: 'Booleano',
-  unknown: 'Desconocido',
+  // «Booleano» solo lo entiende quien programa; lo que la columna contiene es
+  // sí o no.
+  boolean: 'Sí / No',
+  unknown: 'Sin determinar',
 };
 
 const AVAILABILITY_ISSUES: Record<string, true> = {
@@ -210,62 +212,233 @@ const CATEGORY_LABELS: Record<IssueCategory, string> = {
   content: 'Calidad de contenido',
 };
 
+/**
+ * Etiquetas de incidencia en lenguaje llano.
+ *
+ * Estas cadenas son lo que lee cualquiera que entre en el portal: salen en las
+ * filas de la tabla de archivos, en la ficha de cada archivo y en el CSV
+ * descargable. Estaban escritas en el idioma del motor de análisis —«no se puede
+ * parsear», «la firma (magic bytes) no es la esperada», «no declara
+ * FeatureTypes»—, que no significa nada para quien publica los datos ni para
+ * quien quiere reutilizarlos.
+ *
+ * El criterio: decir qué le pasa al archivo, no cómo lo ha detectado el
+ * analizador. El nombre del formato se mantiene cuando es lo que el publicador
+ * tiene que buscar (XLSX, GeoJSON, shapefile); se retira cuando es solo el
+ * mecanismo interno.
+ */
 export const ISSUE_LABELS: Record<string, string> = {
   // Estados de la descarga (`fetch.status`). No son incidencias del analizador,
   // pero `deliveryCause` cae a ellos cuando la descarga falla sin dejar código,
   // y sin etiqueta se enseñaban en crudo: «http_error».
-  http_error: 'El servidor respondió con un error HTTP',
+  http_error: 'El servidor respondió con un error',
   unreachable: 'No se pudo contactar con el servidor',
   service: 'El servicio de origen no atendió la petición',
-  too_large: 'Supera el tamaño máximo descargable',
+  too_large: 'Supera el tamaño máximo que este portal descarga',
   'celda-faltante': 'Celdas vacías en filas con datos',
-  'error-tipo': 'Valores con tipo distinto al de su columna',
+  'error-tipo': 'Valores que no encajan con el tipo de su columna',
   'encabezado-vacio': 'Encabezados de columna vacíos',
   'fila-vacia': 'Filas completamente vacías',
   'celda-extra': 'Celdas de más (filas más largas que el encabezado)',
   'encabezado-duplicado': 'Encabezados de columna duplicados',
   'fila-duplicada': 'Filas duplicadas',
-  'error-restriccion': 'Valores fuera de las restricciones del esquema',
-  'error-unico': 'Valores duplicados en una columna única',
-  'error-esquema': 'Problemas al inferir el esquema de datos',
-  'zip-invalido': 'El archivo no es un ZIP válido',
-  'servicio-error': 'El servicio de origen rechaza la petición del archivo',
-  'descarga-truncada': 'No se pudo verificar: la descarga se cortó por tamaño',
-  'json-invalido': 'JSON no válido (no se puede parsear)',
-  'xlsx-invalido': 'XLSX no válido',
+  'error-restriccion': 'Valores fuera de lo que admite su columna',
+  'error-unico': 'Valores repetidos en una columna que no debería repetirlos',
+  'error-esquema': 'No se ha podido deducir la estructura de las columnas',
+  'zip-invalido': 'El archivo comprimido (ZIP) está dañado',
+  'servicio-error': 'El servicio de origen rechaza la descarga del archivo',
+  'descarga-truncada': 'Comprobado solo en parte: la descarga se cortó por tamaño',
+  'json-invalido': 'El archivo JSON no se puede leer',
+  'xlsx-invalido': 'El archivo Excel no se puede abrir',
   'formato-no-esperado': 'El contenido no coincide con el formato declarado',
-  'xml-no-bien-formado': 'XML no bien formado',
-  'archivo-vacio': 'El archivo descargado está vacío (0 bytes)',
-  'error-encoding': 'Error de codificación de caracteres',
+  'xml-no-bien-formado': 'El archivo XML tiene errores de estructura',
+  'archivo-vacio': 'El archivo se descarga vacío (0 bytes)',
+  'error-encoding': 'Los acentos y las eñes llegan corrompidos',
   'no-es-archivo': 'La URL no devuelve un archivo',
-  'error-fuente': 'Error de la fuente de datos',
-  'xml-reparado': 'XML reparado automáticamente (encoding/entidades)',
+  'error-fuente': 'El servidor de origen devolvió un error',
+  'xml-reparado': 'El XML tenía errores que se han corregido al leerlo',
   'descarga': 'Error de descarga',
-  'fallo-analizador': 'Fallo interno del analizador',
-  'tipo-detectado': 'El contenido real difiere del formato declarado',
-  'tipo-no-identificado': 'No se pudo identificar el tipo de archivo',
-  'xls-legado': 'Declarado XLSX pero el archivo es Excel 97-2003 (.xls)',
-  'dependencia-faltante': 'Componente de análisis no disponible',
-  'error-validacion': 'La validación de la estructura falló',
-  'servicio-no-disponible': 'El servicio (WMS/WFS) no responde',
+  'fallo-analizador': 'Fallo interno del análisis de este portal',
+  'tipo-detectado': 'El contenido no coincide con el formato anunciado',
+  'tipo-no-identificado': 'No se ha podido identificar qué tipo de archivo es',
+  'xls-legado': 'Se anuncia como XLSX pero es un Excel antiguo (.xls)',
+  'dependencia-faltante': 'Este portal no dispone de lector para este formato',
+  'error-validacion': 'La comprobación de la estructura no se pudo completar',
+  'servicio-no-disponible': 'El servicio de mapas no responde',
   'no-es-imagen': 'El contenido descargado no es una imagen',
-  'sin-datos': 'El archivo no contiene filas de datos',
-  'sin-contenido': 'El archivo está vacío',
-  'sin-entidades': 'El documento no contiene elementos declarados',
+  'sin-datos': 'El archivo no contiene ninguna fila de datos',
+  'sin-contenido': 'El archivo no tiene contenido',
+  'sin-entidades': 'El documento no contiene ningún registro',
   'sin-eventos': 'El calendario no contiene eventos',
-  'errores-linea': 'Líneas mal formadas ignoradas por el parser',
-  'sin-capas': 'El servicio WMS no declara capas',
-  'sin-feature-types': 'El servicio WFS no declara FeatureTypes',
-  'imagen-corrupta': 'La imagen no se puede decodificar',
-  'firma-invalida': 'La firma (magic bytes) no es la esperada',
-  'geojson-invalido': 'El archivo no es GeoJSON válido',
-  'raiz-invalida': 'La raíz del documento no es la esperada',
-  'tipo-desconocido': 'Tipo GeoJSON no reconocido',
-  'geometria-nula': 'Elementos sin geometría',
-  'sin-features': 'El recurso no contiene elementos geográficos',
-  'sin-prj': 'El shapefile no incluye proyección (.prj)',
-  'shp-faltante': 'El ZIP no contiene un shapefile (.shp)',
-  'zip-extraccion': 'No se pudo extraer el shapefile del ZIP',
-  'shp-lectura': 'El shapefile no se pudo leer',
-  'ical-invalido': 'El archivo no es iCalendar válido',
+  'errores-linea': 'Líneas mal formadas que se han descartado al leer',
+  'sin-capas': 'El servicio de mapas no ofrece ninguna capa',
+  'sin-feature-types': 'El servicio de mapas no ofrece ninguna capa de datos',
+  'imagen-corrupta': 'La imagen está dañada y no se puede abrir',
+  'firma-invalida': 'El contenido no es del tipo que anuncia el archivo',
+  'geojson-invalido': 'El archivo GeoJSON no cumple la especificación',
+  'raiz-invalida': 'El documento no tiene la estructura esperada',
+  'tipo-desconocido': 'El GeoJSON usa un tipo de geometría no reconocido',
+  'geometria-nula': 'Elementos sin ubicación en el mapa',
+  'sin-features': 'El archivo no contiene ningún elemento geográfico',
+  'sin-prj': 'El mapa no dice en qué sistema de coordenadas está (falta el .prj)',
+  'shp-faltante': 'El ZIP no contiene el mapa (.shp) que debería',
+  'zip-extraccion': 'El ZIP no se ha podido descomprimir',
+  'shp-lectura': 'El mapa (shapefile) no se ha podido leer',
+  'ical-invalido': 'El calendario no se puede leer',
 };
+
+/**
+ * Qué significa cada incidencia para quien quiere usar el archivo.
+ *
+ * Complementa a `ISSUE_LABELS`, no lo repite: la etiqueta dice *qué le pasa* al
+ * archivo y sale como titular; esto dice *qué implica* y se lee debajo. Escribir
+ * aquí otra vez el titular con más palabras es lo que hacía la tabla anterior.
+ *
+ * Vivía dentro del explorador de incidencias, aislada del resto del portal, y de
+ * ahí venían sus dos defectos. Cubría 18 de los 50 códigos, así que los otros 32
+ * se desplegaban sin ninguna explicación —el hueco no se veía, simplemente no se
+ * pintaba nada—. Y estaba escrita para quien programa: «puede causar errores en
+ * parsers», «conflictos al indexar o hacer joins», «timeout, 404, acceso
+ * denegado». Justo la página donde alguien llega sin saber qué mira era la única
+ * que no hablaba su idioma.
+ *
+ * El criterio es el de la consecuencia: no cómo lo ha detectado el analizador,
+ * sino qué se encuentra quien abra el archivo. Y separado a propósito de
+ * `CONTENT_ACTIONS` en `repair-actions.ts`, que dice qué hacer para arreglarlo:
+ * eso se lee desde el panel de reparación, donde está quien publica el dato y
+ * puede ejecutarlo. Aquí está quien lo reutiliza, y darle instrucciones sobre un
+ * archivo que no controla no le sirve de nada.
+ */
+const ISSUE_EXPLANATIONS: Record<string, string> = {
+  // Estados de la descarga, por si `deliveryCause` cae a ellos sin código.
+  http_error:
+    'El servidor del organismo contesta, pero con un error en lugar del archivo. Si no es algo momentáneo, el enlace del catálogo apunta a algo que ya no está ahí.',
+  unreachable:
+    'No hay respuesta del servidor que guarda el archivo. Mientras siga así, el dato consta como publicado pero no hay forma de conseguirlo.',
+  service:
+    'El servicio que sirve estos datos recibe la petición y no la atiende. Puede estar saturado o no admitir descargas automáticas.',
+  too_large:
+    'El archivo pasa del tamaño que este portal descarga para analizar, así que su contenido no se ha comprobado. No es un defecto del archivo: se sigue pudiendo descargar del enlace original.',
+
+  // Contenido: el archivo se abre, lo que hay dentro es lo que falla.
+  'celda-faltante':
+    'Hay filas con datos en unas columnas y vacías en otras. Puede ser normal —un campo que no siempre aplica— o faltar de verdad; el archivo por sí solo no lo distingue, hay que mirar de qué columna se trata.',
+  'error-tipo':
+    'Una columna que casi siempre trae números o fechas contiene algún valor de otro tipo. Al sumarla u ordenarla el resultado sale mal, y nada avisa de que ha salido mal.',
+  'encabezado-vacio':
+    'Alguna columna llega sin nombre en la primera fila. Al abrir el archivo no hay manera de saber qué contiene, ni de referirse a ella.',
+  'fila-vacia':
+    'Entre los datos hay filas completamente en blanco. Cuentan al contar filas, así que hay que quitarlas antes de usar el archivo.',
+  'celda-extra':
+    'Algunas filas traen más celdas que columnas tiene el encabezado, así que a partir de ahí los valores dejan de corresponder con su columna. Suele venir de un separador colado dentro de un texto sin entrecomillar.',
+  'encabezado-duplicado':
+    'Dos columnas se llaman igual, así que al pedir esa columna por su nombre no se sabe cuál de las dos llega.',
+  'fila-duplicada':
+    'El mismo registro aparece más de una vez. Si se cuentan o se suman, el total sale inflado.',
+  'error-restriccion':
+    'Hay valores que se salen de lo que su propia columna admite según la estructura que el archivo declara.',
+  'error-unico':
+    'Una columna que debería identificar cada fila repite valores, así que no sirve para distinguir una fila de otra.',
+  'error-esquema':
+    'No se ha podido determinar qué contiene cada columna, normalmente porque el encabezado o los datos no son uniformes. Sin eso, las demás comprobaciones de contenido no se pueden aplicar.',
+  'sin-datos':
+    'El archivo tiene encabezado pero ninguna fila debajo: está la estructura, no los datos.',
+  'sin-contenido': 'El archivo se abre pero no tiene nada dentro. No hay nada que consultar.',
+  'sin-entidades': 'El documento se lee sin problemas, pero no contiene ningún registro.',
+  'sin-eventos': 'El calendario se lee sin problemas, pero no tiene ninguna cita dentro.',
+  'errores-linea':
+    'Algunas líneas no se han podido leer y se han descartado, así que lo que se ve es el archivo sin ellas y las cifras cubren solo las líneas válidas.',
+  'geometria-nula':
+    'Hay elementos sin coordenadas: están en el archivo, pero no se pueden situar en el mapa.',
+  'sin-features': 'El archivo es un mapa, pero no contiene ninguna forma que dibujar.',
+  'descarga-truncada':
+    'La descarga se cortó al llegar al tope de este portal, así que todo lo analizado cubre solo el principio del archivo. Las cifras son de esa parte, no del total.',
+  'fallo-analizador':
+    'El análisis de este portal falló al procesar el archivo. Es un problema nuestro, no del dato: el archivo puede estar perfectamente.',
+
+  // Formato: lo que llega no es lo que dice ser, o no se puede abrir.
+  'zip-invalido':
+    'Lo que se descarga no se abre como archivo comprimido, así que no hay forma de llegar a lo que lleva dentro.',
+  'json-invalido':
+    'El texto del archivo no cumple las reglas del formato JSON, así que ningún programa lo lee tal cual.',
+  'xlsx-invalido':
+    'El archivo no se abre como hoja de cálculo. Puede estar dañado o ser en realidad otro formato con la extensión cambiada.',
+  'formato-no-esperado':
+    'Lo que devuelve el enlace no es del formato que anuncia el catálogo. Quien lo descargue esperando ese formato se encontrará otra cosa.',
+  'xml-no-bien-formado':
+    'El archivo XML tiene etiquetas mal cerradas o caracteres que no admite, y así no se puede leer.',
+  'error-encoding':
+    'El archivo no respeta la codificación con la que dice estar escrito, así que los acentos y las eñes se leen como símbolos raros.',
+  'xml-reparado':
+    'El XML tenía defectos que se han podido sortear al leerlo aquí, pero un programa más estricto puede rechazarlo.',
+  'tipo-detectado':
+    'El contenido real del archivo no es del tipo que anuncian su extensión y el catálogo.',
+  'tipo-no-identificado':
+    'No se ha reconocido de qué tipo es el contenido descargado, así que no se sabe con qué abrirlo.',
+  'xls-legado':
+    'Se anuncia como XLSX pero por dentro es un Excel de los antiguos. Los programas que solo aceptan XLSX lo rechazan.',
+  'dependencia-faltante':
+    'Este portal no tiene con qué leer este formato, así que su contenido no se ha comprobado. No es un defecto del archivo.',
+  'error-validacion':
+    'La comprobación de la estructura no se pudo terminar, así que de este archivo consta lo que se ve, pero sin verificar.',
+  'ical-invalido':
+    'El archivo no se abre como calendario, así que no se puede cargar en una agenda.',
+  'firma-invalida':
+    'El interior del archivo no corresponde al tipo que anuncia: por dentro es otra cosa.',
+  'geojson-invalido':
+    'El archivo se lee como JSON pero no respeta las reglas del GeoJSON, así que los programas de mapas no lo aceptan.',
+  'raiz-invalida':
+    'El documento se lee, pero por dentro no tiene la forma que su formato exige.',
+  'tipo-desconocido':
+    'El archivo usa un tipo de forma geográfica que no está entre los que define el formato, así que puede no dibujarse.',
+  'sin-prj':
+    'Falta la pieza que dice en qué sistema de coordenadas está el mapa. Sin ella hay que suponerlo, y al suponer mal las formas aparecen en otro punto del mundo.',
+  'shp-faltante':
+    'El comprimido no incluye el .shp, que es la pieza con el mapa. Sin ella, las demás no sirven de nada.',
+  'zip-extraccion':
+    'El comprimido se reconoce como tal, pero no se ha podido abrir para sacar lo que hay dentro.',
+  'shp-lectura': 'El mapa viene dentro del comprimido, pero no se ha podido leer.',
+  'no-es-imagen': 'Lo que devuelve el enlace no es una imagen, aunque se anuncie como tal.',
+  'imagen-corrupta': 'La imagen se descarga, pero no se puede abrir.',
+
+  // Disponibilidad: no se llega al archivo.
+  'descarga':
+    'El archivo no se ha podido descargar del servidor del organismo. Mientras siga así, figura en el catálogo pero no se puede conseguir.',
+  'error-fuente':
+    'El servidor que guarda el archivo devolvió un error en lugar del contenido.',
+  'no-es-archivo':
+    'La dirección responde, pero con una página web en lugar del archivo. Una persona puede buscar dentro el enlace de descarga; un programa que se actualiza solo, no.',
+  'archivo-vacio': 'La descarga funciona, pero lo que llega no tiene nada dentro: cero bytes.',
+  'servicio-no-disponible': 'El servicio de mapas que sirve estos datos no responde.',
+  'servicio-error':
+    'El servicio contesta, pero rechaza la petición de este archivo. Suele querer decir que la capa publicada ya no existe en el servidor.',
+  'sin-capas':
+    'El servicio de mapas responde, pero no ofrece ninguna capa: no hay nada que consultar.',
+  'sin-feature-types':
+    'El servicio responde, pero no ofrece ninguna capa de datos que se pueda descargar.',
+};
+
+/**
+ * Qué implica una incidencia para quien usa el archivo, o `null` si no consta.
+ *
+ * Devuelve `null` en vez de una cadena vacía para que quien llama se ahorre el
+ * recuadro entero: un bloque de explicación vacío es peor que ninguno.
+ */
+export function issueExplanation(code: string): string | null {
+  return ISSUE_EXPLANATIONS[code] ?? null;
+}
+
+/**
+ * Fecha ISO en formato largo castellano: «1 de marzo de 2022».
+ *
+ * Las mismas opciones estaban repetidas en cada página que muestra una fecha, y
+ * una fecha inválida se pintaba tal cual —cadena ISO en crudo— o rompía el
+ * render. Devuelve `null` cuando no hay nada que formatear, para que quien llama
+ * decida qué poner.
+ */
+export function formatLongDate(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' });
+}

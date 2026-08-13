@@ -144,6 +144,7 @@ export function JsonTree({ data, url }: { data: Json; url: string }) {
               />
               {query && (
                 <button
+                  type="button"
                   onClick={() => setQuery('')}
                   aria-label="Limpiar búsqueda"
                   className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-0.5 text-faint hover:text-body"
@@ -164,12 +165,14 @@ export function JsonTree({ data, url }: { data: Json; url: string }) {
 
             <div className="flex items-center gap-1">
               <button
+                type="button"
                 onClick={unfoldAll}
                 className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] text-faint transition-colors hover:bg-fill hover:text-body"
               >
                 <UnfoldVertical className="h-3.5 w-3.5" aria-hidden /> Desplegar
               </button>
               <button
+                type="button"
                 onClick={foldAll}
                 className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] text-faint transition-colors hover:bg-fill hover:text-body"
               >
@@ -187,6 +190,7 @@ export function JsonTree({ data, url }: { data: Json; url: string }) {
           >
             {(['tree', 'raw'] as const).map((m) => (
               <button
+                type="button"
                 key={m}
                 onClick={() => setMode(m)}
                 aria-pressed={mode === m}
@@ -200,6 +204,7 @@ export function JsonTree({ data, url }: { data: Json; url: string }) {
             ))}
           </div>
           <button
+            type="button"
             onClick={copyRaw}
             className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-faint transition-colors hover:bg-fill hover:text-body"
           >
@@ -390,7 +395,7 @@ function JsonNode({ value, name, path, depth, expanded, onToggle, forceOpen, mat
           )}
           {!isOpen && <span className="text-faint">{close}</span>}
           {isOpen && (
-            <span className="ml-1.5 text-[10px] text-faint">
+            <span className="ml-1.5 text-[11px] text-faint">
               {count.toLocaleString('es-ES')} {asArray ? 'elem.' : 'claves'}
             </span>
           )}

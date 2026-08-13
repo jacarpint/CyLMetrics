@@ -4,7 +4,7 @@ import Image from "next/image";
 import { FormEvent, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { BarChart3, Database, Home, Menu, Search, X, BookOpen } from "lucide-react";
+import { BarChart3, Database, Home, Menu, Search, X, BookOpen, Library } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
 
@@ -13,6 +13,7 @@ const navItems = [
   { label: "Catálogo", href: "/catalogo", icon: Database },
   { label: "Calidad", href: "/calidad", icon: BarChart3 },
   { label: "Metodología", href: "/metodologia", icon: BookOpen },
+  { label: "Glosario", href: "/glosario", icon: Library },
 ];
 
 export function Header() {
@@ -48,11 +49,11 @@ export function Header() {
         <Link
           href="/"
           className="flex shrink-0 items-center rounded-md transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
-          aria-label="JCyL Data Quality Portal, ir al inicio"
+          aria-label="Portal de Calidad de Datos Abiertos de Castilla y León, ir al inicio"
         >
           <Image
             src="/jcyl-data-quality-portal-logo-transparent.png"
-            alt="JCyL Data Quality Portal"
+            alt="Portal de Calidad de Datos Abiertos de Castilla y León"
             width={900}
             height={420}
             priority
@@ -79,10 +80,10 @@ export function Header() {
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-faint" />
             <input
               type="search"
-              placeholder="Buscar datasets..."
+              placeholder="Buscar conjuntos de datos…"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              aria-label="Buscar datasets"
+              aria-label="Buscar conjuntos de datos"
               className="h-10 w-56 rounded-lg border border-field bg-fill pl-9 pr-3 text-sm text-body placeholder:text-faint transition-all focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
             />
           </form>
@@ -109,10 +110,10 @@ export function Header() {
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-faint" />
             <input
               type="search"
-              placeholder="Buscar datasets..."
+              placeholder="Buscar conjuntos de datos…"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              aria-label="Buscar datasets"
+              aria-label="Buscar conjuntos de datos"
               className="h-11 w-full rounded-lg border border-field bg-fill pl-9 pr-3 text-sm text-body placeholder:text-faint focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
             />
           </form>

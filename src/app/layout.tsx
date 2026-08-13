@@ -4,6 +4,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { Header } from "@/components/layout/Header";
 import { Sidebar } from "@/components/layout/Sidebar";
+import { Footer } from "@/components/layout/Footer";
 import { getCatalog } from "@/lib/rdf-catalog";
 
 const inter = Inter({
@@ -12,8 +13,11 @@ const inter = Inter({
   variable: "--font-inter",
 });
 
+/** Nombre único del sitio: cada página aporta solo su propio título. */
+const SITE_NAME = "Portal de Calidad de Datos Abiertos de Castilla y León";
+
 export const metadata: Metadata = {
-  title: "JCyL Data Quality Portal | Datos Abiertos de Castilla y León",
+  title: { default: SITE_NAME, template: `%s | ${SITE_NAME}` },
   description:
     "Observatorio de la calidad del catálogo de datos abiertos de la Junta de Castilla y León: metadatos, formatos, licencias, disponibilidad y reutilización.",
   keywords: [
@@ -28,7 +32,7 @@ export const metadata: Metadata = {
     "Junta de Castilla y León",
   ],
   openGraph: {
-    title: "JCyL Data Quality Portal",
+    title: SITE_NAME,
     description:
       "Observatorio de calidad y reutilización de los datos abiertos de Castilla y León.",
     type: "website",
@@ -62,15 +66,15 @@ export default async function RootLayout({
           <Suspense fallback={null}>
             <Sidebar stats={catalog.stats} />
           </Suspense>
-          {/* Sin `overflow-y-auto`: el contenedor no tiene alto fijo, así que
-              nunca llegaba a hacer scroll propio, pero sí convertía a `main` en
-              contenedor de desplazamiento y eso desactivaba cualquier
-              `position: sticky` de dentro (la barra de recorrido del
-              explorador). Quien hace scroll es la página. */}
+          {/* Quien hace scroll es la página, no `main`. No añadir aquí
+              `overflow-y-auto`: convierte a `main` en contenedor de
+              desplazamiento y eso desactiva el `position: sticky` de lo que
+              lleve dentro, como la barra de recorrido del explorador. */}
           <main id="contenido-principal" tabIndex={-1} className="min-w-0 flex-1 p-4 sm:p-6 focus:outline-none">
             {children}
           </main>
         </div>
+        <Footer />
       </body>
     </html>
   );

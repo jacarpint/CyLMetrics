@@ -47,7 +47,25 @@ const SECURITY_HEADERS = [
   { key: "Content-Security-Policy", value: CSP },
 ];
 
+/**
+ * Secciones que se absorbieron dentro de Catálogo y Calidad.
+ *
+ * Van aquí y no como páginas con `redirect()`: así se resuelven antes del
+ * sistema de ficheros, con un 308 cacheable, sin arrancar el render de un
+ * componente de servidor solo para descartarlo. Se mantienen porque puede
+ * haber enlaces entrantes a las URL antiguas.
+ */
+const LEGACY_ROUTES = [
+  { source: "/gis", destination: "/catalogo?geo=1" },
+  { source: "/tendencias", destination: "/calidad?vista=evolucion" },
+  { source: "/transparencia", destination: "/calidad?vista=prioridades" },
+  { source: "/alertas", destination: "/calidad?vista=ficheros&familia=contenido" },
+];
+
 const nextConfig: NextConfig = {
+  async redirects() {
+    return LEGACY_ROUTES.map((route) => ({ ...route, permanent: true }));
+  },
   async headers() {
     return [
       { source: "/(.*)", headers: SECURITY_HEADERS },

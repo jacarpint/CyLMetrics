@@ -88,3 +88,34 @@ export function spatialLabel(value: string | undefined | null): string | null {
   if (!segment) return null;
   return TERRITORY_LABELS[segment] ?? humanize(segment) ?? null;
 }
+
+/**
+ * Periodicidad declarada (`dct:accrualPeriodicity`) en palabras.
+ *
+ * Estaba escrita dos veces, una por página, y las dos versiones NO coincidían:
+ * un conjunto con periodicidad inferior al mes se llamaba «Continua» en su ficha
+ * y «diaria» en el informe de calidad. Mismo dato, dos nombres, en el mismo
+ * portal.
+ *
+ * `capitalized` es lo único que cambia entre los dos usos: la ficha lo pinta como
+ * valor de un campo y el informe lo intercala en una frase.
+ */
+const PERIODICITY_LABELS: Record<number, string> = {
+  1: 'mensual',
+  3: 'trimestral',
+  6: 'semestral',
+  12: 'anual',
+};
+
+export function periodicityLabel(
+  months: number | null | undefined,
+  { capitalized = false }: { capitalized?: boolean } = {}
+): string | null {
+  if (months == null || months <= 0) return null;
+  const label =
+    PERIODICITY_LABELS[months] ??
+    // Por debajo del mes el catálogo no distingue el intervalo exacto, así que
+    // se dice lo único que consta: que se actualiza más de una vez al mes.
+    (months < 1 ? 'más de una vez al mes' : `cada ${Math.round(months)} meses`);
+  return capitalized ? label.charAt(0).toUpperCase() + label.slice(1) : label;
+}

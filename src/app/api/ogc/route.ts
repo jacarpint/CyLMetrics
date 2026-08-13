@@ -1,9 +1,8 @@
 import { XMLParser } from "fast-xml-parser";
 import { isAllowedHost, isAllowedResponse } from "@/lib/proxy-allow";
+import { OGC_TIMEOUT_MS } from "@/lib/download-budget";
 
 export const revalidate = 3600;
-
-const TIMEOUT_MS = 12000;
 
 type Bbox = { west: number; south: number; east: number; north: number };
 type Layer = {
@@ -96,7 +95,7 @@ type Fetched = { text: string; finalUrl: string; ok: boolean };
  */
 async function fetchText(url: string): Promise<Fetched | null> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), OGC_TIMEOUT_MS);
   try {
     const res = await fetch(url, {
       signal: controller.signal,

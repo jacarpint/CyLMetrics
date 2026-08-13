@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getQualityReport } from "@/lib/quality-report";
+import { getQualityReport, matchDistributions } from "@/lib/quality-report";
 import { getCatalog } from "@/lib/rdf-catalog";
-import { summarizeDelivery } from "@/lib/availability";
+import { classifyDelivery, summarizeDelivery } from "@/lib/availability";
 import { getScoreLevel } from "@/lib/quality";
+import { distributionSlugs, resolveDistributionIndex } from "@/lib/distribution-slug";
 import { datasetSlug } from "@/lib/utils";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const datasetId = searchParams.get("dataset");
   const publisher = searchParams.get("publisher");
+  const distribucion = searchParams.get("distribucion");
 
   const report = getQualityReport();
   if (!report) {
@@ -29,6 +31,50 @@ export async function GET(request: NextRequest) {
     if (!ds) {
       return NextResponse.json({ error: "Dataset not found" }, { status: 404 });
     }
+
+    /**
+     * Un solo archivo, con `?distribucion=csv`.
+     *
+     * El slug es el MISMO que lleva la URL de la ficha (`/catalogo/1285.../csv-2`),
+     * así que la dirección de la API se deduce de la del navegador sin tener que
+     * consultar nada. Se resuelve contra el catálogo y no contra el informe,
+     * porque el catálogo es quien decide qué archivos existen y en qué orden.
+     */
+    if (distribucion) {
+      const catalog = await getCatalog();
+      const catalogDs = catalog.datasets.find((d) => datasetSlug(d.id) === datasetSlug(ds.dataset_id));
+      if (!catalogDs) {
+        return NextResponse.json({ error: "Dataset not found in catalog" }, { status: 404 });
+      }
+
+      const formats = catalogDs.distributionUrls.map((d) => d.format);
+      const idx = resolveDistributionIndex(formats, distribucion);
+      const distMeta = idx >= 0 ? catalogDs.distributionUrls[idx] : undefined;
+      if (!distMeta) {
+        return NextResponse.json(
+          { error: "Distribution not found", available: distributionSlugs(formats) },
+          { status: 404 }
+        );
+      }
+
+      // Emparejado por URL y no por posición, igual que la ficha.
+      const dist = matchDistributions(catalogDs.distributionUrls, ds.distribution_results)[idx];
+      const slug = distributionSlugs(formats)[idx];
+
+      return NextResponse.json({
+        dataset_id: ds.dataset_id,
+        distribution: slug,
+        format: distMeta.format,
+        url: distMeta.url,
+        // `null` cuando el archivo se publicó después del último análisis: es
+        // «todavía no comprobado», que no es lo mismo que «sin incidencias».
+        analyzed: dist != null,
+        delivery: dist ? classifyDelivery(dist) : null,
+        fetch: dist?.fetch ?? null,
+        analysis: dist?.analysis ?? null,
+      }, { headers: cacheHeaders });
+    }
+
     return NextResponse.json({
       dataset_id: ds.dataset_id,
       title: ds.dataset_title,

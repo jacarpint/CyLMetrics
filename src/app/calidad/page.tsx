@@ -21,6 +21,7 @@ import {
 import { isBlockingCode } from "@/lib/alerts";
 import { METADATA_GAPS, type MetadataGapCode } from "@/lib/metadata-gaps";
 import { distributionSlugs } from "@/lib/distribution-slug";
+import { periodicityLabel } from "@/lib/vocabularies";
 import { cn, datasetSlug } from "@/lib/utils";
 import type { CatalogData, Dataset } from "@/lib/types";
 import { PrioridadesSection } from "@/components/pages/calidad/PrioridadesSection";
@@ -35,21 +36,19 @@ import { EvolucionSection } from "@/components/pages/calidad/EvolucionSection";
 export const revalidate = 3600;
 
 export const metadata = {
-  title: "Calidad del Catálogo | JCyL Data Quality Portal",
+  title: "Calidad del catálogo",
   description:
-    "Qué hay que corregir en el catálogo de datos abiertos de Castilla y León: ficheros que no se pueden usar, contenido con errores y huecos de metadatos, con la acción concreta para cada caso.",
+    "Qué hay que corregir en el catálogo de datos abiertos de Castilla y León: archivos que no se pueden usar, contenido con errores y campos de metadatos pendientes, con la acción concreta para cada caso.",
 };
 
 /**
- * Un fichero con defecto por cada distribución con algo que corregir.
+ * Un fichero con defecto por cada distribución con algo que corregir, en las dos
+ * familias: la que no llega y la que llega sucia.
  *
- * Cubre las dos familias. Antes solo se construían las filas de entrega, así que
- * los ficheros que se abren con errores de contenido no aparecían en ninguna
- * tabla explorable.
- *
- * Se recorre el catálogo (no el informe) y se emparejan los resultados por URL:
- * así el slug de la URL de cada fila —`/csv`, `/csv-2`— es el que la ficha del
- * dataset publica de verdad.
+ * Se recorre el catálogo y no el informe, emparejando los resultados por URL,
+ * porque así el slug de cada fila —`/csv`, `/csv-2`— es el mismo que publica la
+ * ficha del conjunto de datos. Recorrer el informe daría índices que no cuadran
+ * con las URL navegables.
  */
 function buildFileIssueRows(catalog: CatalogData, report: QualityReport | null): FileIssueRows {
   const rows: FileIssueRow[] = [];
@@ -120,23 +119,13 @@ function buildFileIssueRows(catalog: CatalogData, report: QualityReport | null):
   };
 }
 
-/** Texto de la periodicidad declarada, para las listas de actualidad. */
-function periodicityText(months: number | undefined): string | undefined {
-  if (!months || months <= 0) return undefined;
-  if (months < 1) return "diaria";
-  if (months === 1) return "mensual";
-  if (months === 3) return "trimestral";
-  if (months === 6) return "semestral";
-  if (months === 12) return "anual";
-  return `cada ${Math.round(months)} meses`;
-}
-
 function toLite(ds: Dataset): MetadataDatasetLite {
   return {
     slug: datasetSlug(ds.id),
     title: ds.title || datasetSlug(ds.id),
     periodsLate: ds.freshness.periodsLate,
-    periodicity: periodicityText(ds.periodicityMonths),
+    // En minúscula: aquí va intercalada en una frase, no como valor de un campo.
+    periodicity: periodicityLabel(ds.periodicityMonths) ?? undefined,
   };
 }
 
@@ -169,9 +158,13 @@ function buildMetadataGroups(datasets: readonly Dataset[]): MetadataGapGroup[] {
 
 type Vista = "prioridades" | "ficheros" | "metadatos" | "evolucion";
 
+/**
+ * Las cuatro vistas. Los identificadores viajan en la URL (`?vista=ficheros`) y
+ * se conservan para no romper enlaces publicados; lo que cambia es la etiqueta.
+ */
 const TABS: { id: Vista; label: string }[] = [
   { id: "prioridades", label: "Prioridades" },
-  { id: "ficheros", label: "Ficheros" },
+  { id: "ficheros", label: "Archivos" },
   { id: "metadatos", label: "Metadatos" },
   { id: "evolucion", label: "Evolución" },
 ];
@@ -179,9 +172,9 @@ const TABS: { id: Vista; label: string }[] = [
 const VALID_VISTAS = new Set<string>(TABS.map((t) => t.id));
 
 /**
- * Vistas anteriores a la reorganización. Se mantienen para que no se rompan los
- * enlaces publicados ni los `redirect()` de /transparencia, /alertas y
- * /tendencias.
+ * Vistas anteriores a la reorganización. Se mantienen para no romper los enlaces
+ * publicados ni las redirecciones heredadas de `next.config.ts`, que apuntan a
+ * estas vistas.
  */
 const LEGACY_VISTAS: Record<string, Vista> = {
   resumen: "prioridades",
@@ -245,10 +238,10 @@ export default async function CalidadPage({
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-strong">Calidad del Catálogo</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-strong">Calidad del catálogo</h1>
           <p className="mt-1 text-sm text-faint">
-            Qué corregir en los {stats.totalDatasets.toLocaleString("es-ES")} datasets y{" "}
-            {stats.totalDistributions.toLocaleString("es-ES")} distribuciones publicadas.
+            Qué corregir en los {stats.totalDatasets.toLocaleString("es-ES")} conjuntos de datos y{" "}
+            {stats.totalDistributions.toLocaleString("es-ES")} archivos publicados.
           </p>
         </div>
         <Link
@@ -277,7 +270,14 @@ export default async function CalidadPage({
       </div>
 
       {vista === "prioridades" && (
-        <PrioridadesSection catalog={catalog} report={report} causes={causes} />
+        <PrioridadesSection
+          catalog={catalog}
+          report={report}
+          causes={causes}
+          // Del mismo recuento de filas que alimenta la pestaña Archivos, para
+          // que las dos vistas no puedan dar cifras distintas del mismo hecho.
+          contentAffected={files?.rows.filter((r) => r.family === "contenido").length ?? 0}
+        />
       )}
       {vista === "ficheros" && files && (
         <FicherosSection

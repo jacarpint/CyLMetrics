@@ -101,7 +101,7 @@ interface SparklineProps {
 
 /** Mini-línea de evolución del score de un dataset. */
 export function Sparkline({ points, width = 130, height = 32 }: SparklineProps) {
-  if (points.length === 0) return <span className="text-[10px] text-faint">—</span>;
+  if (points.length === 0) return <span className="text-[11px] text-faint">—</span>;
 
   const pad = 2;
   const xFor = (i: number) => pad + (i * (width - pad * 2)) / Math.max(1, points.length - 1);

@@ -11,74 +11,9 @@ import {
   BarChart3,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { issueExplanation } from "@/lib/quality-labels";
+import { presentationForFormat, type IssuePresentation } from "@/lib/unit-words";
 import type { IssueInfo, IssueSample } from "@/lib/quality-report";
-
-const ISSUE_DESCRIPTIONS: Record<string, string> = {
-  "celda-faltante":
-    "Celdas vacías en filas que contienen datos en otras columnas. Puede indicar datos incompletos o campos opcionales.",
-  "error-tipo":
-    "Valores que no coinciden con el tipo mayoritario de su columna (ej: texto en una columna numérica).",
-  "encabezado-vacio":
-    "Columnas sin nombre en la primera fila. Dificulta el procesamiento automatizado.",
-  "fila-vacia":
-    "Filas completamente vacías entre los datos. Suelen ser artefactos de exportación.",
-  "celda-extra":
-    "Filas con más columnas que el encabezado. Puede causar errores en parsers.",
-  "encabezado-duplicado":
-    "Dos o más columnas con el mismo nombre. Conflictos al indexar o hacer joins.",
-  "zip-invalido":
-    "El archivo descargado no es un ZIP válido o está corrupto. El recurso es inutilizable.",
-  "json-invalido":
-    "El contenido no es JSON válido. Verifique la URL o el formato declarado.",
-  "xlsx-invalido":
-    "El archivo XLSX no puede abrirse. Puede estar corrupto o no ser un XLSX real.",
-  "formato-no-esperado":
-    "El contenido no coincide con el formato declarado en el catálogo (ej: HTML en una URL de CSV).",
-  "xml-no-bien-formado":
-    "El XML tiene errores de formato. Puede contener caracteres especiales o etiquetas mal cerradas.",
-  "archivo-vacio":
-    "El archivo descargado tiene 0 bytes. El recurso no contiene datos.",
-  "error-encoding":
-    "Problemas con la codificación de caracteres. Los textos pueden contener caracteres ilegibles.",
-  "no-es-archivo":
-    "La URL no devuelve un archivo descargable (puede devolver una página HTML).",
-  "error-fuente":
-    "Error al acceder a la fuente de datos. Problema del servidor remoto.",
-  "xml-reparado":
-    "El XML tenía problemas que fueron corregidos automáticamente por el analizador.",
-  "descarga":
-    "Error durante la descarga del archivo (timeout, 404, acceso denegado).",
-  "fallo-analizador":
-    "Error interno del analizador. No se pudo completar la auditoría.",
-};
-
-/* ------------------------------------------------------------------ */
-/* Cómo se enseñan las muestras según el formato                       */
-/* ------------------------------------------------------------------ */
-
-/**
- * La cuadrícula de filas y columnas solo describe bien a los formatos
- * tabulares. En JSON la unidad es el registro, y en XML/KML/SHP no hay ni
- * filas ni registros planos, así que forzar una tabla inventa una estructura
- * que el recurso no tiene.
- */
-export type IssuePresentation = "table" | "record" | "plain";
-
-export function presentationForFormat(format?: string): IssuePresentation {
-  switch ((format ?? "").toUpperCase()) {
-    case "CSV":
-    case "TSV":
-    case "XLSX":
-    case "XLS":
-    case "TXT":
-      return "table";
-    case "JSON":
-    case "GEOJSON":
-      return "record";
-    default:
-      return "plain";
-  }
-}
 
 /** Índice de la columna afectada dentro de la muestra, o -1. */
 function affectedIndex(sample: IssueSample, header?: (string | null)[]): number {
@@ -192,10 +127,10 @@ function JsonRecord({ sample }: { sample: IssueSample }) {
     <div className="overflow-hidden rounded-lg border border-border bg-card">
       <div className="flex flex-wrap items-center gap-2 border-b border-border bg-fill px-3 py-1.5">
         {sample.row != null && (
-          <span className="font-mono text-[10px] text-faint">Registro nº {sample.row.toLocaleString("es-ES")}</span>
+          <span className="font-mono text-[11px] text-faint">Registro nº {sample.row.toLocaleString("es-ES")}</span>
         )}
         {sample.field && (
-          <span className="text-[10px] text-faint">
+          <span className="text-[11px] text-faint">
             clave <strong className="font-mono font-semibold text-bad">{sample.field}</strong>
           </span>
         )}
@@ -216,7 +151,7 @@ function JsonRecord({ sample }: { sample: IssueSample }) {
                 {isEmptyValue(e.value) ? <EmptyMark /> : <>&quot;{e.value}&quot;</>}
               </span>
               {e.offending && (
-                <span className="ml-auto shrink-0 pl-3 text-[10px] font-normal text-bad">← incidencia</span>
+                <span className="ml-auto shrink-0 pl-3 text-[11px] font-normal text-bad">← incidencia</span>
               )}
             </div>
           ))}
@@ -274,7 +209,7 @@ function SamplePlain({ samples }: { samples: IssueSample[] }) {
         <li key={i} className="rounded-lg border border-border bg-card px-3 py-2 text-xs">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             {sample.row != null && (
-              <span className="rounded bg-fill px-1.5 py-0.5 font-mono text-[10px] text-faint">
+              <span className="rounded bg-fill px-1.5 py-0.5 font-mono text-[11px] text-faint">
                 Posición {sample.row.toLocaleString("es-ES")}
               </span>
             )}
@@ -416,7 +351,7 @@ export function IssueExplorer({ issues, totalCells, format, className }: IssueEx
       <div className="space-y-2">
         {sorted.map((issue) => {
           const isExpanded = expanded === issue.key;
-          const description = ISSUE_DESCRIPTIONS[issue.code];
+          const explanation = issueExplanation(issue.code);
           const samples = issue.samples ?? [];
           const hasSamples = samples.length > 0;
           const isError = issue.severity === "error";
@@ -432,6 +367,7 @@ export function IssueExplorer({ issues, totalCells, format, className }: IssueEx
               )}
             >
               <button
+                type="button"
                 onClick={() => setExpanded(isExpanded ? null : issue.key)}
                 aria-expanded={isExpanded}
                 aria-controls={panelId}
@@ -446,11 +382,11 @@ export function IssueExplorer({ issues, totalCells, format, className }: IssueEx
                   <div className="flex items-center gap-2">
                     <span className="truncate text-sm font-medium text-strong">{issue.label}</span>
                     {issue.format && (
-                      <span className="shrink-0 rounded border border-border bg-card px-1.5 py-px font-mono text-[10px] text-faint">
+                      <span className="shrink-0 rounded border border-border bg-card px-1.5 py-px font-mono text-[11px] text-faint">
                         {issue.format}
                       </span>
                     )}
-                    <span className={cn("shrink-0 text-[10px] font-semibold uppercase tracking-wide", isError ? "text-bad" : "text-warn")}>
+                    <span className={cn("shrink-0 text-[11px] font-semibold uppercase tracking-wide", isError ? "text-bad" : "text-warn")}>
                       {isError ? "Error" : "Aviso"}
                     </span>
                   </div>
@@ -472,10 +408,10 @@ export function IssueExplorer({ issues, totalCells, format, className }: IssueEx
 
               {isExpanded && (
                 <div id={panelId} className="space-y-2 px-4 pb-4 pt-0">
-                  {description && (
+                  {explanation && (
                     <div className="flex items-start gap-2 rounded-md border border-border bg-card px-3 py-2">
                       <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-faint" aria-hidden />
-                      <p className="text-xs leading-relaxed text-body">{description}</p>
+                      <p className="text-xs leading-relaxed text-body">{explanation}</p>
                     </div>
                   )}
                   {hasSamples && (

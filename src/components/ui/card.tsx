@@ -54,9 +54,17 @@ const CardDescription = React.forwardRef<HTMLParagraphElement, React.HTMLAttribu
 );
 CardDescription.displayName = "CardDescription";
 
+/**
+ * Padding completo por defecto.
+ *
+ * El defecto era `p-5 pt-0`, que asume un `CardHeader` encima aunque el caso
+ * habitual con diferencia es la tarjeta sin cabecera: 27 de 29 usos pasaban un
+ * padding explícito solo para reponer el que faltaba arriba. Ahora el defecto
+ * sirve al caso mayoritario y las pocas tarjetas con cabecera añaden `pt-0`.
+ */
 const CardContent = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
-    <div ref={ref} className={cn("p-5 pt-0", className)} {...props} />
+    <div ref={ref} className={cn("p-5", className)} {...props} />
   )
 );
 CardContent.displayName = "CardContent";

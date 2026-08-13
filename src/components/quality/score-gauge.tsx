@@ -3,30 +3,30 @@ import { getScoreColor, getScoreStroke, getScoreLabel } from "@/lib/quality";
 
 interface ScoreGaugeProps {
   score: number | null;
-  size?: "xs" | "sm" | "md" | "lg";
   label?: string;
   className?: string;
 }
 
-const SIZE_MAP = {
-  xs: { ring: "w-10 h-10", text: "text-sm",  label: "text-[9px]",  stroke: 3, radius: 20 },
-  sm: { ring: "w-16 h-16", text: "text-lg",  label: "text-[10px]", stroke: 4, radius: 28 },
-  md: { ring: "w-24 h-24", text: "text-2xl", label: "text-[11px]", stroke: 5, radius: 42 },
-  lg: { ring: "w-32 h-32", text: "text-3xl", label: "text-xs",     stroke: 6, radius: 56 },
-};
+/**
+ * Medidas del anillo. Había cuatro tamaños («xs», «sm», «md», «lg») y los dos
+ * únicos sitios que lo usan piden «md»; los otros tres no se llamaban desde
+ * ningún lado, y el de «xs» rotulaba a 9 px, el texto más pequeño del portal.
+ * Al quedar uno solo, el mapa de tamaños y el parámetro sobraban.
+ */
+const RING = { size: "w-24 h-24", score: "text-2xl", label: "text-[11px]", stroke: 5, radius: 42 };
 
-export function ScoreGauge({ score, size = "md", label, className }: ScoreGaugeProps) {
-  const s = SIZE_MAP[size];
+export function ScoreGauge({ score, label, className }: ScoreGaugeProps) {
+  const s = RING;
 
   if (score == null) {
     return (
       <div className={cn("flex flex-col items-center gap-1", className)}>
         <div
-          className={cn(s.ring, "rounded-full border-2 border-border flex items-center justify-center bg-fill")}
+          className={cn(s.size, "rounded-full border-2 border-border flex items-center justify-center bg-fill")}
           role="img"
           aria-label={label ? `${label}: sin puntuación` : "Sin puntuación"}
         >
-          <span className={cn(s.text, "font-bold text-faint")} aria-hidden>—</span>
+          <span className={cn(s.score, "font-bold text-faint")} aria-hidden>—</span>
         </div>
         {label && <span className={cn(s.label, "text-faint font-medium")}>{label}</span>}
       </div>
@@ -42,7 +42,7 @@ export function ScoreGauge({ score, size = "md", label, className }: ScoreGaugeP
       {/* Un solo nodo accesible: el anillo es decorativo y el valor se anuncia
           con su nivel, no solo con el color (WCAG 1.4.1). */}
       <div
-        className={cn(s.ring, "relative")}
+        className={cn(s.size, "relative")}
         role="img"
         aria-label={`${label ? `${label}: ` : ""}${score} sobre 100 — calidad ${getScoreLabel(score).toLowerCase()}`}
       >
@@ -63,7 +63,7 @@ export function ScoreGauge({ score, size = "md", label, className }: ScoreGaugeP
           />
         </svg>
         <div className="absolute inset-0 flex items-center justify-center">
-          <span className={cn(s.text, "font-bold tabular-nums", textColor)} aria-hidden>{score}</span>
+          <span className={cn(s.score, "font-bold tabular-nums", textColor)} aria-hidden>{score}</span>
         </div>
       </div>
       {label && <span className={cn(s.label, "text-faint font-medium")}>{label}</span>}

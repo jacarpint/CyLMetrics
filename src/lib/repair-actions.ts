@@ -6,8 +6,8 @@
  * cinco pestañas de indicadores. Aquí las tres familias de defecto se reducen a
  * un mismo modelo:
  *
- *   entrega    el fichero no llega o no se puede interpretar
- *   contenido  el fichero abre, pero los datos vienen sucios
+ *   entrega    el archivo no llega o no se puede interpretar (disponibilidad)
+ *   contenido  el archivo abre, pero los datos requieren limpieza
  *   metadatos  la ficha DCAT está incompleta o no permite verificar nada
  *
  * Todo se construye sobre funciones que ya existían: `findSystemicCauses` para
@@ -25,10 +25,20 @@ import { issueLabel } from './quality-labels';
 import { isBlockingCode } from './alerts';
 import { METADATA_GAPS, type MetadataGapCode } from './metadata-gaps';
 
+/**
+ * Las tres dimensiones de calidad que mide el portal.
+ *
+ * Los identificadores se conservan (`entrega`) porque viajan en las URLs
+ * publicadas —`/calidad?vista=ficheros&familia=entrega`— y romperlos invalidaría
+ * los enlaces que ya haya compartido alguien. Lo que se lee en pantalla es
+ * `DIMENSION_LABELS`: «Disponibilidad», que es el nombre estándar de esta
+ * dimensión y el que ya usaban la fórmula y la metodología. «Entrega» era una
+ * invención local que no significaba nada fuera de este código.
+ */
 export type ActionFamily = 'entrega' | 'contenido' | 'metadatos';
 
-export const FAMILY_LABELS: Record<ActionFamily, string> = {
-  entrega: 'Entrega',
+export const DIMENSION_LABELS: Record<ActionFamily, string> = {
+  entrega: 'Disponibilidad',
   contenido: 'Contenido',
   metadatos: 'Metadatos',
 };
@@ -44,11 +54,11 @@ export interface RepairAction {
   action: string;
   /** Por qué importa. */
   why?: string;
-  /** Recursos (distribuciones o datasets) que se arreglan al hacerlo. */
+  /** Archivos o conjuntos de datos que se arreglan al hacerlo. */
   affected: number;
   /** Unidad de `affected`, para redactar bien el recuento. */
-  unit: 'distribuciones' | 'datasets';
-  /** Datasets distintos implicados, si se puede saber. */
+  unit: 'archivos' | 'conjuntos de datos';
+  /** Conjuntos de datos distintos implicados, si se puede saber. */
   datasets?: number;
   /** Denominador cuando el fallo alcanza a un formato entero. */
   scopeTotal?: number;
@@ -95,11 +105,11 @@ const DELIVERY_ACTIONS: Record<string, string> = {
   'no-es-archivo':
     'Apuntar la URL al archivo en sí. Ahora devuelve una página web, así que ningún proceso automático puede consumirlo.',
   'no-es-imagen': 'Apuntar la URL a la imagen en vez de a una página web.',
-  'json-invalido': 'Corregir el JSON: tal como se publica no se puede parsear.',
+  'json-invalido': 'Corregir el JSON: tal como se publica no se puede interpretar.',
   'xml-no-bien-formado': 'Corregir el XML: no está bien formado.',
   'xlsx-invalido': 'Regenerar el XLSX: el archivo publicado no se puede abrir.',
   'zip-invalido': 'Regenerar el ZIP: no es un archivo comprimido válido.',
-  'shp-faltante': 'Incluir en el ZIP los ficheros que acompañan al .shp (.dbf, .shx y .prj).',
+  'shp-faltante': 'Incluir en el ZIP los archivos que acompañan al .shp (.dbf, .shx y .prj).',
   'zip-extraccion': 'Regenerar el ZIP: no se puede extraer su contenido.',
   'shp-lectura': 'Revisar el shapefile: no se puede leer.',
   'archivo-vacio': 'Volver a publicar el archivo: se descarga con 0 bytes.',
@@ -113,7 +123,7 @@ const DELIVERY_ACTIONS: Record<string, string> = {
 };
 
 function deliveryAction(code: string): string {
-  return DELIVERY_ACTIONS[code] ?? 'Revisar el recurso: no se puede descargar o interpretar.';
+  return DELIVERY_ACTIONS[code] ?? 'Revisar el archivo: no se puede descargar o interpretar.';
 }
 
 /* ------------------------------------------------------------------ */
@@ -126,10 +136,10 @@ export function deliveryActions(causes: readonly SystemicCause[]): RepairAction[
     title: `${c.causeLabel} · ${c.format}`,
     action: deliveryAction(c.causeCode),
     why: c.wholeFormat
-      ? `Falla en todos los recursos ${c.format} del catálogo: apunta a un proceso de publicación roto, no a ${c.affected} problemas independientes.`
+      ? `Falla en todos los archivos ${c.format} del catálogo: apunta a un proceso de publicación roto, no a ${c.affected} problemas independientes.`
       : undefined,
     affected: c.affected,
-    unit: 'distribuciones' as const,
+    unit: 'archivos' as const,
     datasets: c.datasets,
     scopeTotal: c.formatTotal,
     format: c.format,
@@ -154,7 +164,7 @@ export function contentActions(report: QualityReport | null): RepairAction[] {
       title: issueLabel(code),
       action: CONTENT_ACTIONS[code],
       affected: count,
-      unit: 'distribuciones' as const,
+      unit: 'archivos' as const,
       href: `/calidad?vista=ficheros&familia=contenido&causa=${encodeURIComponent(code)}`,
     }));
 }
@@ -185,7 +195,7 @@ export function metadataActions(datasets: readonly Dataset[]): RepairAction[] {
       action: info.action,
       why: info.why,
       affected: count,
-      unit: 'datasets',
+      unit: 'conjuntos de datos',
       href: `/calidad?vista=metadatos&hueco=${encodeURIComponent(code)}`,
     });
   }
@@ -193,13 +203,32 @@ export function metadataActions(datasets: readonly Dataset[]): RepairAction[] {
 }
 
 /**
+ * Cuánto se recupera al cerrar una tarea de cada familia, de más a menos.
+ *
+ * Un archivo que no abre no se puede usar para nada; uno que abre sucio se puede
+ * usar limpiándolo; una ficha incompleta no impide usar el dato, solo encontrarlo.
+ */
+const FAMILY_PRIORITY: Record<ActionFamily, number> = {
+  entrega: 0,
+  contenido: 1,
+  metadatos: 2,
+};
+
+/**
  * Todas las acciones, de mayor a menor impacto.
  *
- * Un fallo que alcanza a un formato entero sube primero aunque afecte a menos
- * recursos: delata un proceso roto y se arregla de una vez. Después, por volumen
- * recuperable. Las distribuciones y los datasets no son la misma unidad, así que
- * no se pueden comparar directamente; se ordena por número de recursos y la
- * unidad va escrita al lado para que el publicador juzgue.
+ * Tres criterios, en este orden:
+ *
+ * 1. Lo que alcanza a un formato entero: delata un proceso de publicación roto y
+ *    se arregla de una vez, aunque afecte a menos recursos que otras tareas.
+ * 2. La familia, por lo que se recupera al cerrarla. Este criterio faltaba y
+ *    hacía daño: `affected` se comparaba entre unidades distintas —archivos
+ *    frente a conjuntos de datos— así que un campo ausente en 749 fichas se
+ *    colocaba por encima de 180 archivos que no se pueden descargar, y con solo
+ *    doce tareas visibles el publicador veía primero lo menos grave. Ordenar por
+ *    volumen a secas contradecía la promesa de ordenar «por lo que se recupera».
+ * 3. Ya dentro de la misma familia, el volumen, que ahí sí es comparable porque
+ *    la unidad es la misma.
  */
 export function buildRepairActions(input: {
   causes: readonly SystemicCause[];
@@ -213,6 +242,7 @@ export function buildRepairActions(input: {
   ].sort(
     (a, b) =>
       Number(Boolean(b.wholeFormat)) - Number(Boolean(a.wholeFormat)) ||
+      FAMILY_PRIORITY[a.family] - FAMILY_PRIORITY[b.family] ||
       b.affected - a.affected ||
       a.title.localeCompare(b.title, 'es')
   );

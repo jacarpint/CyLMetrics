@@ -38,9 +38,14 @@ const ENDPOINTS: ApiEndpoint[] = [
     path: "/api/quality",
     summary: "Resultado del análisis de los archivos",
     returns:
-      "Totales del último análisis completo, disponibilidad de los archivos y reparto de los datasets por calidad de contenido. Con «dataset» devuelve la ficha de uno solo; con «publisher», la media de un organismo.",
+      "Totales del último análisis completo, disponibilidad de los archivos y reparto de los datasets por calidad de contenido. Con «dataset» devuelve la ficha de uno solo; añadiendo «distribucion», el resultado de un único archivo; con «publisher», la media de un organismo.",
     params: [
       { name: "dataset", values: "URI completa o identificador corto", desc: "Devuelve solo ese dataset. Acepta «https://…/1285663381041» o «1285663381041»." },
+      {
+        name: "distribucion",
+        values: "csv, json, csv-2…",
+        desc: "Junto a «dataset», devuelve el análisis de ese archivo: estado de entrega, descarga e incidencias. Es el mismo identificador que lleva la URL de su ficha, así que se deduce de la dirección del navegador. Si no existe, el 404 enumera los disponibles.",
+      },
       { name: "publisher", values: "texto", desc: "Coincidencia parcial sobre la URI del organismo publicador." },
     ],
     example: `{
@@ -64,7 +69,8 @@ const ENDPOINTS: ApiEndpoint[] = [
 }`,
     tryIt: "/api/quality",
     cache: "5 minutos",
-    errors: "503 si todavía no se ha generado ningún informe · 404 si el dataset pedido no está en el informe",
+    errors:
+      "503 si todavía no se ha generado ningún informe · 404 si el dataset pedido no está en el informe, o si la distribución no existe (con la lista de las que sí)",
   },
   {
     path: "/api/catalog",
@@ -177,10 +183,10 @@ export function ApiReference() {
 
       {ENDPOINTS.map((ep) => (
         <Card key={ep.path}>
-          <CardContent className="p-5">
+          <CardContent>
             <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
               <h3 className="flex flex-wrap items-baseline gap-2 font-mono text-sm font-semibold text-strong">
-                <Badge variant="default" className="font-mono text-[10px]">GET</Badge>
+                <Badge variant="default" className="font-mono text-[11px]">GET</Badge>
                 {ep.path}
               </h3>
               <a
@@ -249,7 +255,7 @@ export function ApiReference() {
       {/* Rutas de infraestructura: se documentan para que no queden como cajas
           negras, pero no son una API de datos. */}
       <Card tone="muted">
-        <CardContent className="p-5">
+        <CardContent>
           <h3 className="text-sm font-semibold text-strong">Rutas internas del visor</h3>
           <p className="mt-1.5 max-w-3xl text-sm leading-relaxed text-body">
             <code className="font-mono text-xs">/api/proxy</code> y{" "}

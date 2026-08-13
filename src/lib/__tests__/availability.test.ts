@@ -5,6 +5,7 @@ import {
   distributionsAffectedByIssue,
   findSystemicCauses,
   groupByField,
+  reuseConsequences,
   summarizeDelivery,
   type FileIssueRow,
 } from '../availability';
@@ -219,6 +220,45 @@ describe('distributionsAffectedByIssue', () => {
 
   it('devuelve un objeto vacío sin informe', () => {
     expect(distributionsAffectedByIssue(null)).toEqual({});
+  });
+});
+
+describe('reuseConsequences', () => {
+  /** Informe con una distribución por cada código pedido. */
+  function reportWith(codes: string[]): QualityReport {
+    return {
+      datasets: [{ distribution_results: codes.map((code) => withIssues('error', [code])) }],
+    } as unknown as QualityReport;
+  }
+
+  it('agrupa los códigos que rompen la reutilización por el mismo motivo', () => {
+    // Un encabezado vacío y uno duplicado son una sola consecuencia.
+    const [consequence] = reuseConsequences(reportWith(['encabezado-vacio', 'encabezado-duplicado']));
+    expect(consequence.icon).toBe('encabezado');
+    expect(consequence.count).toBe(2);
+  });
+
+  it('omite las consecuencias que no ocurren en este catálogo', () => {
+    const result = reuseConsequences(reportWith(['descarga']));
+    expect(result.map((c) => c.icon)).toEqual(['enlace']);
+  });
+
+  it('lo que no abre va antes que lo que solo hay que limpiar, aunque afecte a menos', () => {
+    // Tres archivos con tipos mezclados (aviso) contra uno sin descarga (crítico).
+    const report = reportWith(['error-tipo', 'error-tipo', 'error-tipo', 'descarga']);
+    const result = reuseConsequences(report);
+    expect(result[0].icon).toBe('enlace');
+    expect(result[0].severity).toBe('bad');
+    expect(result[0].count).toBeLessThan(result[1].count);
+  });
+
+  it('entre consecuencias de la misma gravedad manda el volumen', () => {
+    const report = reportWith(['error-tipo', 'error-tipo', 'encabezado-vacio']);
+    expect(reuseConsequences(report).map((c) => c.icon)).toEqual(['tipo', 'encabezado']);
+  });
+
+  it('sin informe no hay consecuencias que contar', () => {
+    expect(reuseConsequences(null)).toEqual([]);
   });
 });
 

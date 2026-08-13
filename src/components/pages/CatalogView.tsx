@@ -18,6 +18,7 @@ import type { CatalogStats } from '@/lib/types';
 import type { QualityDatasetLite } from '@/lib/quality-report';
 import type { FormatState } from '@/lib/availability';
 import {
+  ANALYSIS_LABELS,
   buildFilterUrl,
   filtersAreActive,
   SORT_OPTIONS,
@@ -27,40 +28,49 @@ import {
 } from '@/lib/catalog-filters';
 
 /**
- * Estado de los archivos de un formato, comunicado en su propia etiqueta.
+ * Estado de los archivos de un formato, en su propia etiqueta.
  *
- * Sustituye al bloque de recuentos que llevaba antes la tarjeta ("N inc.",
- * "3 dist., todas con fallos"): el dato relevante al ojear el catálogo es si
- * ese formato concreto se puede descargar, no cuántas celdas vacías tiene.
+ * Al ojear el catálogo lo relevante es si ese formato se puede descargar, no
+ * cuántas celdas vacías tiene; por eso la etiqueta comunica estado y no
+ * recuentos.
+ *
+ * Una sola redacción por estado, que sirve al tooltip y al lector de pantalla.
+ * Eran dos tablas con el mismo texto y distinta puntuación, que había que
+ * mantener en paralelo para que la etiqueta no dijese dos cosas.
  */
-const FORMAT_STATE_STYLE: Record<FormatState, string> = {
-  ok: 'border-border bg-card text-body',
-  parcial: 'border-warn-line bg-warn-surface text-warn',
-  roto: 'border-bad-line bg-bad-surface text-bad',
-  'sin-datos': 'border-border bg-card text-faint',
+const FORMAT_STATES: Record<FormatState, { style: string; description: string }> = {
+  ok: {
+    style: 'border-border bg-card text-body',
+    description: 'se descarga y abre correctamente',
+  },
+  parcial: {
+    style: 'border-warn-line bg-warn-surface text-warn',
+    description: 'algunos archivos de este formato no abren',
+  },
+  roto: {
+    style: 'border-bad-line bg-bad-surface text-bad',
+    description: 'ningún archivo de este formato se puede abrir',
+  },
+  'sin-datos': {
+    style: 'border-border bg-card text-faint',
+    description: 'sin analizar',
+  },
 };
 
-const FORMAT_STATE_TITLE: Record<FormatState, string> = {
-  ok: 'se descarga y abre correctamente',
-  parcial: 'algunos archivos de este formato no abren',
-  roto: 'ningún archivo de este formato se puede abrir',
-  'sin-datos': 'sin analizar',
-};
-
-function FormatTag({ format, state }: { format: string; state?: FormatState }) {
-  const s = state ?? 'sin-datos';
+function FormatTag({ format, state = 'sin-datos' }: { format: string; state?: FormatState }) {
+  const { style, description } = FORMAT_STATES[state];
   return (
     <span
-      title={`${format}: ${FORMAT_STATE_TITLE[s]}`}
+      title={`${format}: ${description}`}
       className={cn(
-        'inline-flex items-center rounded-md border px-1.5 py-0.5 font-mono text-[10px] leading-4 tracking-tight',
-        FORMAT_STATE_STYLE[s]
+        'inline-flex items-center rounded-md border px-1.5 py-0.5 font-mono text-[11px] leading-4 tracking-tight',
+        style
       )}
     >
       {format}
-      {/* El color no puede ser el único portador de la información. */}
-      {s === 'roto' && <span className="sr-only"> — no se puede abrir</span>}
-      {s === 'parcial' && <span className="sr-only"> — algunos archivos no abren</span>}
+      {/* El color no puede ser el único portador de la información, y `title` no
+          llega ni al teclado ni al táctil: el estado va siempre en texto. */}
+      <span className="sr-only"> — {description}</span>
     </span>
   );
 }
@@ -70,7 +80,7 @@ function QualityScoreCircle({ score }: { score: number | null }) {
   const borderClass = score != null ? getScoreBorderColor(score) : 'border-border';
   return (
     <div
-      title="Calidad global: metadatos, disponibilidad de los archivos y calidad del contenido"
+      title="Índice de calidad: metadatos, disponibilidad de los archivos y calidad del contenido"
       className={cn(
         'flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 text-sm font-bold tabular-nums',
         borderClass,
@@ -79,10 +89,10 @@ function QualityScoreCircle({ score }: { score: number | null }) {
     >
       {score ?? '—'}
       {/* El nivel también en texto: el color no puede ser lo único que lo diga
-          (WCAG 1.4.1). El medidor de la ficha ya lo hacía; la tarjeta, no. */}
+          (WCAG 1.4.1). */}
       <span className="sr-only">
         {score != null
-          ? ` sobre 100 — calidad ${getScoreLabel(score).toLowerCase()}`
+          ? ` sobre 100 — índice de calidad ${getScoreLabel(score).toLowerCase()}`
           : 'Sin puntuación'}
       </span>
     </div>
@@ -92,9 +102,8 @@ function QualityScoreCircle({ score }: { score: number | null }) {
 /**
  * Lo mínimo que necesita una tarjeta.
  *
- * El objeto Dataset completo arrastraba al cliente campos que la tarjeta ya no
- * pinta —entre ellos `statusLabel` ("✓ Al día"), que además medía metadatos y
- * no actualidad— y la lista entera de distribuciones.
+ * Se declara aparte de `Dataset` a propósito: mandar el objeto entero al cliente
+ * arrastra campos que la tarjeta no pinta y la lista completa de distribuciones.
  */
 export interface CatalogCardData {
   id: string;
@@ -172,6 +181,14 @@ export function CatalogView({
   const startIdx = totalFiltered === 0 ? 0 : (filters.page - 1) * filters.limit + 1;
   const endIdx = Math.min(filters.page * filters.limit, totalFiltered);
 
+  /**
+   * Navega aplicando un cambio sobre los filtros actuales.
+   *
+   * Cualquier cambio que no sea de página vuelve a la primera: si acotas o
+   * amplías el conjunto de resultados, seguir en la página 7 no significa nada.
+   * Por eso el `patch` debe traer SOLO lo que cambia; extenderlo con los filtros
+   * completos cuela el `page` actual y anula ese reinicio.
+   */
   const navigate = useCallback((patch: Partial<ActiveFilters>) => {
     router.push(buildFilterUrl({ ...filters, ...patch, page: patch.page ?? 1 }));
   }, [filters, router]);
@@ -180,49 +197,45 @@ export function CatalogView({
 
   const activeChips = useMemo<FilterChip[]>(() => {
     const chips: FilterChip[] = [];
-    const base = { ...filters };
 
     filters.categorias.forEach((c) => {
       chips.push({
         key: `cat-${c}`,
         label: c,
-        onRemove: () => navigate({ ...base, categorias: filters.categorias.filter((v) => v !== c) }),
+        onRemove: () => navigate({ categorias: filters.categorias.filter((v) => v !== c) }),
       });
     });
     filters.formatos.forEach((f) => {
       chips.push({
         key: `fmt-${f}`,
         label: f,
-        onRemove: () => navigate({ ...base, formatos: filters.formatos.filter((v) => v !== f) }),
+        onRemove: () => navigate({ formatos: filters.formatos.filter((v) => v !== f) }),
       });
     });
     filters.licencias.forEach((l) => {
       chips.push({
         key: `lic-${l}`,
         label: l,
-        onRemove: () => navigate({ ...base, licencias: filters.licencias.filter((v) => v !== l) }),
+        onRemove: () => navigate({ licencias: filters.licencias.filter((v) => v !== l) }),
       });
     });
     if (filters.geo) {
-      chips.push({ key: 'geo', label: 'Solo geoespaciales', onRemove: () => navigate({ ...base, geo: undefined }) });
+      chips.push({ key: 'geo', label: 'Solo geoespaciales', onRemove: () => navigate({ geo: undefined }) });
     }
     if (filters.desde) {
-      chips.push({ key: 'desde', label: `Desde ${filters.desde}`, onRemove: () => navigate({ ...base, desde: undefined }) });
+      chips.push({ key: 'desde', label: `Desde ${filters.desde}`, onRemove: () => navigate({ desde: undefined }) });
     }
     if (filters.hasta) {
-      chips.push({ key: 'hasta', label: `Hasta ${filters.hasta}`, onRemove: () => navigate({ ...base, hasta: undefined }) });
+      chips.push({ key: 'hasta', label: `Hasta ${filters.hasta}`, onRemove: () => navigate({ hasta: undefined }) });
     }
     if (filters.q) {
-      chips.push({ key: 'q', label: `"${filters.q}"`, onRemove: () => navigate({ ...base, q: undefined }) });
+      chips.push({ key: 'q', label: `"${filters.q}"`, onRemove: () => navigate({ q: undefined }) });
     }
     if (filters.analisis) {
-      const labels: Record<string, string> = {
-        ok: 'Sin fallos', parcial: 'Parcial', error: 'Con fallos', 'sin-datos': 'Sin análisis',
-      };
       chips.push({
         key: 'analisis',
-        label: `Archivos: ${labels[filters.analisis] ?? filters.analisis}`,
-        onRemove: () => navigate({ ...base, analisis: undefined }),
+        label: ANALYSIS_LABELS[filters.analisis],
+        onRemove: () => navigate({ analisis: undefined }),
       });
     }
     return chips;
@@ -260,7 +273,7 @@ export function CatalogView({
           <Filter className="h-4 w-4" aria-hidden />
           Filtros
           {isFiltered && (
-            <span className="ml-1 rounded-full bg-ok-surface px-1.5 py-0.5 text-[10px] font-semibold text-ok">
+            <span className="ml-1 rounded-full bg-ok-surface px-1.5 py-0.5 text-[11px] font-semibold text-ok">
               {activeChips.length}
             </span>
           )}
@@ -323,7 +336,7 @@ export function CatalogView({
             <>
               Mostrando <span className="font-semibold text-body">{startIdx}–{endIdx}</span> de{' '}
               <span className="font-semibold text-body">{totalFiltered.toLocaleString('es-ES')}</span>{' '}
-              {totalFiltered === 1 ? 'dataset' : 'datasets'}
+              {totalFiltered === 1 ? 'conjunto de datos' : 'conjuntos de datos'}
             </>
           )}
         </p>
@@ -414,7 +427,7 @@ export function CatalogView({
       {datasets.length === 0 && (
         <div className="flex flex-col items-center justify-center py-16 text-center">
           <Database className="mb-4 h-12 w-12 text-faint" aria-hidden />
-          <h2 className="text-lg font-semibold text-body">No hay datasets con estos filtros</h2>
+          <h2 className="text-lg font-semibold text-body">No hay conjuntos de datos con estos filtros</h2>
           <p className="mt-1 text-sm text-faint">Prueba a quitar alguno para ampliar la búsqueda.</p>
           <button
             onClick={clearAll}

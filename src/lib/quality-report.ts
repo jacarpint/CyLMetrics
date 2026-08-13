@@ -15,13 +15,20 @@ import path from 'node:path';
 // en el bundle del cliente).
 export {
   issueLabel, ISSUE_LABELS, categoryLabel, issueCategory, schemaTypeLabel,
-  formatBytes, formatDuration, distributionVolume, analyzedCells,
+  formatBytes, formatDuration, formatLongDate, distributionVolume, analyzedCells,
 } from './quality-labels';
 export type { DistributionVolume, VolumeMetric } from './quality-labels';
 import { distributionVolume } from './quality-labels';
-import { datasetAvailabilityPct, formatStates, type FormatState } from './availability';
+import {
+  datasetAvailabilityPct,
+  formatStates,
+  summarizeContent,
+  summarizeDelivery,
+  type FormatState,
+} from './availability';
 export type { IssueCategory } from './quality-labels';
 import { issueCategory } from './quality-labels';
+import { getScoreLevel } from './quality';
 
 const REPORT_PATH = path.join(process.cwd(), 'reports', 'data-analysis.json');
 const HISTORY_DIR = path.join(process.cwd(), 'reports', 'history');
@@ -302,21 +309,44 @@ function generatedAtFromFilename(filename: string): string {
 /* Observatorio histórico                                              */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Estado del catálogo en un informe, medido con el MISMO criterio que el resto
+ * del portal.
+ *
+ * Antes estos contadores salían de `report.totals.ok/error/skipped`, que son los
+ * del motor de análisis: `engine.py` marca `error` en cuanto aparece una
+ * incidencia de severidad error, y «tipos mezclados en una columna» es una de
+ * ellas. Por eso la pestaña Evolución decía «582 con fallos» mientras Inicio
+ * decía «254 no se pueden usar»: dos cifras contradictorias, del mismo informe,
+ * a dos clics de distancia. Aquí se clasifica con `classifyDelivery`, que es la
+ * fuente única de «¿se puede abrir este archivo?».
+ */
 export interface HistorySnapshot {
   date: string;
   totalDistributions: number;
-  ok: number;
-  error: number;
-  skipped: number;
+  /** Archivos que se descargan y abren. */
+  usable: number;
+  /** Archivos que no llegan, o llegan y no se pueden interpretar. */
+  broken: number;
+  /** URLs que responden con una página web en lugar del archivo. */
+  notDelivered: number;
+  /** Archivos que no se llegaron a comprobar. */
+  unanalyzed: number;
+  /**
+   * Calidad media del contenido de lo que SÍ abre. `report.totals.avg_score`
+   * no vale aquí: promedia también los archivos que no se entregan, que dejan
+   * métricas parciales, y el portal afirma en Inicio que esta media no los
+   * incluye.
+   */
   avgScore: number | null;
   healthyDatasets: number;
   warningDatasets: number;
   criticalDatasets: number;
   /**
-   * Datasets sin puntuación de contenido: ni un solo archivo legible que medir.
-   * Se cuentan aparte en vez de omitirse, que era lo que hacía que la interfaz
-   * enseñara «436 / 0 / 0» de 824 y afirmara «0 críticos» justo al lado de «el
-   * 35% de los archivos no abre».
+   * Conjuntos de datos sin puntuación de contenido: ni un solo archivo legible
+   * que medir. Se cuentan aparte en vez de omitirse, que era lo que hacía que la
+   * interfaz enseñara «436 / 0 / 0» de 824 y afirmara «0 críticos» justo al lado
+   * de «el 35% de los archivos no abre».
    */
   unscoredDatasets: number;
   totalDatasets: number;
@@ -344,19 +374,23 @@ export function loadHistorySnapshots(maxEntries = 20): HistorySnapshot[] {
     let warning = 0;
     let critical = 0;
     let unscored = 0;
+    // Los umbrales se leen de `getScoreLevel`, única fuente: aquí estaban
+    // repetidos y podían quedarse atrás si se revisaba la escala.
     for (const ds of report.datasets) {
       if (ds.score == null) unscored++;
-      else if (ds.score >= 80) healthy++;
-      else if (ds.score >= 50) warning++;
+      else if (getScoreLevel(ds.score) === 'ok') healthy++;
+      else if (getScoreLevel(ds.score) === 'warn') warning++;
       else critical++;
     }
+    const delivery = summarizeDelivery(report);
     snapshots.push({
       date: report.generated_at.slice(0, 10),
-      totalDistributions: report.totals.distributions,
-      ok: report.totals.ok,
-      error: report.totals.error,
-      skipped: report.totals.skipped,
-      avgScore: report.totals.avg_score,
+      totalDistributions: delivery.total,
+      usable: delivery.ok,
+      broken: delivery.roto,
+      notDelivered: delivery.noEntrega,
+      unanalyzed: delivery.omitida,
+      avgScore: summarizeContent(report).avgScore,
       healthyDatasets: healthy,
       warningDatasets: warning,
       criticalDatasets: critical,

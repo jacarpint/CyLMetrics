@@ -79,12 +79,7 @@ export interface Dataset {
   updatedAgo: string;
   /** Fuente de la métrica de frescura: 'modified' | 'issued' | 'none'. */
   freshnessSource: 'modified' | 'issued' | 'none';
-  statusLabel: string;
   publisher: string;
-  /** Nombre legible del organismo publicador (foaf:name o derivado de la URI). */
-  publisherName?: string;
-  /** No disponible en el RDF; reservado para futuras inspecciones de datos. */
-  records: number;
   province?: string;
   /** Tema original de datos.gob.es. */
   theme?: string;
@@ -139,15 +134,4 @@ export interface CatalogData {
      */
     origin: 'remote' | 'local' | 'none';
   };
-}
-
-/** Dataset con coordenadas geoespaciales para el mapa. */
-export interface GeoDataset {
-  id: string;
-  title: string;
-  publisher: string;
-  formats: string[];
-  latitude: number | null;
-  longitude: number | null;
-  hasError: boolean;
 }

@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import {
+  METADATA_WEIGHTS,
+  SCORE_LEVELS,
+  SCORE_THRESHOLDS,
+  SCORE_WEIGHTS,
   compositeScore,
   getScoreBorderColor,
   getScoreColor,
@@ -8,6 +12,74 @@ import {
   getScoreStroke,
   timeAgo,
 } from '../quality';
+
+/**
+ * Los pesos y los umbrales los publica la página de Metodología leyéndolos de
+ * aquí. Estas comprobaciones no verifican una fórmula concreta: verifican que la
+ * tabla siga siendo coherente si alguien revisa la escala, que es justo lo que
+ * antes podía romperse en silencio porque cada consumidor tenía su copia.
+ */
+describe('coherencia de pesos y umbrales', () => {
+  it('los tres ejes del índice suman el 100%', () => {
+    const total = SCORE_WEIGHTS.metadata + SCORE_WEIGHTS.availability + SCORE_WEIGHTS.content;
+    expect(total).toBeCloseTo(1, 10);
+  });
+
+  it('los cuatro factores de metadatos suman el 100%', () => {
+    const total =
+      METADATA_WEIGHTS.completeness +
+      METADATA_WEIGHTS.formats +
+      METADATA_WEIGHTS.freshness +
+      METADATA_WEIGHTS.license;
+    expect(total).toBeCloseTo(1, 10);
+  });
+
+  it('los tres tramos cubren 0-100 sin huecos ni solapes', () => {
+    expect(SCORE_LEVELS[0].min).toBe(0);
+    expect(SCORE_LEVELS.at(-1)!.max).toBe(100);
+    for (let i = 1; i < SCORE_LEVELS.length; i++) {
+      expect(SCORE_LEVELS[i].min).toBe(SCORE_LEVELS[i - 1].max + 1);
+    }
+  });
+
+  it('las anchuras de los tramos suman exactamente la barra, sin desbordarla', () => {
+    expect(SCORE_LEVELS.reduce((sum, band) => sum + band.width, 0)).toBe(100);
+  });
+
+  it('cada tramo es tan ancho como la parte de la escala que abarca', () => {
+    // «Deficiente» cubre media escala; «buena», una quinta parte.
+    expect(SCORE_LEVELS.map((band) => band.width)).toEqual([50, 30, 20]);
+  });
+
+  it('cada tramo se clasifica en su propio nivel en los dos extremos', () => {
+    for (const band of SCORE_LEVELS) {
+      expect(getScoreLevel(band.min), `min de ${band.level}`).toBe(band.level);
+      expect(getScoreLevel(band.max), `max de ${band.level}`).toBe(band.level);
+    }
+  });
+
+  it('la etiqueta del tramo es la que devuelve getScoreLabel', () => {
+    for (const band of SCORE_LEVELS) {
+      expect(getScoreLabel(band.min)).toBe(band.label);
+    }
+  });
+
+  /** Una clase compuesta en ejecución sale sin estilo: Tailwind no la genera. */
+  it('las clases de relleno son literales de Tailwind, no plantillas', () => {
+    expect(SCORE_LEVELS.map((band) => band.fill)).toEqual([
+      'bg-bad-solid',
+      'bg-warn-solid',
+      'bg-ok-solid',
+    ]);
+  });
+
+  it('los umbrales publicados son los que aplica la clasificación', () => {
+    expect(getScoreLevel(SCORE_THRESHOLDS.ok)).toBe('ok');
+    expect(getScoreLevel(SCORE_THRESHOLDS.ok - 1)).toBe('warn');
+    expect(getScoreLevel(SCORE_THRESHOLDS.warn)).toBe('warn');
+    expect(getScoreLevel(SCORE_THRESHOLDS.warn - 1)).toBe('bad');
+  });
+});
 
 describe('compositeScore', () => {
   it('sin análisis, no se puede afirmar nada de los archivos: manda el metadato', () => {

@@ -52,7 +52,9 @@ export function EvolucionSection({
     latest?.avgScore != null && previous?.avgScore != null
       ? Math.round((latest.avgScore - previous.avgScore) * 10) / 10
       : null;
-  const rawErrorDelta = previous ? (latest?.error ?? 0) - previous.error : null;
+  /** Archivos inutilizables = los que no abren + los que no entregan el archivo. */
+  const unusable = (s: HistorySnapshot) => s.broken + s.notDelivered;
+  const rawErrorDelta = previous && latest ? unusable(latest) - unusable(previous) : null;
 
   const metadataBySlug = new Map(catalog.datasets.map((d) => [datasetSlug(d.id), d.qualityScore]));
   const composites = (report?.datasets ?? []).map((ds) =>
@@ -111,10 +113,10 @@ export function EvolucionSection({
     observations.push({ key: "score-sube", tone: "ok", text: `La calidad media ha mejorado ${scoreDelta} puntos respecto al informe anterior.` });
   }
   if (errorDelta != null && errorDelta > 0) {
-    observations.push({ key: "errores-suben", tone: "bad", text: `Las distribuciones con fallos han aumentado en ${errorDelta}.` });
+    observations.push({ key: "errores-suben", tone: "bad", text: `Los archivos que no se pueden usar han aumentado en ${errorDelta}.` });
   }
   if (errorDelta != null && errorDelta < 0) {
-    observations.push({ key: "errores-bajan", tone: "ok", text: `Las distribuciones con fallos han disminuido en ${Math.abs(errorDelta)}.` });
+    observations.push({ key: "errores-bajan", tone: "ok", text: `Los archivos que no se pueden usar han disminuido en ${Math.abs(errorDelta)}.` });
   }
   if (observations.length === 0 && scoreDelta != null && errorDelta != null) {
     observations.push({ key: "sin-cambios", tone: "flat", text: "Sin cambios significativos respecto al informe anterior." });
@@ -160,7 +162,7 @@ export function EvolucionSection({
 
       {/* Resumen del último informe */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card><CardContent className="p-5">
+        <Card><CardContent>
           <p className="text-xs text-faint">Calidad del contenido</p>
           <p className="text-3xl font-bold text-ok mt-1">{latest!.avgScore != null ? `${latest!.avgScore}%` : "—"}</p>
           {scoreDelta != null && (
@@ -170,14 +172,18 @@ export function EvolucionSection({
             </p>
           )}
         </CardContent></Card>
-        <Card><CardContent className="p-5">
-          <p className="text-xs text-faint">Correctas</p>
-          <p className="text-3xl font-bold text-ok mt-1">{latest!.ok}</p>
-          <p className="text-[11px] text-faint mt-1">{latest!.totalDistributions > 0 ? Math.round((latest!.ok / latest!.totalDistributions) * 100) : 0}% del total</p>
+        <Card><CardContent>
+          <p className="text-xs text-faint">Se pueden usar</p>
+          <p className="text-3xl font-bold text-ok mt-1">{latest!.usable.toLocaleString("es-ES")}</p>
+          <p className="text-[11px] text-faint mt-1">{latest!.totalDistributions > 0 ? Math.round((latest!.usable / latest!.totalDistributions) * 100) : 0}% de los archivos</p>
         </CardContent></Card>
-        <Card><CardContent className="p-5">
-          <p className="text-xs text-faint">Con fallos</p>
-          <p className="text-3xl font-bold text-bad mt-1">{latest!.error}</p>
+        <Card><CardContent>
+          <p className="text-xs text-faint">No se pueden usar</p>
+          <p className="text-3xl font-bold text-bad mt-1">{unusable(latest!).toLocaleString("es-ES")}</p>
+          <p className="text-[11px] text-faint mt-1">
+            {latest!.broken.toLocaleString("es-ES")} no abren
+            {latest!.notDelivered > 0 && ` · ${latest!.notDelivered.toLocaleString("es-ES")} no entregan el archivo`}
+          </p>
           {errorDelta != null && (
             <p className={`text-xs mt-1 ${errorDelta > 0 ? "text-bad" : errorDelta < 0 ? "text-ok" : "text-faint"}`}>
               {errorDelta > 0 ? "+" : ""}{errorDelta} vs anterior
@@ -188,8 +194,8 @@ export function EvolucionSection({
             se omiten: omitiéndolos, la tarjeta enseñaba «436 / 0 / 0» de 824 y
             afirmaba «0 críticos» a la vez que el portal decía que un tercio de
             los archivos no abre. */}
-        <Card><CardContent className="p-5">
-          <p className="text-xs text-faint">Datasets por contenido</p>
+        <Card><CardContent>
+          <p className="text-xs text-faint">Conjuntos por calidad de contenido</p>
           <div className="flex items-baseline gap-2 mt-1">
             <span className="text-3xl font-bold text-ok">{latest!.healthyDatasets}</span>
             <span className="text-sm text-faint">/</span>
@@ -210,8 +216,8 @@ export function EvolucionSection({
           {latest!.unscoredDatasets > 0 && (
             <p className="text-[11px] text-faint mt-1 leading-relaxed">
               «Sin medir» son {latest!.unscoredDatasets.toLocaleString("es-ES")} de{" "}
-              {latest!.totalDatasets.toLocaleString("es-ES")} datasets sin ningún archivo legible:
-              no tienen contenido que puntuar.
+              {latest!.totalDatasets.toLocaleString("es-ES")} conjuntos de datos sin ningún archivo
+              legible: no tienen contenido que puntuar.
             </p>
           )}
         </CardContent></Card>
@@ -220,7 +226,7 @@ export function EvolucionSection({
       {/* Observaciones automáticas */}
       {observations.length > 0 && (
         <Card>
-          <CardContent className="p-5 flex items-start gap-3">
+          <CardContent className="flex items-start gap-3">
             <Sparkles className="h-4 w-4 text-warn mt-0.5 shrink-0" aria-hidden />
             <ul className="space-y-1.5 text-sm text-body">
               {observations.map((o) => {
@@ -244,10 +250,10 @@ export function EvolucionSection({
         <Card>
           <CardHeader>
             <CardTitle className="text-sm flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-faint" /> Evolución del score medio
+              <TrendingUp className="h-4 w-4 text-faint" /> Evolución de la calidad del contenido
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-0">
             <TrendLine labels={trendLabels} values={trendValues} />
             <p className="text-[11px] text-faint mt-2">{snapshots.length} informes en el historial</p>
           </CardContent>
@@ -259,16 +265,16 @@ export function EvolucionSection({
         <Card>
           <CardHeader>
             <CardTitle className="text-sm flex items-center gap-2">
-              <Award className="h-4 w-4 text-faint" /> Distribución de la calidad compuesta
+              <Award className="h-4 w-4 text-faint" /> Reparto del índice de calidad
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-0">
             <div className="space-y-3">
               {hist.map((h) => (
                 <div key={h.label} className="flex items-center gap-3">
                   <span className="text-xs text-faint w-14 shrink-0 tabular-nums">{h.label}</span>
                   <div className="flex-1 h-6 rounded-md bg-fill overflow-hidden">
-                    <div className={`h-full ${bucketColor(h.min)} transition-all`} style={{ width: `${(h.count / histMax) * 100}%` }} title={`${h.count} datasets`} />
+                    <div className={`h-full ${bucketColor(h.min)} transition-all`} style={{ width: `${(h.count / histMax) * 100}%` }} title={`${h.count} conjuntos de datos`} />
                   </div>
                   <span className="text-xs text-body w-12 text-right tabular-nums">{h.count}</span>
                 </div>
@@ -276,7 +282,7 @@ export function EvolucionSection({
             </div>
             <div className="mt-4 flex items-center gap-2 text-xs text-faint">
               <CheckCircle2 className="h-3.5 w-3.5 text-ok" />
-              {withScore.length} datasets con score compuesto calculado
+              {withScore.length.toLocaleString("es-ES")} conjuntos de datos con índice de calidad calculado
             </div>
           </CardContent>
         </Card>
@@ -287,14 +293,14 @@ export function EvolucionSection({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Card>
             <CardHeader><CardTitle className="text-sm flex items-center gap-2"><TrendingUp className="h-4 w-4 text-ok" /> Mayores mejoras</CardTitle></CardHeader>
-            <CardContent className="space-y-2">
-              {improvers.length === 0 ? <p className="text-sm text-faint">Ningún dataset ha mejorado.</p> : improvers.map((e) => <MoverRow key={e.dataset_id} {...e} />)}
+            <CardContent className="space-y-2 pt-0">
+              {improvers.length === 0 ? <p className="text-sm text-faint">Ningún conjunto de datos ha mejorado.</p> : improvers.map((e) => <MoverRow key={e.dataset_id} {...e} />)}
             </CardContent>
           </Card>
           <Card>
             <CardHeader><CardTitle className="text-sm flex items-center gap-2"><TrendingDown className="h-4 w-4 text-bad" /> Mayores caídas</CardTitle></CardHeader>
-            <CardContent className="space-y-2">
-              {decliners.length === 0 ? <p className="text-sm text-faint">Ningún dataset ha empeorado.</p> : decliners.map((e) => <MoverRow key={e.dataset_id} {...e} />)}
+            <CardContent className="space-y-2 pt-0">
+              {decliners.length === 0 ? <p className="text-sm text-faint">Ningún conjunto de datos ha empeorado.</p> : decliners.map((e) => <MoverRow key={e.dataset_id} {...e} />)}
             </CardContent>
           </Card>
         </div>
@@ -307,14 +313,14 @@ export function EvolucionSection({
         <details className="rounded-xl border border-border bg-card">
           <summary className="cursor-pointer px-5 py-3 text-sm font-semibold text-strong flex items-center gap-2">
             <ClipboardList className="h-4 w-4 text-faint" />
-            Evolución por dataset
-            <span className="text-[11px] font-normal text-faint">({evolutions.length} con ≥2 informes)</span>
+            Evolución por conjunto de datos
+            <span className="text-[11px] font-normal text-faint">({evolutions.length} con 2 informes o más)</span>
           </summary>
           <div className="max-h-96 overflow-y-auto border-t border-border">
             <table className="w-full text-sm">
               <thead className="sticky top-0 bg-canvas">
                 <tr className="text-left text-xs text-faint">
-                  <th className="px-5 py-2 font-medium">Dataset</th>
+                  <th className="px-5 py-2 font-medium">Conjunto de datos</th>
                   <th className="px-3 py-2 font-medium text-right">Primero</th>
                   <th className="px-3 py-2 font-medium text-right">Último</th>
                   <th className="px-3 py-2 font-medium text-right">Δ</th>

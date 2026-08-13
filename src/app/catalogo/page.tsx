@@ -26,7 +26,9 @@ export default async function CatalogoPage({ searchParams }: PageProps) {
 
   // Filtrar y ordenar en servidor.
   const filtered = applyFilters(catalog.datasets, filters, analysisBySlug);
-  const sorted = sortDatasets(filtered, filters.sort);
+  // El análisis va también al ordenar: los criterios de calidad usan el índice
+  // compuesto, que es el que pinta la tarjeta.
+  const sorted = sortDatasets(filtered, filters.sort, analysisBySlug);
   const totalFiltered = sorted.length;
   const totalPages = Math.max(1, Math.ceil(totalFiltered / filters.limit));
 
