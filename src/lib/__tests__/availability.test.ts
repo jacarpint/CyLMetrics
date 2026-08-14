@@ -64,8 +64,28 @@ describe('classifyDelivery', () => {
     expect(classifyDelivery(dist({ status: 'ok' }))).toBe('ok');
   });
   it('roto cuando la descarga no trae el fichero', () => {
-    for (const status of ['http_error', 'unreachable', 'service'] as const) {
+    for (const status of ['http_error', 'unreachable', 'error'] as const) {
       expect(classifyDelivery(withIssues('error', ['descarga'], 'CSV', fetchInfo(status, 404))), status).toBe('roto');
+    }
+  });
+  /**
+   * Los 18 servicios del catálogo salían en rojo, todos, con el motivo «El
+   * servicio de origen no atendió la petición»: `fetch.status: 'service'` lo
+   * pone `engine.py` en cuanto ve un WMS o un WFS, antes de consultarlo, y aquí
+   * se leía como una descarga fallida. El informe dice lo contrario —9 de 10 WMS
+   * y 8 de 8 WFS declaran sus capas— y la vista previa las dibujaba.
+   */
+  it('un servicio OGC que responde no es un archivo roto', () => {
+    expect(classifyDelivery(dist({ status: 'ok', format: 'WFS', fetch: fetchInfo('service', null) }))).toBe('ok');
+    // `sin-capas` es un aviso del contenido del servicio, no un fallo de entrega.
+    expect(classifyDelivery(withIssues('error', ['sin-capas'], 'WMS', fetchInfo('service', null)))).toBe('ok');
+  });
+  it('un servicio OGC caído sí es roto, por su código bloqueante', () => {
+    for (const code of ['servicio-no-disponible', 'servicio-error']) {
+      expect(
+        classifyDelivery(withIssues('error', [code], 'WMS', fetchInfo('service', null))),
+        code
+      ).toBe('roto');
     }
   });
   it('roto cuando llega pero no se puede interpretar', () => {
@@ -170,6 +190,17 @@ describe('deliveryCause', () => {
       label: 'Este portal no dispone de lector para este formato',
     });
   });
+  /**
+   * `service` no describe ningún fallo: dice que el recurso es un servicio. Si
+   * un WMS está caído, el motivo tiene que ser el código del analizador OGC.
+   */
+  it('el motivo de un servicio caído es su código, no «service»', () => {
+    const d = withIssues('error', ['servicio-no-disponible'], 'WMS', fetchInfo('service', null));
+    expect(deliveryCause(d)).toMatchObject({
+      code: 'servicio-no-disponible',
+      label: 'El servicio de mapas no responde',
+    });
+  });
   it('nunca devuelve un estado de descarga cuando los bytes llegaron', () => {
     for (const status of ['downloaded', 'truncated'] as const) {
       const d = withIssues('skipped', ['dependencia-faltante'], 'XLSX', fetchInfo(status, 200));
@@ -266,9 +297,8 @@ describe('formatContentScores', () => {
     expect(formatContentScores(report).JPEG).toEqual({ scored: 1, avgScore: 0 });
   });
   /**
-   * Filtrar por `classifyDelivery === 'ok'` habría borrado esto: un WMS no
-   * descarga ningún archivo, así que se clasifica como `roto`, pero su análisis
-   * se hizo y su nota es buena.
+   * Un WMS no descarga ningún archivo y su nota sale del análisis de las
+   * capacidades, así que tiene que sobrevivir a cualquier filtro de entrega.
    */
   it('los servicios OGC conservan su nota aunque no entreguen archivo', () => {
     expect(formatContentScores(report).WMS).toEqual({ scored: 1, avgScore: 90 });

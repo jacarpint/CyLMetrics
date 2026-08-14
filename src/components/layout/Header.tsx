@@ -44,6 +44,12 @@ export function Header() {
     );
 
   return (
+    /*
+     * `z-50` es la capa más alta de la interfaz y basta: lo que se colaba por
+     * encima al hacer scroll era el mapa, cuyos controles llevan z-index 1000
+     * de serie. Eso se arregla conteniendo el mapa —`.leaflet-container` abre su
+     * propio contexto de apilamiento en `globals.css`—, no subiendo este número.
+     */
     <header className="sticky top-0 z-50 w-full border-b border-border bg-card/95 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-card/80">
       <div className="flex h-[4.5rem] items-center justify-between gap-4 px-4 sm:px-6">
         <Link

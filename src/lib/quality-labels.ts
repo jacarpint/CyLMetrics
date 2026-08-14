@@ -292,9 +292,15 @@ export const ISSUE_LABELS: Record<string, string> = {
   // de archivos etiquetado «downloaded», con HTTP 200 al lado. `deliveryCause` ya
   // no cae aquí cuando los bytes han llegado, pero estas cuatro entradas son la
   // segunda línea: si alguna vez vuelve a caer, al menos se leerá en español.
+  //
+  // `service` decía «El servicio de origen no atendió la petición», y eso era
+  // falso: lo pone `engine.py` en TODO servicio OGC antes de consultarlo, así que
+  // los 17 servicios que sí responden salían en rojo con ese motivo. Ahora
+  // `deliveryCause` no cae aquí para un servicio (ver `FETCH_SERVICE` en
+  // `availability.ts`) y la etiqueta dice lo que el estado significa de verdad.
   http_error: 'El servidor respondió con un error',
   unreachable: 'No se pudo contactar con el servidor',
-  service: 'El servicio de origen no atendió la petición',
+  service: 'Servicio de mapas: se comprueba consultándolo, no descargando un archivo',
   too_large: 'Supera el tamaño máximo que este portal descarga',
   downloaded: 'El archivo se descargó completo',
   truncated: 'El archivo se descargó solo en parte',
@@ -381,7 +387,7 @@ const ISSUE_EXPLANATIONS: Record<string, string> = {
   unreachable:
     'No hay respuesta del servidor que guarda el archivo. Mientras siga así, el dato consta como publicado pero no hay forma de conseguirlo.',
   service:
-    'El servicio que sirve estos datos recibe la petición y no la atiende. Puede estar saturado o no admitir descargas automáticas.',
+    'Un WMS o un WFS no entrega un archivo: se comprueba preguntándole por sus capas. Que aparezca esto como motivo no dice que el servicio falle; si falla, el motivo es «El servicio de mapas no responde».',
   too_large:
     'El archivo pasa del tamaño que este portal descarga para analizar, así que su contenido no se ha comprobado. No es un defecto del archivo: se sigue pudiendo descargar del enlace original.',
   no_url:

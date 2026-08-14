@@ -14,6 +14,16 @@ export interface MapFeature {
   properties: Record<string, string>;
 }
 
+/**
+ * Qué puede pintar este mapa. Solo cosas que SON el recurso.
+ *
+ * Hubo un tercer tipo, `locator`: un marcador en el centro de la cobertura
+ * declarada del conjunto, que se usaba de respaldo cuando el recurso no se podía
+ * dibujar. Se retiró porque mentía por omisión —un mapa con un punto dentro se
+ * lee como «el recurso está aquí», y ese punto era el mismo para todo el
+ * catálogo—. Cuando no hay geometría, el visor enseña un hueco que lo dice
+ * (`NoGeometry`, en `distribution-map.tsx`) en lugar de un mapa.
+ */
 export type GeoSpec =
   | {
       kind: 'wms';
@@ -24,19 +34,93 @@ export type GeoSpec =
       format?: string;
       bbox?: Bbox | null;
       opacity?: number;
+      /**
+       * `GetLegendGraphic` de la capa, si el servicio la ofrece. Se pinta dentro
+       * del mapa: los colores de un WMS no significan nada sin ella, y tenerla
+       * en una tarjeta aparte obligaba a mirar fuera del mapa para leerlo.
+       *
+       * `url` la pide dibujada a mayor resolución (extensión de GeoServer) y
+       * `plain` es la misma petición sin extensiones, como respaldo para un
+       * servidor que rechace lo que no conoce.
+       */
+      legend?: { url: string; plain: string } | null;
     }
   | {
       kind: 'features';
       features: MapFeature[];
       /** Índice de la entidad resaltada, sincronizado con la tabla. */
       selected: number | null;
-    }
-  | { kind: 'locator'; lat: number; lng: number; label: string; hasError?: boolean };
+    };
 
 const CYL_CENTER: [number, number] = [41.7, -4.8];
 const CYL_BOUNDS: [[number, number], [number, number]] = [[40.0, -7.1], [43.3, -1.8]];
 /** A partir de aquí se dibuja en canvas: con SVG el navegador se arrodilla. */
 const CANVAS_THRESHOLD = 2000;
+
+/**
+ * Control con la leyenda del WMS, en la esquina inferior derecha.
+ *
+ * Es un control de Leaflet y no una caja flotante encima del mapa porque así el
+ * reparto de esquinas lo hace Leaflet: se coloca en el hueco de abajo a la
+ * derecha y, como los controles de las esquinas inferiores se insertan delante
+ * de los que ya había, queda por encima de la atribución en lugar de taparla.
+ * Y como cualquier otro control, no se lleva por delante el arrastre del mapa.
+ */
+function legendControl(
+  L: typeof Leaflet,
+  legend: { url: string; plain: string },
+  layerName: string
+): Leaflet.Control {
+  const control = new L.Control({ position: 'bottomright' });
+
+  control.onAdd = () => {
+    const box = L.DomUtil.create('div', 'leaflet-control map-legend');
+    box.dataset.open = 'true';
+
+    const toggle = L.DomUtil.create('button', 'map-legend-toggle', box);
+    toggle.type = 'button';
+    toggle.setAttribute('aria-expanded', 'true');
+    const label = L.DomUtil.create('span', '', toggle);
+    label.textContent = 'Leyenda';
+    const chevron = L.DomUtil.create('span', '', toggle);
+    chevron.setAttribute('aria-hidden', 'true');
+    chevron.textContent = '▾';
+
+    const body = L.DomUtil.create('div', 'map-legend-body', box);
+    const img = L.DomUtil.create('img', '', body) as HTMLImageElement;
+    img.alt = `Leyenda de la capa ${layerName}`;
+    img.src = legend.url;
+
+    let retried = false;
+    img.addEventListener('error', () => {
+      // Primero se prueba sin la petición ampliada: si el servicio rechaza la
+      // extensión de GeoServer, su leyenda normal sigue siendo mejor que nada.
+      if (!retried && legend.plain !== legend.url) {
+        retried = true;
+        img.src = legend.plain;
+        return;
+      }
+      // No todos los servicios sirven `GetLegendGraphic`. Una caja vacía
+      // rotulada «Leyenda» confunde más que no enseñar nada.
+      box.style.display = 'none';
+    });
+
+    toggle.addEventListener('click', () => {
+      const open = box.dataset.open !== 'false';
+      box.dataset.open = open ? 'false' : 'true';
+      toggle.setAttribute('aria-expanded', String(!open));
+      chevron.textContent = open ? '▸' : '▾';
+    });
+
+    // Sin esto, pulsar la leyenda deselecciona la entidad activa, arrastrarla
+    // mueve el mapa y la rueda del ratón hace zoom en vez de recorrerla.
+    L.DomEvent.disableClickPropagation(box);
+    L.DomEvent.disableScrollPropagation(box);
+    return box;
+  };
+
+  return control;
+}
 
 interface GeoPreviewMapProps {
   spec: GeoSpec;
@@ -53,6 +137,8 @@ export default function GeoPreviewMap({ spec, onTileError, onSelectFeature, clas
   const leafletRef = useRef<typeof Leaflet | null>(null);
   const baseLayerRef = useRef<Leaflet.TileLayer | null>(null);
   const overlayRef = useRef<Leaflet.Layer | null>(null);
+  /** La leyenda es un control, no una capa: se quita con el overlay del WMS. */
+  const legendRef = useRef<Leaflet.Control | null>(null);
   /** Índice de entidad → capa de Leaflet, para poder resaltar desde la tabla. */
   const byIndexRef = useRef<Map<number, Leaflet.Path | Leaflet.Layer>>(new Map());
   /** Se marca de forma síncrona: el doble montaje de StrictMode dispara el
@@ -110,6 +196,7 @@ export default function GeoPreviewMap({ spec, onTileError, onSelectFeature, clas
       mapRef.current?.remove();
       mapRef.current = null;
       overlayRef.current = null;
+      legendRef.current = null;
       baseLayerRef.current = null;
       byIndex.clear();
       initStartedRef.current = false;
@@ -158,10 +245,18 @@ export default function GeoPreviewMap({ spec, onTileError, onSelectFeature, clas
 
   /* ── 4. Capa de datos: se sustituye sin recrear el mapa ──────────────
      `spec.selected` se excluye a propósito de las dependencias: resaltar no
-     debe reconstruir 77.000 geometrías, de eso se encarga el efecto 5.       */
+     debe reconstruir 77.000 geometrías, de eso se encarga el efecto 5.
+
+     La opacidad tampoco entra en la clave: se aplica sobre la capa viva en el
+     efecto 4b. Estaba dentro porque la clave era `JSON.stringify(spec)`, así
+     que cada paso del deslizador tiraba la capa WMS entera y volvía a pedir
+     todas las teselas al servicio —y, ahora que la leyenda vive dentro del
+     mapa, también la replegaba a mitad del arrastre.                         */
   const specKey =
     spec.kind === 'features'
       ? `features|${spec.features.length}|${spec.features[0]?.geometry?.type ?? ''}`
+      : spec.kind === 'wms'
+      ? `wms|${spec.getMapUrl}|${spec.layers}|${spec.version}|${spec.format ?? ''}|${JSON.stringify(spec.bbox ?? null)}|${spec.legend?.url ?? ''}`
       : JSON.stringify(spec);
 
   useEffect(() => {
@@ -173,13 +268,16 @@ export default function GeoPreviewMap({ spec, onTileError, onSelectFeature, clas
       map.removeLayer(overlayRef.current);
       overlayRef.current = null;
     }
+    if (legendRef.current) {
+      legendRef.current.remove();
+      legendRef.current = null;
+    }
     // Copia local: en la limpieza la ref puede apuntar ya a otra colección.
     const byIndex = byIndexRef.current;
     byIndex.clear();
     tileErrorNotifiedRef.current = false;
 
     const okSolid = themeToken('--ok-solid', '#059669');
-    const badSolid = themeToken('--bad-solid', '#dc2626');
     const cardBg = themeToken('--card', '#ffffff');
 
     if (spec.kind === 'wms') {
@@ -199,6 +297,12 @@ export default function GeoPreviewMap({ spec, onTileError, onSelectFeature, clas
       });
       wms.addTo(map);
       overlayRef.current = wms;
+
+      if (spec.legend) {
+        const legend = legendControl(L, spec.legend, spec.layers);
+        legend.addTo(map);
+        legendRef.current = legend;
+      }
 
       const b = spec.bbox;
       if (b) map.fitBounds([[b.south, b.west], [b.north, b.east]], { padding: [12, 12] });
@@ -237,19 +341,6 @@ export default function GeoPreviewMap({ spec, onTileError, onSelectFeature, clas
 
       const b = layer.getBounds();
       if (b.isValid()) map.fitBounds(b, { padding: [20, 20] });
-    } else {
-      const color = spec.hasError ? badSolid : okSolid;
-      const icon = L.divIcon({
-        html: `<div style="width:16px;height:16px;border-radius:50%;background:${color};border:2.5px solid ${cardBg};box-shadow:0 1px 4px rgba(0,0,0,.45)"></div>`,
-        className: '',
-        iconSize: [16, 16],
-        iconAnchor: [8, 8],
-      });
-      const marker = L.marker([spec.lat, spec.lng], { icon, alt: spec.label });
-      marker.bindPopup(`<strong style="font-size:12px">${escapeHtml(spec.label)}</strong>`);
-      marker.addTo(map);
-      overlayRef.current = marker;
-      map.setView([spec.lat, spec.lng], 8);
     }
 
     return () => {
@@ -257,10 +348,22 @@ export default function GeoPreviewMap({ spec, onTileError, onSelectFeature, clas
         map.removeLayer(overlayRef.current);
         overlayRef.current = null;
       }
+      if (legendRef.current) {
+        legendRef.current.remove();
+        legendRef.current = null;
+      }
       byIndex.clear();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, specKey, dark]);
+
+  /* ── 4b. Opacidad del WMS, sobre la capa que ya está puesta ── */
+  const wmsOpacity = spec.kind === 'wms' ? spec.opacity ?? 0.8 : null;
+  useEffect(() => {
+    const layer = overlayRef.current as Leaflet.TileLayer | null;
+    if (!ready || wmsOpacity == null || !layer || typeof layer.setOpacity !== 'function') return;
+    layer.setOpacity(wmsOpacity);
+  }, [ready, specKey, wmsOpacity]);
 
   /* ── 5. Resaltar la entidad seleccionada y llevarla a la vista ── */
   const selected = spec.kind === 'features' ? spec.selected : null;

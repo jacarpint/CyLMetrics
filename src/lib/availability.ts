@@ -50,7 +50,9 @@ const NOT_A_FILE_CODES = new Set(['no-es-archivo', 'no-es-imagen']);
  *   grande del que se leyó una parte, pero se leyó.
  * - `too_large`: no se intentó por superar el tope. No sabemos si abre.
  * - `no_url`: el catálogo describe el recurso sin dar enlace. Tampoco se intentó.
- * - `http_error` / `unreachable` / `service` / `error`: la descarga falló.
+ * - `service`: es un WMS/WFS. No hay archivo que descargar; lo comprueba el
+ *   analizador OGC. Ver `FETCH_SERVICE`.
+ * - `http_error` / `unreachable` / `error`: la descarga falló.
  */
 const FETCH_DELIVERED = new Set(['downloaded', 'truncated']);
 /**
@@ -62,13 +64,33 @@ const FETCH_DELIVERED = new Set(['downloaded', 'truncated']);
  */
 const FETCH_NOT_EVALUATED = new Set(['too_large', 'no_url']);
 
-type FetchOutcome = 'entregado' | 'fallido' | 'no-evaluado';
+/**
+ * WMS y WFS no descargan ningún archivo, y eso NO es un fallo de entrega.
+ *
+ * `engine.py` le pone `fetch.status: 'service'` a todo servicio OGC antes de
+ * saber cómo ha ido —significa «aquí no hay bytes, pregúntale al analizador»—,
+ * pero aquí caía al respaldo `'fallido'` y `classifyDelivery` devolvía `roto`
+ * para los 18 servicios del catálogo **sin excepción**. El informe dice otra
+ * cosa: 9 de 10 WMS y 8 de 8 WFS responden a `GetCapabilities` y declaran sus
+ * capas, y son las mismas que la vista previa geoespacial dibuja sin problema.
+ * El portal las pintaba en rojo con el motivo «El servicio de origen no atendió
+ * la petición» mientras enseñaba sus capas dos pantallas más allá.
+ *
+ * Para un servicio, la pregunta «¿se puede usar?» la responde el análisis de
+ * las capacidades, no la descarga: un servicio caído deja `servicio-no-disponible`
+ * o `servicio-error`, que ya son códigos bloqueantes y siguen dando `roto` por
+ * la vía normal.
+ */
+const FETCH_SERVICE = 'service';
+
+type FetchOutcome = 'entregado' | 'fallido' | 'no-evaluado' | 'servicio';
 
 function fetchOutcome(dist: DistributionResult): FetchOutcome {
   const status = dist.fetch?.status;
   if (!status) return 'fallido';
   if (FETCH_DELIVERED.has(status)) return 'entregado';
   if (FETCH_NOT_EVALUATED.has(status)) return 'no-evaluado';
+  if (status === FETCH_SERVICE) return 'servicio';
   return 'fallido';
 }
 
@@ -139,6 +161,10 @@ export function classifyDelivery(dist: DistributionResult): DeliveryState {
   // No se intentó (supera el tope de tamaño): no se puede afirmar nada.
   if (outcome === 'no-evaluado') return 'omitida';
 
+  // `servicio` sigue por aquí a propósito: un WMS/WFS no tiene bytes que
+  // esperar, así que su estado sale de los códigos de abajo igual que el de un
+  // archivo entregado. Ver `FETCH_SERVICE`.
+
   // Llegó. Solo es «roto» si además no se puede interpretar: un JSON inválido,
   // un ZIP corrupto, un shapefile sin sus piezas.
   if (codes.some(isBlockingCode)) return 'roto';
@@ -192,16 +218,19 @@ export interface DeliveryCause {
  * etiqueta escrita— no se consultaba nunca.
  *
  * `fetch.status` solo es el motivo cuando los bytes NO llegaron: ahí sí es lo
- * único que sabemos, y `http_error`/`unreachable`/`service` lo dicen bien.
+ * único que sabemos, y `http_error`/`unreachable` lo dicen bien. `service`
+ * queda fuera por lo mismo que en `classifyDelivery`: no describe ningún fallo,
+ * solo dice que el recurso es un servicio OGC.
  */
 export function deliveryCause(dist: DistributionResult): DeliveryCause | null {
   if (classifyDelivery(dist) === 'ok') return null;
   const codes = issueCodes(dist);
-  const delivered = fetchOutcome(dist) === 'entregado';
+  const outcome = fetchOutcome(dist);
+  const fetchExplains = outcome !== 'entregado' && outcome !== 'servicio';
   const code =
     codes.find((c) => isBlockingCode(c)) ??
     codes.find((c) => isPortalLimitation(c)) ??
-    (delivered ? undefined : dist.fetch?.status) ??
+    (fetchExplains ? dist.fetch?.status : undefined) ??
     codes[0] ??
     'desconocido';
 
@@ -340,10 +369,12 @@ function roundedMean(sum: number, count: number): number | null {
  * la calidad de ningún Excel: miden que no teníamos openpyxl instalado.
  *
  * NO filtra por `classifyDelivery === 'ok'`, que es lo que hace `summarizeContent`.
- * La diferencia importa: un WMS o un WFS no descargan ningún archivo, así que
- * `classifyDelivery` los da por `roto` y filtrar por ahí borraba el 90 % de WMS y
- * el 100 % de WFS, que sí se analizaron de verdad. Un cero legítimo —una imagen que
- * resultó ser HTML— también se queda, porque ese sí habla del archivo.
+ * La diferencia importa para los servicios OGC: no descargan ningún archivo y su
+ * nota sale del análisis de las capacidades, así que se conserva aunque el eje de
+ * entrega diga otra cosa. (Mientras `service` contaba como descarga fallida, esto
+ * era lo único que evitaba borrar el 90 % de WMS y el 100 % de WFS de las medias.)
+ * Un cero legítimo —una imagen que resultó ser HTML— también se queda, porque ese
+ * sí habla del archivo.
  */
 function measuredScore(dist: DistributionResult): number | null {
   for (const issue of dist.analysis?.issues ?? []) {

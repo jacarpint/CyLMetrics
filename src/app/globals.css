@@ -253,6 +253,23 @@
 .leaflet-container {
   background: var(--fill);
   font: inherit;
+  /*
+   * El mapa se pinta DENTRO de su caja, no por encima de la página.
+   *
+   * Leaflet reparte a sus hijos z-index propios y altos —400 los paneles de
+   * capas, 800 los controles, 1000 las esquinas—, y `.leaflet-container` no
+   * creaba contexto de apilamiento, así que esos números competían directamente
+   * con los de la página. La cabecera es `sticky z-50`: 50 contra 1000, y al
+   * hacer scroll el mapa pasaba por encima del logo, el menú, el buscador y el
+   * selector de tema.
+   *
+   * `position: relative` ya lo pone Leaflet; con `z-index: 0` el contenedor
+   * abre su propio contexto y todo lo suyo queda encerrado dentro, por debajo
+   * de cualquier capa de la interfaz. No hay que tocar el z-index de la
+   * cabecera: el problema no era que estuviera baja, era que el mapa no estaba
+   * contenido.
+   */
+  z-index: 0;
 }
 
 .leaflet-bar,
@@ -306,6 +323,77 @@
 
 .leaflet-container a.leaflet-popup-close-button:hover {
   color: var(--strong);
+}
+
+/* ──────────────────────────────────────────────────────────────
+   Leyenda del WMS, dentro del mapa.
+
+   Va en la esquina inferior derecha y, por el orden en que Leaflet apila los
+   controles de abajo (inserta cada uno ANTES del anterior), queda justo encima
+   de la atribución de la cartografía. Se puede plegar: hay servicios cuya
+   leyenda son treinta filas y taparía media provincia.
+   ────────────────────────────────────────────────────────────── */
+/*
+ * El ancho tiene que dar cabida a la leyenda pedida a 180 ppp: entre 236 y 296
+ * px según la capa, contra los 116-157 que se veían antes. A 16rem caben casi
+ * todas a tamaño natural y las más anchas se reducen un poco, que es lo que hay
+ * que hacer con un PNG: encogerlo mantiene el texto nítido, estirarlo no. En un
+ * mapa estrecho manda el 60 %, para no tapar media provincia.
+ */
+.map-legend {
+  max-width: min(16rem, 60%);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, var(--card) 94%, transparent);
+  box-shadow: 0 4px 14px -6px hsl(var(--shadow-color) / 0.5);
+}
+
+.map-legend-toggle {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  background: transparent;
+  cursor: pointer;
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.map-legend-toggle:hover {
+  color: var(--body);
+}
+
+/* Alto: las leyendas del catálogo caben enteras (la más alta, 132 px a 180 ppp,
+   se enseña a ~114). El tope está para las de veinte clases, que se recorren
+   con scroll en vez de comerse el mapa. */
+.map-legend-body {
+  max-height: 13rem;
+  overflow: auto;
+  padding: 0 0.5rem 0.5rem;
+}
+
+.map-legend[data-open="false"] .map-legend-body {
+  display: none;
+}
+
+.map-legend img {
+  display: block;
+  max-width: 100%;
+}
+
+/* Las leyendas se sirven en PNG con tinta oscura y fondo transparente: sobre la
+   tarjeta oscura no se leen. Se les pone su propio fondo claro, como ya hacía la
+   tarjeta de leyenda que esto sustituye. */
+.dark .map-legend img {
+  border-radius: 0.25rem;
+  background: rgb(255 255 255 / 0.92);
+  padding: 0.25rem;
 }
 
 /* Si en modo oscuro acabamos sirviendo el mapa base claro (porque el proveedor

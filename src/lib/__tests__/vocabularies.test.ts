@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import { themeLabel, spatialLabel, looksLikeUri } from '../vocabularies';
-import { getSpatialCoords, SPATIAL_COORDS } from '../geo';
 
 describe('themeLabel', () => {
   it('traduce las URIs del vocabulario NTI-RISP', () => {
@@ -49,33 +48,10 @@ describe('looksLikeUri', () => {
   });
 });
 
-/**
- * La regresión que motivó el arreglo: la URI de la comunidad contiene la
- * subcadena "leon", así que el gazetteer devolvía la ciudad de León para los
- * 825 datasets del catálogo.
+/*
+ * Aquí había un bloque `getSpatialCoords`: el gazetteer que convertía la
+ * cobertura declarada en coordenadas para pintar un marcador de respaldo en el
+ * visor. El marcador se retiró —era el mismo punto para todo el catálogo y se
+ * leía como si fuera la geometría del recurso— y con él la función. La
+ * cobertura se sigue enseñando, pero en texto y con `spatialLabel`.
  */
-describe('getSpatialCoords', () => {
-  const CASTILLA_LEON = SPATIAL_COORDS['castilla y leon'];
-  const LEON_CIUDAD = SPATIAL_COORDS['leon'];
-
-  it('la URI de la comunidad no se confunde con la ciudad de León', () => {
-    const coords = getSpatialCoords('http://datos.gob.es/recurso/sector-publico/territorio/Autonomia/Castilla-Leon');
-    expect(coords).toEqual(CASTILLA_LEON);
-    expect(coords).not.toEqual(LEON_CIUDAD);
-  });
-
-  it('sigue resolviendo la ciudad cuando de verdad es la ciudad', () => {
-    expect(getSpatialCoords('http://datos.gob.es/recurso/sector-publico/territorio/Provincia/Leon'))
-      .toEqual(LEON_CIUDAD);
-  });
-
-  it('con texto libre gana la clave más específica', () => {
-    expect(getSpatialCoords('Provincia de Salamanca')).toEqual(SPATIAL_COORDS['provincia de salamanca']);
-    expect(getSpatialCoords('Comunidad de Castilla y León')).toEqual(CASTILLA_LEON);
-  });
-
-  it('sin cobertura reconocible devuelve null en vez de un punto cualquiera', () => {
-    expect(getSpatialCoords(undefined)).toBeNull();
-    expect(getSpatialCoords('Provincia de Cuenca')).toBeNull();
-  });
-});

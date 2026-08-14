@@ -178,6 +178,7 @@ src/
 │   ├── repair-actions.ts  # Lista de tareas del publicador, por impacto
 │   ├── catalog-filters.ts # Filtros URL (server + client)
 │   ├── proxy-allow.ts     # Allowlist de dominios del proxy y de la CSP
+│   ├── wfs-paging.ts      # Talla de página del visor WFS, medida por peso
 │   └── types.ts           # Tipos compartidos
 ├── analysis/              # Python: descarga, validación, scoring
 │   ├── cli.py             # CLI del análisis
@@ -220,13 +221,21 @@ engaña en las dos direcciones:
   Solo tiene sentido sobre lo que sí abre.
 
 Un archivo es «no disponible» únicamente si la descarga falla (`fetch.status` de
-`http_error`, `unreachable` o `service`) o si llega y no se puede interpretar
+`http_error`, `unreachable` o `error`) o si llega y no se puede interpretar
 (algún código de `BLOCKING_ISSUE_CODES`: JSON inválido, ZIP corrupto, shapefile
 incompleto…). **No basta con que `engine.py` le ponga `status: 'error'`**: ese
 estado se activa con cualquier incidencia de severidad error, y «tipos mezclados
 en una columna» es una de ellas. Ese detalle inflaba la disponibilidad del 16%
 real al 35%, porque 328 de las 582 marcadas en error se descargan, se abren y
 devuelven filas. La regla vive en `classifyDelivery` de `src/lib/availability.ts`.
+
+Los servicios (WMS/WFS) tampoco entran por la puerta de la descarga: `engine.py`
+les pone `fetch.status: 'service'` **antes** de consultarlos, porque no hay
+archivo que bajar. Tratarlo como un fallo de descarga daba por rotos los 18
+servicios del catálogo —incluidos los 17 que responden y cuyas capas dibuja la
+vista previa— con el motivo «El servicio de origen no atendió la petición». Un
+servicio se juzga por su `GetCapabilities`: si no responde, el analizador deja
+`servicio-no-disponible`, que ya es un código bloqueante.
 
 La **calidad global** que aparece en cada ficha pondera `40% metadatos +
 30% disponibilidad + 30% contenido`. Los umbrales (≥80 buena, 50–79 mejorable,

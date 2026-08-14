@@ -4,18 +4,24 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import {
-  MapPin, ExternalLink, Info, Loader2, AlertTriangle, RefreshCw,
-  Image as ImageIcon, Layers, ServerCrash, Package,
+  MapPinOff, ExternalLink, Info, Loader2, AlertTriangle, RefreshCw,
+  Layers, ServerCrash, Package,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { TableExplorer } from '@/components/quality/table-explorer';
-import { getSpatialCoords, GEO_FORMAT_NAMES } from '@/lib/geo';
+import { GEO_FORMAT_NAMES } from '@/lib/geo';
+import { spatialLabel } from '@/lib/vocabularies';
 import { readShapefile, describeZip, ShapefileError } from '@/lib/shapefile-read';
 import { ZipError } from '@/lib/zip-read';
 import { diagnose, sniff, ogcException, type Diagnosis } from '@/lib/geo-diagnose';
 import { formatBytes } from '@/lib/quality-labels';
 import { MAP_AUTOLOAD_CAP, needsRangeDownload, rangeChunkCount } from '@/lib/download-budget';
 import { DownloadError, downloadResource, type Progress } from '@/lib/progressive-fetch';
+import {
+  budgetExhausted, heaviestPerFeature, looksTruncatedByCap, nextPageSize, pageFingerprint, shrinkPageSize,
+  WFS_MAX_PAGE_SIZE, WFS_MAX_PAGES, WFS_MAX_SHRINKS, WFS_MAX_TOTAL_BYTES,
+  WFS_PROBE_SIZE, WFS_TARGET_PAGE_BYTES,
+} from '@/lib/wfs-paging';
 import { cn } from '@/lib/utils';
 import type { Bbox, GeoSpec, MapFeature } from '@/components/quality/geo-preview-map';
 
@@ -25,24 +31,6 @@ const GeoPreviewMap = dynamic(() => import('@/components/quality/geo-preview-map
 });
 
 type OgcLayer = { name: string; title: string; bbox?: Bbox | null; queryable?: boolean; crs?: string };
-
-/**
- * Entidades por página al pedir un WFS.
- *
- * Hay capas del IDECyL cuyas entidades son polígonos enormes: 200 ocupan 27 MB
- * y tardan medio minuto. Pedir la capa entera de una vez era lo que obligaba a
- * la escalera de reserva (`[null, 200, 25]`), que acababa enseñando 25 de
- * 12.000. Con páginas de este tamaño cada petición responde en un tiempo
- * razonable y el mapa se va poblando.
- */
-const WFS_PAGE_SIZE = 500;
-
-/**
- * Tope de páginas: 100.000 entidades. Por encima, el navegador no las dibuja de
- * forma útil por muchas que se traigan, y hay que acotar por si un servicio
- * ignora la paginación.
- */
-const WFS_MAX_PAGES = 200;
 
 interface DistributionMapProps {
   format: string;
@@ -65,6 +53,29 @@ class ProxyFailure extends Error {
     super(`proxy ${status}`);
   }
 }
+
+/**
+ * La página del WFS no cabe en una petición del proxy: hay que volver a pedirla
+ * con menos entidades. No es un fallo del servicio.
+ */
+class OversizePage extends Error {}
+
+/**
+ * Por qué se dejó de pedir páginas a un WFS. Cada motivo se cuenta distinto,
+ * porque «el servicio no pudo» y «paramos nosotros» son cosas diferentes y
+ * antes se enseñaban las dos con la misma frase.
+ */
+type WfsStop =
+  /** Llegaron todas las entidades de la capa. */
+  | 'completa'
+  /** El servicio dejó de entregar antes de terminar. */
+  | 'servicio'
+  /** El servicio es WFS 1.x: sin `startIndex` solo hay una página. */
+  | 'sin-paginacion'
+  /** Se alcanzó el máximo que el visor descarga de una capa. */
+  | 'presupuesto'
+  /** Se alcanzó el tope de páginas. */
+  | 'paginas';
 
 /** Propiedades de una entidad a texto plano, que es lo que pinta la tabla. */
 function toProperties(input: unknown): Record<string, string> {
@@ -196,40 +207,48 @@ function LayerPicker({
   );
 }
 
-/** Leyenda del servicio: sin ella los colores del WMS no significan nada. */
-function WmsLegend({ getMapUrl, version, layer }: { getMapUrl: string; version: string; layer: string }) {
-  // Se recuerda QUÉ leyenda falló, no un booleano: al cambiar de capa el
-  // estado deja de aplicar solo, sin un efecto que lo rearme.
-  const [failedSrc, setFailedSrc] = useState<string | null>(null);
-  const src = useMemo(() => {
-    const u = new URL(getMapUrl, window.location.href);
+/**
+ * Resolución a la que se pide la leyenda, en puntos por pulgada.
+ *
+ * `GetLegendGraphic` devuelve un PNG del tamaño que decida el servicio, y el de
+ * GeoServer sale a 90 ppp: 157×93 px para una capa de cinco clases, que dentro
+ * del mapa se lee pequeño. Ampliarlo por CSS emborrona el texto, así que se le
+ * pide al servicio que lo dibuje más grande: a 180 ppp la misma leyenda sale a
+ * 296×132 px, rotulada y con sus símbolos a esa escala, no interpolada.
+ *
+ * `LEGEND_OPTIONS` es una extensión de GeoServer —16 de los 18 servicios del
+ * catálogo lo son—. El ArcGIS Server de `suelos.itacyl.es` la ignora y devuelve
+ * su leyenda normal, que es el comportamiento correcto para un parámetro que no
+ * se conoce; para el servidor que algún día no lo haga está `plain`.
+ */
+const LEGEND_DPI = 180;
+
+/**
+ * URLs de la leyenda de una capa WMS, o null si no se puede componer.
+ *
+ * Sin leyenda los colores de un WMS no significan nada. Estaba en una tarjeta
+ * debajo del mapa, así que para saber qué era cada color había que apartar la
+ * vista del mapa y volver; ahora la pinta el propio mapa en su esquina (ver
+ * `legendControl` en `geo-preview-map.tsx`) y esto solo arma las direcciones.
+ */
+function legendUrls(getMapUrl: string, version: string, layer: string): { url: string; plain: string } | null {
+  try {
+    const u = new URL(getMapUrl);
     u.searchParams.set('service', 'WMS');
     u.searchParams.set('request', 'GetLegendGraphic');
     u.searchParams.set('version', version);
     u.searchParams.set('format', 'image/png');
     u.searchParams.set('layer', layer);
     u.searchParams.set('transparent', 'true');
-    return u.toString();
-  }, [getMapUrl, version, layer]);
+    const plain = u.toString();
 
-  if (failedSrc === src) return null;
-
-  return (
-    <div className="rounded-lg border border-border bg-card p-3">
-      <p className="eyebrow mb-2 flex items-center gap-1.5">
-        <ImageIcon className="h-3 w-3" aria-hidden />
-        Leyenda
-      </p>
-      {/* Imagen servida por el propio servicio OGC; next/image no aporta aquí. */}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={src}
-        alt={`Leyenda de la capa ${layer}`}
-        className="max-w-full dark:rounded dark:bg-white/90 dark:p-1"
-        onError={() => setFailedSrc(src)}
-      />
-    </div>
-  );
+    u.searchParams.set('LEGEND_OPTIONS', `dpi:${LEGEND_DPI}`);
+    return { url: u.toString(), plain };
+  } catch {
+    // `getMapUrl` sale de las capacidades del servicio y debería ser absoluta;
+    // si no lo es, no hay leyenda que pedir, pero el mapa se pinta igual.
+    return null;
+  }
 }
 
 function Banner({
@@ -255,6 +274,43 @@ function Banner({
     </Card>
   );
 }
+
+/**
+ * El hueco del mapa cuando no hay ninguna geometría que dibujar.
+ *
+ * Lo que había antes era un mapa de verdad con un punto en el centro de la
+ * cobertura declarada del conjunto. En este catálogo esa cobertura es la misma
+ * para casi todo —Castilla y León—, así que el respaldo de cualquier fallo era
+ * el mismo punto en Valladolid, y al pulsarlo salía la URI del vocabulario en
+ * crudo. Enseñar un mapa con algo dentro afirma que ese algo es el recurso;
+ * cuando el recurso no se ha podido cargar, la respuesta honesta es un hueco
+ * que lo diga, no un marcador que rellene el espacio.
+ */
+function NoGeometry({ reason, coverage }: { reason: string; coverage?: string | null }) {
+  return (
+    <div className="flex min-h-[220px] w-full flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-fill px-6 py-8 text-center">
+      <MapPinOff className="h-6 w-6 text-faint" aria-hidden />
+      <p className="max-w-prose text-sm font-medium text-body">{reason}</p>
+      {coverage && (
+        <p className="max-w-prose text-xs leading-relaxed text-faint">
+          El catálogo declara que este conjunto cubre{' '}
+          <strong className="font-medium text-body">{coverage}</strong>, pero eso es la cobertura
+          del conjunto de datos, no la geometría del archivo: no hay nada que situar en el mapa.
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** Por qué el mapa enseña menos entidades de las que tiene la capa. */
+const WFS_STOP_NOTES: Record<WfsStop | 'cargando', string> = {
+  completa: '',
+  cargando: 'todavía se están descargando',
+  servicio: 'el servicio dejó de entregarlas',
+  'sin-paginacion': 'el servicio es WFS 1.x y no admite pedir más páginas',
+  presupuesto: 'el visor paró al llegar al máximo que descarga de una capa',
+  paginas: 'el visor paró al llegar a su tope de páginas',
+};
 
 /** Explica un fallo diciendo también de quién es, que es la mitad de la información. */
 function DiagnosisBanner({ diagnosis, url }: { diagnosis: Diagnosis; url: string }) {
@@ -311,8 +367,6 @@ export function DistributionMap({
   const [selectedFeature, setSelectedFeature] = useState<{ key: string; index: number } | null>(null);
   /** Bytes recibidos del recurso geográfico, para la barra de progreso. */
   const [progress, setProgress] = useState<Progress | null>(null);
-
-  const coords = useMemo(() => getSpatialCoords(spatial), [spatial]);
 
   const pickable: { name: string; title?: string }[] =
     source?.kind === 'wms' ? source.layers
@@ -511,8 +565,8 @@ export function DistributionMap({
   /* ── 2. Entidades del WFS: la capa entera siempre que el servicio pueda ── */
   const wfsKey = source?.kind === 'wfs' && selected ? `${sourceKey}|${selected}|${attempt}` : null;
   const [wfsResult, setWfsResult] = useState<
-    | { key: string; layer: VectorLayer; matched: number | null; complete: boolean }
-    | { key: string; error: string }
+    | { key: string; layer: VectorLayer; matched: number | null; stop: WfsStop | null; bytes: number }
+    | { key: string; error: string; detail?: string }
     | null
   >(null);
   const wfsFor = wfsResult?.key === wfsKey ? wfsResult : null;
@@ -551,84 +605,157 @@ export function DistributionMap({
       }
       if (cancelled) return;
 
-      const load = async (extra: Record<string, string>) => {
-        const res = await fetch(request({ outputFormat: 'application/json', ...extra }), { signal: controller.signal });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
+      /**
+       * Una página. Devuelve también lo que ha pesado, que es lo que permite
+       * dimensionar la siguiente.
+       *
+       * Se lee como texto y se parsea aquí en lugar de con `res.json()` porque
+       * el tamaño del cuerpo es justo el dato que hacía falta: cuando el proxy
+       * corta una respuesta por pasarse de su tope, lo que llega es un JSON
+       * partido, y sin mirar el tamaño ese fallo era indistinguible de un
+       * servicio que devuelve basura.
+       */
+      const load = async (extra: Record<string, string>): Promise<{ features: MapFeature[]; bytes: number }> => {
+        let text: string;
+        try {
+          const res = await fetch(request({ outputFormat: 'application/json', ...extra }), { signal: controller.signal });
+          // El proxy responde 413 cuando el origen declara más de su tope.
+          if (res.status === 413) throw new OversizePage();
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          text = await res.text();
+        } catch (err) {
+          if (err instanceof OversizePage) throw err;
+          if ((err as Error).name === 'AbortError') throw err;
+          // El corte del proxy llega como fallo de red al leer el cuerpo: la
+          // respuesta empezó con 200 y se abortó a mitad.
+          if (err instanceof TypeError) throw new OversizePage();
+          throw err;
+        }
+
+        const bytes = text.length;
+        let data: { features?: unknown };
+        try {
+          data = JSON.parse(text);
+        } catch {
+          if (looksTruncatedByCap(bytes)) throw new OversizePage();
+          // Un GeoServer que no sabe servir esta capa en JSON contesta un
+          // ExceptionReport; decirlo vale más que «no es JSON válido».
+          const exception = ogcException(text.slice(0, 8192));
+          throw new Error(exception?.text ?? 'el servicio no devolvió GeoJSON');
+        }
+
         const list: unknown[] = Array.isArray(data?.features) ? data.features : [];
         const features: MapFeature[] = list.map((f) => {
           const feature = f as { geometry?: GeoJSON.Geometry; properties?: unknown };
           return { geometry: feature.geometry ?? null, properties: toProperties(feature.properties) };
         });
-        return features;
+        return { features, bytes };
       };
 
       /**
-       * Paginación, no «todo o una muestra».
+       * Paginación con la talla medida, no fijada.
        *
-       * Antes se pedía la capa ENTERA en una sola petición y, si el servicio no
-       * podía, se reintentaba con 200 y luego con 25: hasta cuatro descargas
-       * completas encadenadas, cada una con su invocación de función, para
-       * acabar enseñando 25 entidades de 12.000 sin más explicación que «el
-       * servicio no pudo entregarla entera».
+       * Antes las páginas eran de 500 entidades siempre. En las capas de
+       * polígonos del IDECyL —del orden de 100 KB por entidad— eso son ~50 MB
+       * por página, por encima del tope del proxy, que cortaba el cuerpo y
+       * dejaba un JSON partido; el visor no dibujaba NADA de una capa que el
+       * servicio entrega sin problema en trozos más cortos.
        *
-       * Ahora se pide por páginas con `startIndex`, se dibuja lo que va
-       * llegando y el usuario ve «2.400 de 12.000». Si el servicio ignora la
-       * paginación —devuelve siempre lo mismo— se corta y se enseña lo que haya,
-       * que es la única salida honesta.
+       * Ahora la primera página es de sondeo y cada una de las siguientes se
+       * dimensiona con los bytes por entidad recién observados. Si aun así una
+       * página no cabe, se reintenta esa misma más corta en vez de abandonar la
+       * capa. Ver `lib/wfs-paging.ts`.
        */
       const collected: MapFeature[] = [];
       const seenPages = new Set<string>();
       let lastError = 'sin respuesta';
-      let complete = false;
+      let lastDetail: string | undefined;
+      /**
+       * En WFS 2.0 la primera página es de sondeo: hay muchas más detrás y sale
+       * a cuenta medir con una corta. En 1.x no hay `startIndex`, así que esa
+       * primera página es la única que se va a poder pedir y sondear con ella
+       * sería quedarse con 25 entidades de la capa; se pide todo lo que cabe y,
+       * si no cabe, el reintento más corto lo recoge.
+       */
+      let pageSize = isV2 ? WFS_PROBE_SIZE : WFS_MAX_PAGE_SIZE;
+      let shrinks = 0;
+      let totalBytes = 0;
+      let perFeature = 0;
+      let stop: WfsStop | null = null;
 
-      for (let page = 0; page < WFS_MAX_PAGES; page++) {
+      for (let page = 0; page < WFS_MAX_PAGES && stop === null; page++) {
         const paging: Record<string, string> = {
-          [isV2 ? 'count' : 'maxFeatures']: String(WFS_PAGE_SIZE),
+          [isV2 ? 'count' : 'maxFeatures']: String(pageSize),
         };
         // `startIndex` es de WFS 2.0. En 1.x no existe: solo se puede pedir la
         // primera página, así que se para ahí y se dice que es parcial.
-        if (page > 0) {
-          if (!isV2) break;
-          paging.startIndex = String(page * WFS_PAGE_SIZE);
+        if (collected.length > 0) {
+          if (!isV2) { stop = 'sin-paginacion'; break; }
+          paging.startIndex = String(collected.length);
         }
 
         try {
-          const features = await load(paging);
+          const { features, bytes } = await load(paging);
           if (cancelled) return;
-          if (features.length === 0) { complete = true; break; }
+          if (features.length === 0) { stop = 'completa'; break; }
 
           // Un servicio que ignora `startIndex` devuelve la misma página una y
           // otra vez. Sin esta comprobación, el bucle acumularía duplicados
           // hasta agotar el tope de páginas.
-          const fingerprint = `${features.length}|${JSON.stringify(features[0]?.properties ?? {}).slice(0, 200)}`;
-          if (seenPages.has(fingerprint)) break;
+          const fingerprint = pageFingerprint(features[0]);
+          if (seenPages.has(fingerprint)) { stop = 'sin-paginacion'; break; }
           seenPages.add(fingerprint);
 
           collected.push(...features);
+          totalBytes += bytes;
           setWfsResult({
             key,
             layer: { name: selected, features: [...collected], fields: fieldsOf(collected) },
             matched,
-            complete: false,
+            stop: null,
+            bytes: totalBytes,
           });
 
-          if (features.length < WFS_PAGE_SIZE) { complete = true; break; }
-          if (matched !== null && collected.length >= matched) { complete = true; break; }
+          if (features.length < pageSize) { stop = 'completa'; break; }
+          if (matched !== null && collected.length >= matched) { stop = 'completa'; break; }
+
+          perFeature = heaviestPerFeature(perFeature, bytes, features.length);
+          if (budgetExhausted(totalBytes, perFeature)) { stop = 'presupuesto'; break; }
+          pageSize = nextPageSize(pageSize, perFeature, WFS_MAX_TOTAL_BYTES - totalBytes);
         } catch (err) {
           if (cancelled || (err as Error).name === 'AbortError') return;
-          lastError = (err as Error).message;
+
+          if (err instanceof OversizePage && shrinks < WFS_MAX_SHRINKS) {
+            // La página no cupo: se vuelve a pedir la misma, más corta. No
+            // cuenta como página consumida.
+            shrinks++;
+            pageSize = shrinkPageSize(pageSize);
+            page--;
+            continue;
+          }
+
+          if (err instanceof OversizePage) {
+            // `OversizePage` cubre también el fallo de red al leer el cuerpo, así
+            // que el mensaje dice lo que se ha observado —la respuesta se cortó—
+            // y deja la causa más probable para el detalle.
+            lastError = `la respuesta se cortó incluso pidiendo ${pageSize} entidades`;
+            lastDetail = `Suele significar que cada entidad pesa más de ${formatBytes(WFS_TARGET_PAGE_BYTES / pageSize)}, más de lo que el portal puede retransmitir de una vez.`;
+          } else {
+            lastError = (err as Error).message;
+          }
+          stop = 'servicio';
           break;
         }
       }
 
       if (cancelled) return;
-      if (collected.length === 0) { setWfsResult({ key, error: lastError }); return; }
+      if (collected.length === 0) { setWfsResult({ key, error: lastError, detail: lastDetail }); return; }
       setWfsResult({
         key,
         layer: { name: selected, features: collected, fields: fieldsOf(collected) },
         matched,
-        complete: complete && (matched === null || collected.length >= matched),
+        stop: stop === 'completa' && matched !== null && collected.length < matched ? 'servicio' : stop ?? 'paginas',
+        bytes: totalBytes,
       });
     })();
 
@@ -660,16 +787,25 @@ export function DistributionMap({
         format: source.format,
         bbox: layer?.bbox ?? source.bbox,
         opacity,
+        legend: legendUrls(source.getMapUrl, source.version, selected),
       };
     }
     if (activeLayer && activeLayer.projected !== false && activeLayer.features.length) {
       return { kind: 'features', features: activeLayer.features, selected: featureIndex };
     }
-    if (coords) {
-      return { kind: 'locator', lat: coords[0], lng: coords[1], label: spatial ?? 'Cobertura declarada', hasError: dead };
-    }
+    /*
+     * Y aquí no hay respaldo, a propósito.
+     *
+     * Cuando no se podía dibujar el recurso, se pintaba un mapa de verdad con
+     * UN punto en el centro de la cobertura declarada del conjunto: para los
+     * 825 datasets de este catálogo, el mismo punto en Valladolid, y al pulsarlo
+     * salía la URI del vocabulario (`…/territorio/Autonomia/Castilla-Leon`).
+     * Un mapa con un marcador dentro se lee como «esto es el recurso», así que
+     * el respaldo de un fallo era indistinguible de una capa de un solo punto.
+     * Ahora el hueco lo ocupa `NoGeometry`, que dice que no hay geometría.
+     */
     return null;
-  }, [source, selected, opacity, activeLayer, featureIndex, coords, spatial, dead]);
+  }, [source, selected, opacity, activeLayer, featureIndex]);
 
   const tileKey = `${sourceKey}|${selected}`;
   const onTileError = useCallback(() => setTileFailedFor(tileKey), [tileKey]);
@@ -745,6 +881,23 @@ export function DistributionMap({
   const selectedTitle = pickable.find((l) => l.name === selected)?.title;
   const shownFeatures = activeLayer?.features.length ?? 0;
 
+  /**
+   * Qué se dice en el hueco del mapa. El detalle largo lo dan los avisos de
+   * abajo (diagnóstico, proyección, fallo del WFS); aquí va solo la frase que
+   * explica por qué no hay dibujo, para no repetirla dos veces seguidas.
+   */
+  const coverage = spatialLabel(spatial);
+  const noGeometryReason =
+    source.kind === 'none' && source.note
+      ? source.note
+      : wfsFor && 'error' in wfsFor
+      ? 'El servicio no ha entregado las entidades de esta capa.'
+      : activeLayer?.projected === false
+      ? 'La geometría llegó en un sistema de referencia que el visor no sabe convertir a coordenadas geográficas.'
+      : activeLayer && activeLayer.features.length === 0
+      ? 'El recurso se ha leído, pero no contiene ninguna entidad geográfica.'
+      : 'No se ha podido dibujar la geometría de este recurso.';
+
   return (
     <div className="space-y-3">
       {/* Controles */}
@@ -783,16 +936,12 @@ export function DistributionMap({
         </div>
       ) : spec ? (
         <GeoPreviewMap spec={spec} onTileError={onTileError} onSelectFeature={selectFeature} />
-      ) : source.kind === 'none' && source.diagnosis ? null : (
-        <Card tone="muted">
-          <CardContent className="flex items-start gap-3 p-4">
-            <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-faint" aria-hidden />
-            <p className="text-sm text-body">
-              No se puede previsualizar la geometría de este recurso ni situarlo en el mapa
-              {source.kind === 'none' && source.note ? <> — {source.note.toLowerCase()}</> : '.'}
-            </p>
-          </CardContent>
-        </Card>
+      ) : source.kind === 'none' && source.diagnosis ? (
+        // El diagnóstico de abajo ya dice qué llegó y de quién es el fallo:
+        // repetirlo aquí arriba serían dos cajas diciendo lo mismo.
+        null
+      ) : (
+        <NoGeometry reason={noGeometryReason} coverage={coverage} />
       )}
 
       {/* Qué se está viendo */}
@@ -805,18 +954,18 @@ export function DistributionMap({
       {spec?.kind === 'features' && activeLayer && (
         <MapNote>
           {shownFeatures.toLocaleString('es-ES')} entidades dibujadas
-          {wfsLayer && !wfsLayer.complete && wfsLayer.matched
-            ? <> de {wfsLayer.matched.toLocaleString('es-ES')} que tiene la capa — el servicio no pudo entregarla entera</>
-            : <> · el recurso completo</>}
+          {wfsLayer && wfsLayer.stop !== 'completa' ? (
+            <>
+              {wfsLayer.matched ? <> de {wfsLayer.matched.toLocaleString('es-ES')} que tiene la capa</> : null}
+              {' — '}{WFS_STOP_NOTES[wfsLayer.stop ?? 'cargando']}
+              {wfsLayer.bytes ? <> ({formatBytes(wfsLayer.bytes)} descargados)</> : null}
+            </>
+          ) : (
+            <> · el recurso completo</>
+          )}
           {activeLayer.crs ? <> · origen en {activeLayer.crs}, reproyectado a WGS84</> : null}
           {activeLayer.nullGeometries ? <> · {activeLayer.nullGeometries.toLocaleString('es-ES')} sin geometría</> : null}
           . Pulsa una entidad en el mapa o una fila de la tabla y se resaltan a la vez.
-        </MapNote>
-      )}
-      {spec?.kind === 'locator' && (
-        <MapNote>
-          Ubicación orientativa según la cobertura declarada{spatial ? ` (${spatial})` : ''}; no es la geometría real
-          del recurso, que no se ha podido dibujar.
         </MapNote>
       )}
 
@@ -847,9 +996,11 @@ export function DistributionMap({
       {wfsFor && 'error' in wfsFor && (
         <Banner tone="warn" icon={AlertTriangle} title="El servicio WFS no entregó esta capa">
           <p className="mt-1">
-            <strong className="text-body">{selectedTitle || selected}</strong> no llegó ni completa ni
-            en muestra ({wfsFor.error}). Es habitual en capas de polígonos muy pesadas.
+            De <strong className="text-body">{selectedTitle || selected}</strong> no llegó ninguna
+            entidad: {wfsFor.error}. El visor pide la capa por páginas y va acortándolas cuando la
+            respuesta no cabe, así que esto significa que el servicio tampoco entrega las más cortas.
           </p>
+          {wfsFor.detail && <p className="mt-1 text-xs text-faint">{wfsFor.detail}</p>}
           <div className="mt-2 flex flex-wrap items-center gap-3">
             <button
               type="button"
@@ -871,9 +1022,35 @@ export function DistributionMap({
         </Banner>
       )}
 
-      {/* Leyenda del WMS */}
-      {source.kind === 'wms' && selected && (
-        <WmsLegend getMapUrl={source.getMapUrl} version={source.version} layer={selected} />
+      {/* El WFS entregó una parte: qué se está viendo y por dónde seguir ──────
+          El enlace al WMS hermano solo salía cuando la capa fallaba entera. En
+          las capas pesadas —que ahora sí dibujan un trozo en vez de nada— es
+          justo donde más falta hace: por WMS se ve la cartografía completa, que
+          es lo que el usuario venía buscando. */}
+      {wfsLayer && wfsLayer.stop === 'presupuesto' && (
+        <Banner tone="info" icon={Info} title="Se está viendo una parte de la capa">
+          <p className="mt-1">
+            Las entidades de <strong className="text-body">{selectedTitle || selected}</strong> son
+            muy pesadas: con {formatBytes(wfsLayer.bytes)} descargados solo caben{' '}
+            {shownFeatures.toLocaleString('es-ES')}
+            {wfsLayer.matched ? <> de {wfsLayer.matched.toLocaleString('es-ES')}</> : null}. Traer la
+            capa entera dejaría el navegador inservible, así que el visor para aquí.
+          </p>
+          <div className="mt-2 flex flex-wrap items-center gap-3">
+            {serviceSiblings.filter((s) => s.format === 'WMS').map((s) => (
+              <Link
+                key={s.idx}
+                href={`/catalogo/${datasetId}/${s.slug}`}
+                className="text-xs font-medium text-link underline-offset-2 hover:underline"
+              >
+                Ver la cartografía completa por WMS
+              </Link>
+            ))}
+            <a href={url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs font-medium text-link underline-offset-2 hover:underline">
+              <ExternalLink className="h-3 w-3" aria-hidden /> Abrir el servicio en un SIG
+            </a>
+          </div>
+        </Banner>
       )}
 
       {/* ── Atributos de las entidades ──────────────────────────────────
@@ -898,8 +1075,10 @@ export function DistributionMap({
             summary={
               <>
                 {shownFeatures.toLocaleString('es-ES')} entidades
-                {wfsLayer && !wfsLayer.complete && wfsLayer.matched
+                {wfsLayer && wfsLayer.stop !== 'completa' && wfsLayer.matched
                   ? ` de ${wfsLayer.matched.toLocaleString('es-ES')}`
+                  : wfsLayer && wfsLayer.stop !== 'completa'
+                  ? ''
                   : ' · recurso completo'}
               </>
             }

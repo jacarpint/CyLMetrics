@@ -125,7 +125,7 @@ const FETCH_STATES = [
   { code: "truncated", label: "Llegó hasta el tope de descarga. Se analiza lo que hay y queda marcado como parcial.", tone: "text-body" },
   { code: "http_error", label: "El servidor respondió con un error.", tone: "text-bad" },
   { code: "unreachable", label: "No se pudo contactar con el servidor.", tone: "text-bad" },
-  { code: "service", label: "El servicio rechazó la petición.", tone: "text-bad" },
+  { code: "service", label: "Es un WMS o un WFS: no hay archivo que descargar, se comprueba preguntándole por sus capas.", tone: "text-body" },
   { code: "too_large", label: "Declara más del tope, así que no se intentó. No se sabe si abre.", tone: "text-faint" },
   { code: "no_url", label: "El catálogo describe el recurso pero no publica ninguna URL de acceso.", tone: "text-faint" },
   { code: "error", label: "El análisis de este portal se interrumpió. Es un problema nuestro, no del archivo.", tone: "text-faint" },
