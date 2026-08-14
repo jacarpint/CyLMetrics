@@ -21,6 +21,7 @@
 import type { QualityReport } from './quality-report';
 import type { Dataset } from './types';
 import { distributionsAffectedByIssue, type SystemicCause } from './availability';
+import { buildQualityUrl } from './quality-filters';
 import { issueLabel } from './quality-labels';
 import { isBlockingCode } from './alerts';
 import { METADATA_GAPS, type MetadataGapCode } from './metadata-gaps';
@@ -144,7 +145,22 @@ export function deliveryActions(causes: readonly SystemicCause[]): RepairAction[
     scopeTotal: c.formatTotal,
     format: c.format,
     wholeFormat: c.wholeFormat,
-    href: `/calidad?vista=ficheros&causa=${encodeURIComponent(c.causeCode)}`,
+    /**
+     * El enlace lleva las TRES cosas que definen la tarjeta.
+     *
+     * Llevaba solo la causa. `findSystemicCauses` agrupa por formato × causa —el
+     * par es la identidad del grupo, `c.key` es literalmente «GML|descarga»— y el
+     * título lo dice, «Error de descarga · GML», pero el enlace tiraba el formato
+     * y también omitía la familia. Resultado: la tarjeta prometía los 32 archivos
+     * GML y la tabla abría con los 179 errores de descarga del catálogo entero, de
+     * todos los formatos y de las dos familias.
+     */
+    href: buildQualityUrl({
+      vista: 'ficheros',
+      familia: 'entrega',
+      causas: [c.causeCode],
+      formato: c.format,
+    }),
   }));
 }
 
@@ -165,7 +181,11 @@ export function contentActions(report: QualityReport | null): RepairAction[] {
       action: CONTENT_ACTIONS[code],
       affected: count,
       unit: 'archivos' as const,
-      href: `/calidad?vista=ficheros&familia=contenido&causa=${encodeURIComponent(code)}`,
+      // Sin formato: una incidencia de contenido como «tipos mezclados» aparece en
+      // CSV, en JSON y en XLSX, y acotar a uno mentiría sobre el alcance. La cifra
+      // cuadra con la tabla porque las filas llevan todos sus códigos de error
+      // (`causeCodes`) y no solo el primero.
+      href: buildQualityUrl({ vista: 'ficheros', familia: 'contenido', causas: [code] }),
     }));
 }
 
@@ -196,7 +216,7 @@ export function metadataActions(datasets: readonly Dataset[]): RepairAction[] {
       why: info.why,
       affected: count,
       unit: 'conjuntos de datos',
-      href: `/calidad?vista=metadatos&hueco=${encodeURIComponent(code)}`,
+      href: buildQualityUrl({ vista: 'metadatos', hueco: code }),
     });
   }
   return actions;

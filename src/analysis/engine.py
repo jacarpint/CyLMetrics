@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import sys
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -9,8 +10,10 @@ from datetime import datetime
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
+from .checks import PORTAL_LIMITATION_CODES, PUBLICATION_DEFECT_CODES
 from .downloader import FetchResult, fetch, make_run_dir
 from .formats import REGISTRY
+from .occurrences import simple_issue
 
 # Formatos que se analizan como servicio HTTP (no se descarga archivo)
 SERVICE_FORMATS = {"WMS", "WFS"}
@@ -93,9 +96,15 @@ class ProgressReporter:
         m, s = divmod(int(remaining), 60)
         h, m = divmod(m, 60)
         eta = f"{h}h{m:02d}m" if h else f"{m}m{s:02d}s"
+        # `elapsed` puede ser 0: si el checkpoint ya trae todo el catálogo, no hay
+        # nada que descargar y la ejecución entera cabe entre dos lecturas del
+        # reloj. Sin esta guarda, `reporter.final()` lanzaba `ZeroDivisionError` y
+        # tiraba el proceso DESPUÉS de haber hecho el trabajo pero ANTES de escribir
+        # el informe: exactamente el caso de volver a agregar un análisis ya hecho.
+        speed = f"{self.done / elapsed:.1f}" if elapsed > 0 else "—"
         print(
             f"[{self.done}/{self.total}] {pct:5.1f}% | ok={self.ok} err={self.failed} skip={self.skipped} "
-            f"| {mb:6.1f} MB | vel={self.done/elapsed:.1f} it/s | ETA {eta}",
+            f"| {mb:6.1f} MB | vel={speed} it/s | ETA {eta}",
             flush=True,
         )
 
@@ -124,13 +133,43 @@ def _load_checkpoint(path: Path) -> dict[str, dict]:
     return done
 
 
+#: Fallos de escritura del checkpoint ya avisados, para no repetir el aviso 1.600 veces.
+_checkpoint_failures = {"count": 0, "first_error": ""}
+
+
 def _append_checkpoint(path: Path, url: str, result: dict) -> None:
-    """Añade un resultado al checkpoint JSONL (append atómico por línea)."""
+    """
+    Añade un resultado al checkpoint JSONL (append atómico por línea).
+
+    Si la escritura falla, se AVISA. Antes era un `except Exception: pass`, y eso
+    convirtió un fallo recuperable en pérdida de trabajo invisible: en la ejecución
+    del 14 de agosto el fichero llegó a 132 MB dentro de una carpeta sincronizada con
+    OneDrive y los `append` empezaron a devolver `OSError [Errno 22] Invalid
+    argument`. El análisis siguió tres cuartos de hora tan campante, imprimiendo
+    `ok` por cada archivo, y al cortarse el proceso se perdieron ~70 resultados que
+    parecían guardados. El checkpoint existe precisamente para que un corte no
+    cueste horas: si deja de funcionar, hay que decirlo en voz alta.
+
+    Se sigue sin lanzar la excepción —un fallo al guardar el progreso no debe tumbar
+    un análisis de horas— pero el aviso sale por stderr y el recuento va al resumen
+    final, así que quien lo ejecuta sabe que no puede contar con reanudar.
+    """
     try:
         with open(path, "a", encoding="utf-8") as fh:
             fh.write(json.dumps({"url": url, "result": result}, ensure_ascii=False) + "\n")
-    except Exception:
-        pass
+    except Exception as exc:
+        _checkpoint_failures["count"] += 1
+        if _checkpoint_failures["count"] == 1:
+            _checkpoint_failures["first_error"] = f"{type(exc).__name__}: {exc}"
+            print(
+                f"\n  AVISO: no se puede escribir en el checkpoint ({type(exc).__name__}: {exc})."
+                f"\n  {path}"
+                "\n  El análisis continúa, pero SIN red de reanudación: si se corta, se pierde"
+                "\n  todo lo analizado desde ahora. Con OneDrive o similar, usa --checkpoint"
+                "\n  apuntando a una ruta local fuera de la carpeta sincronizada.\n",
+                file=sys.stderr,
+                flush=True,
+            )
 
 
 def run_item(item: dict, ctx: dict) -> dict:
@@ -253,21 +292,35 @@ def run_item(item: dict, ctx: dict) -> dict:
         # se marcan como "skipped" para no penalizar al proveedor ni al score.
         if not analysis.get("ok"):
             codes = {i.get("code") for i in analysis.get("issues", [])}
-            # `descarga-truncada` entra aquí porque el archivo no se pudo
-            # comprobar por NUESTRO tope de descarga, no porque esté mal: darlo
-            # por roto acusaba al publicador de algo que no había pasado.
-            if codes & {"dependencia-faltante", "no-es-archivo", "no-es-imagen", "descarga-truncada"}:
+            # Dos conceptos distintos, cada uno con su nombre (ver `checks.py`):
+            # lo que no pudimos comprobar nosotros y lo que la plataforma de
+            # publicación no entrega. Ninguno es un defecto de los datos del
+            # organismo, así que ninguno se cuenta como error.
+            if codes & (PORTAL_LIMITATION_CODES | PUBLICATION_DEFECT_CODES):
                 result["status"] = "skipped"
             else:
                 result["status"] = "error"
         else:
             result["status"] = "ok"
     except Exception as exc:
-        result["status"] = "error"
+        # «skipped» y no «error»: que se rompa nuestro analizador no dice nada del
+        # archivo, que puede estar perfectamente. Antes esto quedaba como error del
+        # dataset y penalizaba al publicador por un fallo nuestro.
+        result["status"] = "skipped"
         result["analysis"] = {
             "ok": False, "score": None,
             "summary": f"Fallo interno del analizador {fmt}: {type(exc).__name__}: {exc}",
-            "metrics": {}, "issues": [{"code": "fallo-analizador", "label": str(exc), "severity": "error", "count": 1}],
+            # La etiqueta es una frase, no `str(exc)`: es lo que se lee en la tabla
+            # de archivos del portal, y ahí un `KeyError: 'geometry'` no significa
+            # nada para quien publica o reutiliza el dato. El detalle técnico sigue
+            # entero en `summary`, que es donde se va a buscar.
+            #
+            # Vía `simple_issue` porque este dict no pasa por `_normalize`, así que
+            # `finalize_issues` no le añade el `stored` que la interfaz espera en
+            # TODA incidencia: escrito a mano se quedaba sin él.
+            "metrics": {}, "issues": [
+                simple_issue("fallo-analizador", "Fallo interno del análisis de este portal", "info")
+            ],
         }
     finally:
         try:
@@ -370,4 +423,18 @@ def run_analysis(items: list[dict], workers: int, size_cap: int, sample_cap: int
             reporter.update(result, result["duration_ms"] / 1000, (result["fetch"] or {}).get("size", 0))
 
     reporter.final()
+
+    # El aviso, otra vez y al final: entre miles de líneas de avance, uno a mitad
+    # de la ejecución se pierde de vista, y lo que está en juego es saber si se
+    # puede reanudar o no.
+    if _checkpoint_failures["count"] > 0:
+        print(
+            f"\n  AVISO: {_checkpoint_failures['count']} resultados NO se pudieron guardar en el"
+            f"\n  checkpoint ({_checkpoint_failures['first_error']}). El informe de esta ejecución"
+            "\n  sí está completo, pero si vuelves a lanzar el análisis esos archivos se"
+            "\n  descargarán otra vez. Usa --checkpoint en una ruta local fuera de OneDrive.",
+            file=sys.stderr,
+            flush=True,
+        )
+
     return results

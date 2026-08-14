@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowRight, Compass, Database, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { buildQualityUrl } from "@/lib/quality-filters";
 
 export const metadata = {
   title: "Página no encontrada",
@@ -45,7 +46,10 @@ export default function NotFound() {
         <ul className="mt-3 space-y-2 text-sm">
           {[
             { href: "/catalogo", label: "Catálogo de datos", note: "explorar y filtrar los datasets publicados" },
-            { href: "/calidad?vista=ficheros", label: "Qué arreglar", note: "los archivos que no se pueden abrir" },
+            // Con `familia=entrega`, que es lo que promete la nota: sin el filtro
+            // la tabla abre en «Todos» y también enseña los que abren con errores
+            // de contenido, que sí se pueden abrir.
+            { href: buildQualityUrl({ vista: "ficheros", familia: "entrega" }), label: "Qué arreglar", note: "los archivos que no se pueden abrir" },
             { href: "/metodologia", label: "Metodología", note: "cómo se calcula la calidad y cómo consultar la API" },
           ].map((item) => (
             <li key={item.href}>

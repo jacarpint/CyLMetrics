@@ -14,10 +14,11 @@ import {
   createNoteTable,
   deliveryCause,
   findSystemicCauses,
+  formatContentScores,
   type FileIssueRow,
   type FileIssueRows,
-  type IssueFamily,
 } from "@/lib/availability";
+import { buildQualityUrl, parseQualityFilters, VISTAS } from "@/lib/quality-filters";
 import { isBlockingCode } from "@/lib/alerts";
 import { METADATA_GAPS, type MetadataGapCode } from "@/lib/metadata-gaps";
 import { distributionSlugs } from "@/lib/distribution-slug";
@@ -101,11 +102,18 @@ function buildFileIssueRows(catalog: CatalogData, report: QualityReport | null):
       );
       if (errorIssues.length === 0) return;
 
+      // Todos los códigos, no solo el primero: filtrar por `causeCode` a secas
+      // escondía los archivos en los que el código buscado no era el primero, y
+      // esos sí los contaba la tarjeta de la que viene el enlace.
+      const codes = [...new Set(errorIssues.map((i) => i.code))];
       rows.push({
         ...base,
         family: "contenido",
         state: "ok",
-        causeCode: errorIssues[0].code,
+        causeCode: codes[0],
+        // Solo si aporta algo: con un único código sería repetir `causeCode` en
+        // cada una de las ~1.000 filas que viajan al navegador.
+        ...(codes.length > 1 ? { causeCodes: codes } : {}),
         errorIssues: errorIssues.length,
       });
     });
@@ -156,54 +164,17 @@ function buildMetadataGroups(datasets: readonly Dataset[]): MetadataGapGroup[] {
     );
 }
 
-type Vista = "prioridades" | "ficheros" | "metadatos" | "evolucion";
-
-/**
- * Las cuatro vistas. Los identificadores viajan en la URL (`?vista=ficheros`) y
- * se conservan para no romper enlaces publicados; lo que cambia es la etiqueta.
- */
-const TABS: { id: Vista; label: string }[] = [
-  { id: "prioridades", label: "Prioridades" },
-  { id: "ficheros", label: "Archivos" },
-  { id: "metadatos", label: "Metadatos" },
-  { id: "evolucion", label: "Evolución" },
-];
-
-const VALID_VISTAS = new Set<string>(TABS.map((t) => t.id));
-
-/**
- * Vistas anteriores a la reorganización. Se mantienen para no romper los enlaces
- * publicados ni las redirecciones heredadas de `next.config.ts`, que apuntan a
- * estas vistas.
- */
-const LEGACY_VISTAS: Record<string, Vista> = {
-  resumen: "prioridades",
-  organismos: "prioridades",
-  reparar: "ficheros",
-  incidencias: "ficheros",
-};
-
-function resolveVista(raw: string | undefined): Vista {
-  if (!raw) return "prioridades";
-  if (VALID_VISTAS.has(raw)) return raw as Vista;
-  return LEGACY_VISTAS[raw] ?? "prioridades";
-}
-
 export default async function CalidadPage({
   searchParams,
 }: {
-  searchParams: Promise<{ vista?: string; familia?: string; causa?: string; hueco?: string }>;
+  // Todo el contrato de filtros está en `parseQualityFilters`, no aquí: cuando
+  // esta firma enumeraba las claves a mano, una que no estuviera en la lista se
+  // descartaba en silencio. Es lo que pasaba con `formato`.
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const params = await searchParams;
-  const vista = resolveVista(params.vista);
-  // Al venir de «Incidencias» se preselecciona la familia de contenido, que es
-  // lo que esa pestaña enseñaba.
-  const familia: IssueFamily | "todas" =
-    params.familia === "entrega" || params.familia === "contenido"
-      ? params.familia
-      : params.vista === "incidencias"
-      ? "contenido"
-      : "todas";
+  const filters = parseQualityFilters(params);
+  const { vista } = filters;
 
   const catalog = await getCatalog();
   const report = getQualityReport();
@@ -254,10 +225,10 @@ export default async function CalidadPage({
 
       {/* Tabs */}
       <div className="flex w-fit items-center gap-1 overflow-x-auto rounded-lg border border-border p-1">
-        {TABS.map((tab) => (
+        {VISTAS.map((tab) => (
           <Link
             key={tab.id}
-            href={`/calidad?vista=${tab.id}`}
+            href={buildQualityUrl({ vista: tab.id })}
             aria-current={vista === tab.id ? "page" : undefined}
             className={cn(
               "whitespace-nowrap rounded-md px-4 py-1.5 text-sm font-medium transition-colors",
@@ -280,20 +251,27 @@ export default async function CalidadPage({
         />
       )}
       {vista === "ficheros" && files && (
+        // `key` con los filtros de la URL: `FicherosSection` los mantiene en
+        // estado local para que escribir en el buscador no navegue en cada tecla,
+        // y sin esto llegar con `?causa=B` desde `?causa=A` con el componente ya
+        // montado dejaba puesto el filtro anterior. Remontar es lo más simple que
+        // no puede desincronizarse.
         <FicherosSection
+          key={buildQualityUrl(filters)}
           rows={files.rows}
           notes={files.notes}
           byFormat={byFormat}
-          initialFamily={familia}
-          initialCause={params.causa ?? ""}
+          formatScores={formatContentScores(report)}
+          filters={filters}
         />
       )}
       {vista === "metadatos" && (
         <MetadatosSection
+          key={filters.hueco ?? ""}
           totalDatasets={stats.totalDatasets}
           groups={metadataGroups}
           overdue={overdue}
-          initialGap={params.hueco ?? ""}
+          initialGap={filters.hueco ?? ""}
         />
       )}
       {vista === "evolucion" && (

@@ -53,6 +53,21 @@ class FetchError(Exception):
     pass
 
 
+#: Los OCHO valores que puede tomar `fetch.status`, y quién los pone.
+#:
+#: Aquí:        downloaded, truncated, too_large, http_error, unreachable
+#: `engine.py`: service (WMS/WFS, no hay archivo), no_url, error (fallo interno)
+#:
+#: La lista estaba en un comentario al lado de la asignación y solo nombraba cinco.
+#: Los tres que faltaban acabaron llegando a la interfaz sin traducción, porque
+#: `ISSUE_LABELS` se escribió a partir de ese comentario. La unión de TypeScript que
+#: tiene que decir lo mismo es `FetchStatus`, en `src/lib/quality-report.ts`.
+FETCH_STATUSES = (
+    "downloaded", "truncated", "too_large", "http_error", "unreachable",
+    "service", "no_url", "error",
+)
+
+
 class FetchResult:
     __slots__ = (
         "status", "path", "size", "http_status", "duration_ms",
@@ -62,7 +77,7 @@ class FetchResult:
     def __init__(self, status: str, path: Path | None = None, size: int = 0,
                  http_status: int | None = None, duration_ms: int = 0,
                  truncated: bool = False, note: str = "", final_url: str = ""):
-        self.status = status          # downloaded | too_large | truncated | http_error | unreachable
+        self.status = status          # uno de FETCH_STATUSES
         self.path = path
         self.size = size
         self.http_status = http_status

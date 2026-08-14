@@ -15,6 +15,7 @@ import io
 from pathlib import Path
 
 from .tabular import _collect_frictionless, _score_from_issues, _normalize, _check_column_quality, _append_quality_issues, _merge_issues, _build_schema_and_sample
+from ..checks import missing_dependency_issue
 from ..occurrences import new_issue
 
 # Hojas que valida Frictionless. Sigue acotado porque `Resource.validate()`
@@ -136,9 +137,11 @@ def analyze_xlsx(path: Path, ctx: dict) -> dict:
     try:
         import openpyxl
     except ImportError:
-        return _normalize(path, ctx, False, 0, "openpyxl no está instalado", {}, [
-            {"code": "dependencia-faltante", "label": "openpyxl no disponible", "severity": "error", "count": 1},
-        ])
+        return _normalize(
+            path, ctx, False, None,
+            "No analizado: falta openpyxl en el entorno de análisis",
+            {}, [missing_dependency_issue("openpyxl")],
+        )
 
     raw = path.read_bytes()
     magic = raw[:8]

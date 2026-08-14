@@ -13,10 +13,11 @@ import { cn } from '@/lib/utils';
 import { issueLabel, formatBytes } from '@/lib/quality-labels';
 import { isGeoFormat } from '@/lib/geo';
 import {
-  DELIVERY_EXPLANATIONS, DELIVERY_SHORT, groupByField,
-  type DeliveryState, type FileIssueRow, type IssueFamily,
+  DELIVERY_EXPLANATIONS, DELIVERY_SHORT, groupByField, rowMatchesCauses,
+  type ContentSummary, type DeliveryState, type FileIssueRow,
 } from '@/lib/availability';
 import { toCsv } from '@/lib/csv-write';
+import type { FamilyFilter, QualityFilters } from '@/lib/quality-filters';
 import type { FormatSummary } from '@/lib/quality-report';
 
 interface FicherosSectionProps {
@@ -25,16 +26,42 @@ interface FicherosSectionProps {
   notes: string[];
   /** Resultados por formato del informe, para el bloque plegado. */
   byFormat: [string, FormatSummary][];
-  /** Familia preseleccionada al llegar desde un enlace de Prioridades. */
-  initialFamily?: IssueFamily | 'todas';
-  /** Causa preseleccionada al llegar desde un enlace de Prioridades. */
-  initialCause?: string;
+  /**
+   * Calidad media por formato recalculada, en vez del `avg_score` del informe.
+   *
+   * Llega desde el servidor porque hace falta el informe entero para calcularla y
+   * aquí solo hay el resumen. Ver `formatContentScores`: el `avg_score` del
+   * informe incluye los ceros que los analizadores ponen cuando les falta su
+   * lector, y con eso XLSX salía al 0 %.
+   */
+  formatScores: Record<string, ContentSummary>;
+  /**
+   * Filtros leídos de la URL, ya interpretados por `parseQualityFilters`.
+   *
+   * Siembran el estado local, y la página fuerza un remontaje con `key` cuando
+   * cambian: el buscador escribe en cada tecla y no puede navegar por cada letra,
+   * pero al llegar desde otro enlace el filtro tiene que ser el nuevo.
+   */
+  filters: QualityFilters;
 }
-
-type FamilyFilter = 'todas' | IssueFamily;
 
 /** Filas por página, y las que añade cada «Mostrar más». */
 const PAGE = 50;
+
+/**
+ * Chip de filtro activo, con el anillo de foco que lleva el resto del portal.
+ *
+ * Son botones que quitan un filtro, así que además de la etiqueta visible cada uno
+ * necesita un nombre accesible que diga qué hace: «formato: GML» a secas no dice
+ * que al pulsarlo se quite. Ver `chipLabel`.
+ */
+const CHIP = [
+  'inline-flex items-center gap-1 rounded-md border border-border bg-fill px-2 py-0.5 text-body',
+  'transition-colors hover:bg-fill-strong',
+  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-canvas',
+].join(' ');
+
+const chipLabel = (what: string, value: string) => `Quitar el filtro ${what}: ${value}`;
 
 const FAMILY_TABS: { id: FamilyFilter; label: string; hint: string }[] = [
   { id: 'todas', label: 'Todos', hint: 'Todos los archivos con algún problema' },
@@ -52,6 +79,10 @@ const ROW_TONE: Record<DeliveryState, { text: string; surface: string; border: s
   roto: { text: 'text-bad', surface: 'bg-bad-surface', border: 'border-bad-line' },
   'no-entrega': { text: 'text-warn', surface: 'bg-warn-surface', border: 'border-warn-line' },
   omitida: { text: 'text-faint', surface: 'bg-fill', border: 'border-border' },
+  // En tono informativo y no de aviso: el archivo puede estar perfectamente y lo
+  // que falta es un lector nuestro. Pintarlo como advertencia era señalar al
+  // publicador por algo que no ha hecho él.
+  'no-analizado': { text: 'text-info', surface: 'bg-info-surface', border: 'border-info-line' },
   ok: { text: 'text-warn', surface: 'bg-warn-surface', border: 'border-warn-line' },
 };
 
@@ -90,12 +121,13 @@ function rowsToCsv(rows: FileIssueRow[]): string {
  * —restablecer un enlace o limpiar una columna— sobre el mismo inventario.
  */
 export function FicherosSection({
-  rows, notes, byFormat, initialFamily = 'todas', initialCause = '',
+  rows, notes, byFormat, formatScores, filters,
 }: FicherosSectionProps) {
-  const [family, setFamily] = useState<FamilyFilter>(initialFamily);
-  const [cause, setCause] = useState<string>(initialCause);
-  const [category, setCategory] = useState<string>('');
-  const [query, setQuery] = useState('');
+  const [family, setFamily] = useState<FamilyFilter>(filters.familia);
+  const [causes, setCauses] = useState<string[]>(filters.causas);
+  const [format, setFormat] = useState<string>(filters.formato ?? '');
+  const [category, setCategory] = useState<string>(filters.tematica ?? '');
+  const [query, setQuery] = useState(filters.q ?? '');
   const [limit, setLimit] = useState(PAGE);
   const [expanded, setExpanded] = useState<string | null>(null);
 
@@ -113,26 +145,57 @@ export function FicherosSection({
     const needle = query.trim().toLowerCase();
     return rows.filter((r) => {
       if (family !== 'todas' && r.family !== family) return false;
-      if (cause && r.causeCode !== cause) return false;
+      // `rowMatchesCauses` y no `r.causeCode === cause`: una fila puede traer
+      // varios códigos de error, y filtrar solo por el primero escondía archivos
+      // que las tarjetas de Prioridades sí cuentan.
+      if (!rowMatchesCauses(r, causes)) return false;
+      if (format && r.format !== format) return false;
       if (category && r.category !== category) return false;
       if (needle && !`${r.datasetTitle} ${r.category} ${r.format} ${r.url}`.toLowerCase().includes(needle)) return false;
       return true;
     });
-  }, [rows, family, cause, category, query]);
+  }, [rows, family, causes, format, category, query]);
 
   const shown = filtered.slice(0, limit);
   const hasSubFilter =
-    family !== 'todas' || Boolean(cause) || Boolean(category) || Boolean(query.trim());
+    family !== 'todas' || causes.length > 0 || Boolean(format) || Boolean(category) || Boolean(query.trim());
+
+  /**
+   * Lo que hay que rehacer cada vez que cambia CUALQUIER filtro.
+   *
+   * Volver a la primera página y cerrar la fila desplegada: el detalle abierto
+   * sobrevivía al cambio de filtro y podía quedar fuera de la lista resultante,
+   * «abierto» sin nada que mostrar. Estaba repetido en unos manejadores y ausente
+   * en otros, así que quitar un chip y cambiar de pestaña dejaban la tabla en
+   * estados distintos.
+   */
+  const resetView = () => {
+    setLimit(PAGE);
+    setExpanded(null);
+  };
+
+  /**
+   * Cambiar de familia limpia la causa.
+   *
+   * Sin esto, llegar con `?familia=entrega&causa=descarga` y pulsar «Abren con
+   * errores» dejaba la causa puesta y la tabla salía vacía, con el chip de la
+   * causa todavía visible: parecía que no había nada que ver cuando lo que había
+   * era una combinación imposible. La condición conserva las causas al volver a
+   * pulsar la pestaña que ya está activa.
+   */
+  const selectFamily = (next: FamilyFilter) => {
+    setFamily(next);
+    if (next !== family) setCauses([]);
+    resetView();
+  };
 
   const clearSubFilters = () => {
     setFamily('todas');
-    setCause('');
+    setCauses([]);
+    setFormat('');
     setCategory('');
     setQuery('');
-    setLimit(PAGE);
-    // La fila abierta sobrevivía al borrado de filtros y podía quedar fuera de
-    // la lista resultante: el detalle seguía "abierto" sin nada que mostrar.
-    setExpanded(null);
+    resetView();
   };
 
   if (rows.length === 0) {
@@ -167,7 +230,7 @@ export function FicherosSection({
             <button
               key={tab.id}
               type="button"
-              onClick={() => { setFamily(tab.id); setLimit(PAGE); setExpanded(null); }}
+              onClick={() => selectFamily(tab.id)}
               aria-pressed={family === tab.id}
               // La pista va en el nombre accesible y no en `title`: un tooltip
               // nativo no existe en táctil y no se anuncia al tabular.
@@ -198,7 +261,7 @@ export function FicherosSection({
           <input
             type="search"
             value={query}
-            onChange={(e) => { setQuery(e.target.value); setLimit(PAGE); }}
+            onChange={(e) => { setQuery(e.target.value); resetView(); }}
             placeholder="Filtrar por conjunto de datos, temática o URL…"
             aria-label="Filtrar la lista de archivos"
             className="h-9 w-full rounded-lg border border-field bg-card pl-8 pr-3 text-xs text-body placeholder:text-faint focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
@@ -226,7 +289,7 @@ export function FicherosSection({
               <button
                 key={c.value}
                 type="button"
-                onClick={() => { setCategory(category === c.value ? '' : c.value); setLimit(PAGE); }}
+                onClick={() => { setCategory(category === c.value ? '' : c.value); resetView(); }}
                 aria-pressed={category === c.value}
                 className={cn(
                   'inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs transition-colors',
@@ -248,20 +311,70 @@ export function FicherosSection({
 
       {/* ── Tabla ── */}
       <section>
+        {/* La tira de filtros activos.
+            Tiene que enseñarlos TODOS. Pintaba solo la causa y la temática, y por
+            eso una tarjeta que prometía «32 archivos GML» podía llevar a una tabla
+            con los 179 errores de descarga del catálogo sin que se notara: el
+            formato no estaba ni en el filtro ni en los chips, así que no había
+            nada que delatara la diferencia. */}
         {hasSubFilter && (
           <div className="mb-3 flex flex-wrap items-center gap-2 text-xs">
             <span className="text-faint">
               Mostrando {filtered.length.toLocaleString('es-ES')} de {rows.length.toLocaleString('es-ES')}
             </span>
-            {cause && (
-              <button onClick={() => setCause('')} className="inline-flex items-center gap-1 rounded-md border border-border bg-fill px-2 py-0.5 text-body hover:bg-fill-strong">
-                causa: {issueLabel(cause)}
+            {family !== 'todas' && (
+              <button
+                type="button"
+                onClick={() => selectFamily('todas')}
+                aria-label={chipLabel('por dimensión', FAMILY_TABS.find((t) => t.id === family)?.label ?? family)}
+                className={CHIP}
+              >
+                {FAMILY_TABS.find((t) => t.id === family)?.label}
+                <X className="h-3 w-3" aria-hidden />
+              </button>
+            )}
+            {causes.map((code) => (
+              <button
+                key={code}
+                type="button"
+                onClick={() => { setCauses(causes.filter((c) => c !== code)); resetView(); }}
+                aria-label={chipLabel('por causa', issueLabel(code))}
+                className={CHIP}
+              >
+                causa: {issueLabel(code)}
+                <X className="h-3 w-3" aria-hidden />
+              </button>
+            ))}
+            {format && (
+              <button
+                type="button"
+                onClick={() => { setFormat(''); resetView(); }}
+                aria-label={chipLabel('por formato', format)}
+                className={CHIP}
+              >
+                formato: {format}
                 <X className="h-3 w-3" aria-hidden />
               </button>
             )}
             {category && (
-              <button onClick={() => setCategory('')} className="inline-flex items-center gap-1 rounded-md border border-border bg-fill px-2 py-0.5 text-body hover:bg-fill-strong">
+              <button
+                type="button"
+                onClick={() => { setCategory(''); resetView(); }}
+                aria-label={chipLabel('por temática', category)}
+                className={CHIP}
+              >
                 temática: {category}
+                <X className="h-3 w-3" aria-hidden />
+              </button>
+            )}
+            {query.trim() && (
+              <button
+                type="button"
+                onClick={() => { setQuery(''); resetView(); }}
+                aria-label={chipLabel('de texto', query.trim())}
+                className={CHIP}
+              >
+                texto: {query.trim()}
                 <X className="h-3 w-3" aria-hidden />
               </button>
             )}
@@ -412,24 +525,56 @@ export function FicherosSection({
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {byFormat.map(([fmt, f]) => (
-                  <tr key={fmt} className="hover:bg-fill">
+                {byFormat.map(([fmt, f]) => {
+                  const score = formatScores[fmt];
+                  const isActive = format === fmt;
+                  return (
+                  /* Estas filas ahora filtran la tabla de arriba. Eran `<tr>`
+                     inertes: la única vista del portal que desglosaba por formato
+                     no podía llevarte a los archivos de ese formato.
+                     El disparador es un `<button>` dentro de la celda y no un
+                     `onClick` en el `<tr>`: una fila entera clicable no se alcanza
+                     con el teclado ni se anuncia como accionable. */
+                  <tr key={fmt} className={isActive ? 'bg-fill-strong' : 'hover:bg-fill'}>
                     <td className="px-5 py-2.5">
-                      <span className="inline-flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFormat(isActive ? '' : fmt);
+                          resetView();
+                        }}
+                        aria-pressed={isActive}
+                        aria-label={
+                          isActive
+                            ? `Quitar el filtro por formato ${fmt}`
+                            : `Ver solo los archivos ${fmt} en la tabla de arriba`
+                        }
+                        className="inline-flex items-center gap-1.5 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+                      >
                         <Badge variant="format">{fmt}</Badge>
                         {isGeoFormat(fmt) && <span className="text-[11px] text-faint">geo</span>}
-                      </span>
+                        {isActive && <span className="text-[11px] text-link">filtrando</span>}
+                      </button>
                     </td>
                     <td className="px-3 py-2.5 text-right tabular-nums text-body">{f.total}</td>
                     <td className="px-3 py-2.5 text-right tabular-nums text-ok">{f.ok}</td>
                     <td className="px-3 py-2.5 text-right tabular-nums text-warn">{f.error}</td>
                     <td className="px-3 py-2.5 text-right tabular-nums text-faint">{f.skipped}</td>
+                    {/* De `formatScores` y no de `f.avg_score`: ese venía con los
+                        ceros de los archivos que no se pudieron ni abrir. Un
+                        formato sin ningún archivo legible dice «—», no «0 %». */}
                     <td className="px-3 py-2.5 text-right font-semibold tabular-nums text-body">
-                      {f.avg_score != null ? `${f.avg_score}%` : '—'}
+                      {score?.avgScore != null ? `${score.avgScore}%` : '—'}
+                      {score != null && score.scored < f.total && (
+                        <span className="ml-1 text-[11px] font-normal text-faint">
+                          ({score.scored}/{f.total})
+                        </span>
+                      )}
                     </td>
                     <td className="px-5 py-2.5 text-right tabular-nums text-faint">{formatBytes(f.bytes)}</td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
             {/* «Con alguna incidencia» agrupa cosas de gravedad muy distinta, así
@@ -439,7 +584,9 @@ export function FicherosSection({
             <p className="px-5 py-3 text-[11px] leading-relaxed text-faint">
               «Con alguna incidencia» cuenta los archivos en los que el análisis anotó algo, incluidos
               los que se descargan y abren sin problema y solo necesitan limpieza. Para ver cuáles no
-              se pueden usar, filtra arriba por «No se pueden usar».
+              se pueden usar, filtra arriba por «No se pueden usar». La calidad media se calcula solo
+              sobre los archivos que se descargan y abren, y entre paréntesis va cuántos son de cada
+              formato: un formato del que no se ha podido leer ninguno dice «—», no cero.
             </p>
           </div>
         </details>

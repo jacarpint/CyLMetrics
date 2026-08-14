@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { summarizeDelivery, summarizeContent, type SystemicCause } from "@/lib/availability";
+import { buildQualityUrl } from "@/lib/quality-filters";
 import { buildRepairActions, DIMENSION_LABELS, type ActionFamily, type RepairAction } from "@/lib/repair-actions";
 import type { CatalogData } from "@/lib/types";
 import type { QualityReport } from "@/lib/quality-report";
@@ -69,21 +70,25 @@ export function PrioridadesSection({
       value: (delivery.roto + delivery.noEntrega).toLocaleString("es-ES"),
       label: "archivos que no se pueden usar",
       detail: `${delivery.roto.toLocaleString("es-ES")} no abren · ${delivery.noEntrega.toLocaleString("es-ES")} no entregan el archivo`,
-      href: "/calidad?vista=ficheros",
+      // Con `familia=entrega`: la cifra de la tarjeta es solo `roto + noEntrega`, y
+      // sin el filtro la tabla abría en «Todos», mezclando los archivos que abren
+      // con errores de contenido. El recuento de la tarjeta y el de la tabla no
+      // coincidían, que es justo lo que un enlace de «ver los afectados» promete.
+      href: buildQualityUrl({ vista: "ficheros", familia: "entrega" }),
     },
     {
       family: "contenido" as const,
       value: contentAffected.toLocaleString("es-ES"),
       label: "archivos que abren con errores en los datos",
       detail: `sobre los ${content.scored.toLocaleString("es-ES")} que se pueden leer`,
-      href: "/calidad?vista=ficheros&familia=contenido",
+      href: buildQualityUrl({ vista: "ficheros", familia: "contenido" }),
     },
     {
       family: "metadatos" as const,
       value: metadataDatasets.size.toLocaleString("es-ES"),
       label: "conjuntos de datos con la ficha incompleta",
       detail: `de ${catalog.stats.totalDatasets.toLocaleString("es-ES")} publicados`,
-      href: "/calidad?vista=metadatos",
+      href: buildQualityUrl({ vista: "metadatos" }),
     },
   ];
 
@@ -164,11 +169,11 @@ export function PrioridadesSection({
               <p className="mt-4 text-sm text-faint">
                 Y {hidden.toLocaleString("es-ES")} {hidden === 1 ? "tarea" : "tareas"} más de menor
                 alcance. El detalle completo, archivo a archivo, está en{" "}
-                <Link href="/calidad?vista=ficheros" className="font-medium text-link underline-offset-2 hover:underline">
+                <Link href={buildQualityUrl({ vista: "ficheros" })} className="font-medium text-link underline-offset-2 hover:underline">
                   Archivos
                 </Link>{" "}
                 y{" "}
-                <Link href="/calidad?vista=metadatos" className="font-medium text-link underline-offset-2 hover:underline">
+                <Link href={buildQualityUrl({ vista: "metadatos" })} className="font-medium text-link underline-offset-2 hover:underline">
                   Metadatos
                 </Link>
                 .

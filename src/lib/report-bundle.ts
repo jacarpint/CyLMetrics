@@ -62,7 +62,8 @@ export interface IssueColumnGroup {
 export interface IssueDetail {
   code: string;
   label: string;
-  severity: 'error' | 'warning';
+  /** Ver `IssueSeverity` en `quality-report.ts`: `info` = no es del archivo. */
+  severity: 'error' | 'warning' | 'info';
   /** Ocurrencias detectadas. */
   count: number;
   /** Ocurrencias realmente guardadas. Si es menor que `count`, hay que decirlo. */

@@ -28,6 +28,7 @@ from __future__ import annotations
 import hashlib
 import json
 import shutil
+import sys
 from pathlib import Path
 
 #: Versión del formato. La lee `report-bundle.ts` para no interpretar un bundle
@@ -95,6 +96,45 @@ def _shard(result: dict) -> dict | None:
     return shard
 
 
+def _empty_shard_dir(shard_dir: Path) -> None:
+    """
+    Vacía el directorio de fragmentos SIN borrar el directorio.
+
+    Antes era `shutil.rmtree(shard_dir)` y eso costó un análisis entero. En una
+    carpeta sincronizada (OneDrive) el cliente de sincronización mantiene un handle
+    abierto sobre el directorio, así que `rmtree` borra los 857 ficheros y luego
+    revienta con `PermissionError [WinError 5]` al hacer el `rmdir` final. El
+    resultado era el peor posible: el informe recién calculado se perdía y encima
+    el bundle que ya estaba publicado se quedaba sin ninguno de sus fragmentos.
+
+    Borrar el contenido y quedarse el directorio consigue lo mismo —que no queden
+    fragmentos de distribuciones que ya no están en el catálogo— sin depender de
+    poder borrar la carpeta. Los fallos por fichero se acumulan y se avisan: un
+    fragmento viejo que no se pueda borrar es un problema menor, pero silenciarlo no.
+    """
+    if not shard_dir.exists():
+        shard_dir.mkdir(parents=True, exist_ok=True)
+        return
+
+    fallos: list[str] = []
+    for entry in shard_dir.iterdir():
+        try:
+            if entry.is_dir():
+                shutil.rmtree(entry)
+            else:
+                entry.unlink()
+        except Exception as exc:
+            fallos.append(f"{entry.name}: {type(exc).__name__}")
+
+    if fallos:
+        print(
+            f"  AVISO: {len(fallos)} fragmentos antiguos no se pudieron borrar "
+            f"(p. ej. {fallos[0]}). El bundle nuevo se escribe igual.",
+            file=sys.stderr,
+            flush=True,
+        )
+
+
 def write_bundle(report: dict, target: Path) -> dict:
     """Escribe `index.json` y `d/*.json`. Devuelve un resumen de lo escrito.
 
@@ -104,9 +144,7 @@ def write_bundle(report: dict, target: Path) -> dict:
     """
     target.mkdir(parents=True, exist_ok=True)
     shard_dir = target / "d"
-    if shard_dir.exists():
-        shutil.rmtree(shard_dir)
-    shard_dir.mkdir(parents=True, exist_ok=True)
+    _empty_shard_dir(shard_dir)
 
     shards_written = 0
     shard_bytes = 0

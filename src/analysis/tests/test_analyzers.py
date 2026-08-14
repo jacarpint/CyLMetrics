@@ -370,5 +370,125 @@ def test_engine_remap_no_es_archivo_a_skipped():
         html.unlink(missing_ok=True)
 
 
+# ---------------------------------------------------------------------------
+# Lo que es nuestro y no del dato
+# ---------------------------------------------------------------------------
+
+def test_falta_una_libreria_no_es_error_del_archivo():
+    """
+    El fallo que llegó a producción: el informe del 13 de agosto se generó sin
+    `openpyxl`, y 341 XLSX descargados con HTTP 200 salieron en el portal como
+    archivos defectuosos. La incidencia es informativa y NO lleva nota: un 0 se
+    colaba en las medias por formato y dejaba «XLSX: avg_score 0».
+    """
+    from src.analysis.checks import missing_dependency_issue
+
+    issue = missing_dependency_issue("openpyxl")
+    assert issue["code"] == "dependencia-faltante"
+    assert issue["severity"] == "info", "no es un error del archivo"
+    assert issue["label"] == "openpyxl no disponible"
+    # `stored` lo pone `simple_issue`, y la interfaz lo lee siempre.
+    assert issue["stored"] == 0
+
+
+def test_los_dos_conjuntos_de_codigos_no_se_solapan():
+    """
+    «No lo pudimos comprobar» y «la URL no devuelve el archivo» son cosas
+    distintas: la primera es nuestra y la segunda de la plataforma de publicación.
+    `engine.py` usa la unión para no penalizar al organismo, pero si un código
+    cayera en los dos conjuntos dejaría de estar claro a quién se le atribuye.
+    """
+    from src.analysis.checks import PORTAL_LIMITATION_CODES, PUBLICATION_DEFECT_CODES
+
+    assert not (PORTAL_LIMITATION_CODES & PUBLICATION_DEFECT_CODES)
+    assert "dependencia-faltante" in PORTAL_LIMITATION_CODES
+    assert "no-es-archivo" in PUBLICATION_DEFECT_CODES
+
+
+def test_la_comprobacion_previa_cubre_todos_los_formatos_con_lector():
+    """
+    La tabla de lectores tiene que cubrir todo `REGISTRY`, no solo lo que falló
+    aquella vez. `frictionless` se quedó fuera en la primera versión, y es el
+    validador de CSV, TXT y JSON: casi 1.000 de las 1.658 distribuciones.
+    """
+    from src.analysis.formats import READER_REQUIREMENTS, missing_readers
+
+    cubiertos = {fmt for formats in READER_REQUIREMENTS.values() for fmt in formats}
+    for fmt in ("CSV", "TXT", "JSON", "XLSX", "SHP", "iCal", "GeoJSON", "JPEG"):
+        assert fmt in cubiertos, f"{fmt} no tiene lector declarado"
+
+    # En un entorno completo no debe faltar ninguno; si falta, el mensaje lo dice.
+    faltan = missing_readers()
+    assert faltan == {}, f"faltan lectores en este entorno: {sorted(faltan)}"
+
+
+def test_la_comprobacion_previa_se_acota_a_los_formatos_pedidos():
+    """
+    Con `--only-formats CSV` no tiene sentido cargar Pillow ni avisar de JPEG:
+    importar los seis lectores cuesta unos cientos de milisegundos y el aviso
+    hablaba de formatos que la ejecución no iba a tocar.
+    """
+    from src.analysis.formats import READER_REQUIREMENTS, missing_readers
+
+    # Con un formato que no existe no queda ningún lector por comprobar.
+    assert missing_readers({"FORMATO-QUE-NO-EXISTE"}) == {}
+    # Y el acotado no depende de cómo se escriba el formato.
+    assert "iCal" in {f for fs in READER_REQUIREMENTS.values() for f in fs}
+    assert missing_readers({"ICAL"}) == missing_readers({"iCal"})
+
+
+def test_un_fallo_del_analizador_no_penaliza_al_dataset():
+    """
+    Si se rompe nuestro propio código, el archivo puede estar perfectamente: el
+    resultado es «omitido» y no «error», la incidencia es informativa, no lleva
+    nota, y la etiqueta es una frase y no el `str(exc)` de Python, que es lo que
+    se leía en la tabla del portal.
+
+    Lo que se sustituye es el ANALIZADOR, no la descarga: `run_item` envuelve en
+    `try` la llamada al analizador, así que un fallo de `fetch` es otra rama.
+    """
+    import src.analysis.engine as engine
+    from src.analysis.downloader import FetchResult
+
+    csv = FIXTURES / "_fallo_analizador.csv"
+    csv.write_text("a,b\n1,2\n", encoding="utf-8")
+
+    def fake_fetch(url, dest_dir, cap, timeout=60, retries=2, on_start=None):
+        return FetchResult(status="downloaded", path=csv, size=csv.stat().st_size,
+                           http_status=200, final_url=url)
+
+    def analizador_roto(path, ctx):
+        raise RuntimeError("KeyError simulado dentro del analizador")
+
+    original_fetch = engine.fetch
+    original_csv = engine.REGISTRY["CSV"]
+    engine.fetch = fake_fetch
+    engine.REGISTRY["CSV"] = analizador_roto
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            ctx = {"run_dir": tmp, "size_cap": 1_000_000, "sample_cap": 1_000_000,
+                   "timeout": 5, "retries": 0}
+            item = {
+                "dataset_index": 0, "dataset_id": "1", "dataset_title": "Test",
+                "url": "https://example.org/a.csv", "format": "CSV", "mime": "",
+            }
+            result = engine.run_item(item, ctx)
+    finally:
+        engine.fetch = original_fetch
+        engine.REGISTRY["CSV"] = original_csv
+        csv.unlink(missing_ok=True)
+
+    assert result["status"] == "skipped", f"esperaba skipped, {result['status']}"
+    analysis = result["analysis"] or {}
+    assert analysis.get("score") is None, "un fallo nuestro no puntúa el archivo"
+    issues = analysis.get("issues", [])
+    assert [i["code"] for i in issues] == ["fallo-analizador"]
+    assert issues[0]["severity"] == "info"
+    assert issues[0]["stored"] == 0
+    assert "RuntimeError" not in issues[0]["label"], "la etiqueta no es la excepción"
+    # El detalle técnico no se pierde: sigue entero en el resumen.
+    assert "RuntimeError" in analysis.get("summary", "")
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

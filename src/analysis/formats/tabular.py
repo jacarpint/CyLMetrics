@@ -104,10 +104,20 @@ def _collect_frictionless(report) -> list[dict]:
     return list(issues.values())
 
 
-def _normalize(path: Path, ctx: dict, ok: bool, score: int, summary: str,
+def _normalize(path: Path, ctx: dict, ok: bool, score: int | None, summary: str,
                metrics: dict, issues: list[dict],
                schema: list[dict] | None = None,
                sample_rows: list[list] | None = None) -> dict:
+    """
+    `score=None` significa «no lo hemos medido», y no es lo mismo que un cero.
+
+    `report.py` mete en las medias la nota de todo resultado que la tenga, así que
+    poner 0 cuando el análisis no ha llegado a mirar el archivo contamina las
+    cifras del formato entero: los cinco analizadores que devolvían 0 al faltarles
+    su librería dejaron `XLSX: avg_score 0` en el informe del 13 de agosto, a
+    partir de 341 ceros que no medían ningún Excel. Con `None` esos resultados se
+    quedan fuera de las medias por sí solos.
+    """
     # Único punto donde las incidencias se cierran: así ningún analizador puede
     # emitir un acumulador a medio construir en el informe.
     result = {

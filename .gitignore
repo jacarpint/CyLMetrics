@@ -61,6 +61,12 @@ yarn-error.log*
 src/analysis/__pycache__/
 src/analysis/**/__pycache__/
 
+# Entorno del análisis. El nombre es el que indica `requirements-analysis.txt`:
+#   python -m venv .venv-analysis
+# Faltaba, así que crearlo dejaba miles de ficheros sin seguimiento en `git status`.
+/.venv-analysis/
+/.venv/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

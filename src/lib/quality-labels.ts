@@ -9,7 +9,17 @@
  * `src/analysis` (ver cada "code" emitido en formats/*.py y engine.py).
  */
 
-export type IssueCategory = 'availability' | 'format' | 'content';
+/**
+ * Las tres dimensiones que se le pueden achacar al dato, más una cuarta que no.
+ *
+ * `portal` existe porque faltaba: el analizador emite incidencias que no hablan
+ * del archivo sino de nosotros —no teníamos instalado el lector, se agotó
+ * nuestro tope de descarga, se cayó nuestro propio código— y estaban repartidas
+ * entre `format` y ninguna categoría. Clasificar «openpyxl no disponible» como
+ * conformidad de formato atribuía al publicador una librería que no habíamos
+ * instalado.
+ */
+export type IssueCategory = 'availability' | 'format' | 'content' | 'portal';
 
 /* ── Formateo (aquí y no en quality-report.ts, para que también lo puedan
       usar los componentes cliente) ── */
@@ -132,16 +142,57 @@ export function analyzedCells(metrics: Record<string, unknown> | null | undefine
   return rows != null && columns != null ? rows * columns : 0;
 }
 
-/** Categoriza un código de incidencia en disponibilidad, formato o contenido. */
+/** Categoriza un código de incidencia. `portal` va primero: no es del dato. */
 export function issueCategory(code: string): IssueCategory {
+  if (PORTAL_LIMITATION_CODES.has(code)) return 'portal';
   if (code in AVAILABILITY_ISSUES) return 'availability';
   if (code in FORMAT_ISSUES) return 'format';
   return 'content';
 }
 
-/** Etiqueta legible para un código de incidencia (para nivel dataset). */
+/**
+ * Etiqueta legible para un código de incidencia (para nivel dataset).
+ *
+ * El respaldo NO puede ser el código: devolverlo tal cual es lo que sacaba
+ * «downloaded» a la tabla de archivos, en inglés y en minúsculas, como si fuera
+ * el motivo por el que un XLSX no se había analizado. Y no era un caso aislado:
+ * `DEFAULT_ISSUE` de `formats/tabular.py` puede emitir cualquier tipo crudo de
+ * Frictionless como código, así que la lista de abajo nunca va a estar completa
+ * por definición. El código sigue estando disponible para depurar, pero no se
+ * enseña como si fuera una frase.
+ */
 export function issueLabel(code: string): string {
-  return ISSUE_LABELS[code] ?? code;
+  return ISSUE_LABELS[code] ?? 'Incidencia sin descripción';
+}
+
+/**
+ * Códigos que hablan del portal, no del archivo.
+ *
+ * Falta un lector, se agotó nuestro tope de descarga, se rompió nuestro propio
+ * analizador: en los tres casos el archivo puede estar perfectamente y lo único
+ * que sabemos es que no lo hemos comprobado. No cuentan como error del dato, no
+ * entran en las medias de calidad y se presentan como «sin analizar».
+ *
+ * Tiene que decir lo mismo que `PORTAL_LIMITATION_CODES` en
+ * `src/analysis/checks.py`; hay un test que compara las dos listas, porque la
+ * sincronización entre los analizadores y estas tablas es manual.
+ *
+ * Deliberadamente fuera: `no-es-archivo` y `no-es-imagen`. Que la URL publicada
+ * devuelva una página web en vez del archivo es un defecto de publicación, no
+ * una limitación nuestra, aunque `engine.py` los degrade a «omitida» junto a
+ * estos.
+ */
+export const PORTAL_LIMITATION_CODES: ReadonlySet<string> = new Set([
+  'dependencia-faltante',
+  'fallo-analizador',
+  'error-validacion',
+  'descarga-truncada',
+  'too_large',
+]);
+
+/** Se lee igual que `isBlockingCode` de `alerts.ts`, y por eso está aquí. */
+export function isPortalLimitation(code: string): boolean {
+  return PORTAL_LIMITATION_CODES.has(code);
 }
 
 /** Etiqueta legible para una categoría de incidencia. */
@@ -176,10 +227,12 @@ const AVAILABILITY_ISSUES: Record<string, true> = {
 };
 
 /**
- * `descarga-truncada` no entra en ninguna categoría a propósito: no es un fallo
- * del recurso sino del tope de descarga del analizador, y clasificarlo como
- * problema de disponibilidad o de formato penalizaría al publicador por una
- * limitación nuestra.
+ * `descarga-truncada` no entraba en ninguna categoría a propósito: no es un
+ * fallo del recurso sino del tope de descarga del analizador, y clasificarlo
+ * como problema de disponibilidad o de formato penalizaría al publicador por una
+ * limitación nuestra. Ahora tiene sitio propio: `PORTAL_LIMITATION_CODES`, junto
+ * al resto de lo que es nuestro. Quedarse sin categoría funcionaba solo mientras
+ * nadie preguntara, y `dependencia-faltante` demostró que se preguntaba.
  */
 
 const FORMAT_ISSUES: Record<string, true> = {
@@ -193,8 +246,8 @@ const FORMAT_ISSUES: Record<string, true> = {
   'tipo-detectado': true,
   'tipo-no-identificado': true,
   'xls-legado': true,
-  'dependencia-faltante': true,
-  'error-validacion': true,
+  // `dependencia-faltante` y `error-validacion` estaban aquí: son limitaciones
+  // del portal, no de la conformidad del archivo. Ver `PORTAL_LIMITATION_CODES`.
   'error-esquema': true,
   'ical-invalido': true,
   'firma-invalida': true,
@@ -210,6 +263,7 @@ const CATEGORY_LABELS: Record<IssueCategory, string> = {
   availability: 'Disponibilidad',
   format: 'Conformidad del formato',
   content: 'Calidad de contenido',
+  portal: 'Limitación de este portal',
 };
 
 /**
@@ -231,10 +285,21 @@ export const ISSUE_LABELS: Record<string, string> = {
   // Estados de la descarga (`fetch.status`). No son incidencias del analizador,
   // pero `deliveryCause` cae a ellos cuando la descarga falla sin dejar código,
   // y sin etiqueta se enseñaban en crudo: «http_error».
+  //
+  // Están los ocho, no los cuatro que fallan. Faltaban justo los que significan
+  // que la descarga fue BIEN, y ahí estaba el error que se veía en producción:
+  // un XLSX descargado con éxito del que no teníamos lector aparecía en la tabla
+  // de archivos etiquetado «downloaded», con HTTP 200 al lado. `deliveryCause` ya
+  // no cae aquí cuando los bytes han llegado, pero estas cuatro entradas son la
+  // segunda línea: si alguna vez vuelve a caer, al menos se leerá en español.
   http_error: 'El servidor respondió con un error',
   unreachable: 'No se pudo contactar con el servidor',
   service: 'El servicio de origen no atendió la petición',
   too_large: 'Supera el tamaño máximo que este portal descarga',
+  downloaded: 'El archivo se descargó completo',
+  truncated: 'El archivo se descargó solo en parte',
+  no_url: 'El catálogo no publica ninguna URL de acceso',
+  error: 'Fallo interno del análisis de este portal',
   'celda-faltante': 'Celdas vacías en filas con datos',
   'error-tipo': 'Valores que no encajan con el tipo de su columna',
   'encabezado-vacio': 'Encabezados de columna vacíos',
@@ -319,6 +384,14 @@ const ISSUE_EXPLANATIONS: Record<string, string> = {
     'El servicio que sirve estos datos recibe la petición y no la atiende. Puede estar saturado o no admitir descargas automáticas.',
   too_large:
     'El archivo pasa del tamaño que este portal descarga para analizar, así que su contenido no se ha comprobado. No es un defecto del archivo: se sigue pudiendo descargar del enlace original.',
+  no_url:
+    'La ficha del conjunto de datos describe este recurso pero no dice de dónde bajarlo, así que no hay nada que comprobar. El dato puede existir; lo que falta es el enlace en el catálogo.',
+  downloaded:
+    'Los bytes del archivo llegaron completos. Si aun así aparece aquí como motivo, lo que falla no es la descarga sino el análisis posterior, y el archivo puede estar perfectamente.',
+  truncated:
+    'El archivo llegó solo hasta el tope que este portal descarga, así que las cifras de filas y columnas son de la parte leída y no del total. El archivo completo sigue estando en su enlace original.',
+  error:
+    'El análisis de este portal se interrumpió antes de poder decir nada del archivo. Es un problema nuestro, no del dato: hace falta repetir la comprobación para saber cómo está.',
 
   // Contenido: el archivo se abre, lo que hay dentro es lo que falla.
   'celda-faltante':

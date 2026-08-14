@@ -14,7 +14,7 @@ import {
 import { cn } from "@/lib/utils";
 import { issueExplanation } from "@/lib/quality-labels";
 import { presentationForFormat, type IssuePresentation } from "@/lib/unit-words";
-import type { IssueInfo } from "@/lib/quality-report";
+import type { IssueInfo, IssueSeverity } from "@/lib/quality-report";
 import type { AffectedColumn, IssuePosition } from "@/lib/report-bundle";
 
 /** Posiciones que se piden de una vez. */
@@ -358,12 +358,37 @@ function mergeIssues(issues: IssueWithFormat[]): (IssueWithFormat & { key: strin
   return [...merged.values()];
 }
 
-function ImpactBar({ count, max, severity }: { count: number; max: number; severity: "error" | "warning" }) {
+/**
+ * Cómo se presenta cada severidad.
+ *
+ * `info` tiene tono y rótulo propios porque no es un defecto del archivo: son las
+ * incidencias que hablan del portal —falta el lector, se rompió nuestro código—.
+ * Pintarlas de amarillo y rotularlas «Aviso», que es lo que salía al tratar todo
+ * lo que no era error como advertencia, seguía señalando al publicador.
+ */
+const SEVERITY_STYLE: Record<IssueSeverity, {
+  fill: string; box: string; text: string; label: string; icon: typeof XCircle;
+}> = {
+  error: {
+    fill: "bg-bad-solid", box: "border-bad-line bg-bad-surface",
+    text: "text-bad", label: "Error", icon: XCircle,
+  },
+  warning: {
+    fill: "bg-warn-solid", box: "border-warn-line bg-warn-surface",
+    text: "text-warn", label: "Aviso", icon: AlertTriangle,
+  },
+  info: {
+    fill: "bg-info", box: "border-info-line bg-info-surface",
+    text: "text-info", label: "Sin analizar", icon: Info,
+  },
+};
+
+function ImpactBar({ count, max, severity }: { count: number; max: number; severity: IssueSeverity }) {
   const pct = max > 0 ? Math.round((count / max) * 100) : 0;
   return (
     <div className="h-2 w-full overflow-hidden rounded-full bg-fill" aria-hidden>
       <div
-        className={cn("h-full rounded-full transition-all duration-500", severity === "error" ? "bg-bad-solid" : "bg-warn-solid")}
+        className={cn("h-full rounded-full transition-all duration-500", SEVERITY_STYLE[severity].fill)}
         style={{ width: `${Math.max(pct, 3)}%` }}
       />
     </div>
@@ -386,12 +411,18 @@ export function IssueExplorer({ issues, totalCells, format, className }: IssueEx
   const maxCount = Math.max(...items.map((i) => i.count));
   const errorCount = items.filter((i) => i.severity === "error").reduce((s, i) => s + i.count, 0);
   const warningCount = items.filter((i) => i.severity === "warning").reduce((s, i) => s + i.count, 0);
+  // Las `info` se cuentan aparte y no con las advertencias: no son defectos del
+  // archivo. Sin este recuento quedaban listadas abajo pero sin aparecer en el
+  // resumen, así que el titular podía decir «0 errores, 0 advertencias» con una
+  // tarjeta debajo.
+  const notAnalyzedCount = items.filter((i) => i.severity === "info").length;
   // Ordenar por severidad y luego por volumen. Solo por volumen, "celdas
   // vacías" (el 82% del recuento del catálogo) sepultaba siempre a los errores
-  // que de verdad impiden usar el fichero.
+  // que de verdad impiden usar el fichero. Las `info` van al final: son lo único
+  // que no pide ninguna corrección al publicador.
+  const SORT_RANK: Record<IssueSeverity, number> = { error: 0, warning: 1, info: 2 };
   const sorted = [...items].sort(
-    (a, b) =>
-      Number(b.severity === "error") - Number(a.severity === "error") || b.count - a.count
+    (a, b) => SORT_RANK[a.severity] - SORT_RANK[b.severity] || b.count - a.count
   );
 
   return (
@@ -426,6 +457,13 @@ export function IssueExplorer({ issues, totalCells, format, className }: IssueEx
             )}
           </span>
         )}
+        {/* Sin porcentaje de celdas: no se ha llegado a leer ninguna. */}
+        {notAnalyzedCount > 0 && (
+          <span className="inline-flex items-center gap-1 text-info">
+            <Info className="h-3 w-3" aria-hidden />
+            {notAnalyzedCount === 1 ? 'una comprobación sin hacer' : `${notAnalyzedCount} comprobaciones sin hacer`}
+          </span>
+        )}
       </div>
 
       {/* Incidencias */}
@@ -433,18 +471,13 @@ export function IssueExplorer({ issues, totalCells, format, className }: IssueEx
         {sorted.map((issue) => {
           const isExpanded = expanded === issue.key;
           const explanation = issueExplanation(issue.code);
-          const isError = issue.severity === "error";
+          const style = SEVERITY_STYLE[issue.severity];
+          const SeverityIcon = style.icon;
           const panelId = `incidencia-${issue.key.replace(/\W+/g, "-")}`;
           const presentation = presentationForFormat(issue.format ?? format);
 
           return (
-            <div
-              key={issue.key}
-              className={cn(
-                "rounded-lg border transition-colors",
-                isError ? "border-bad-line bg-bad-surface" : "border-warn-line bg-warn-surface"
-              )}
-            >
+            <div key={issue.key} className={cn("rounded-lg border transition-colors", style.box)}>
               <button
                 type="button"
                 onClick={() => setExpanded(isExpanded ? null : issue.key)}
@@ -452,11 +485,7 @@ export function IssueExplorer({ issues, totalCells, format, className }: IssueEx
                 aria-controls={panelId}
                 className="flex w-full items-center gap-3 rounded-lg px-4 py-3 text-left"
               >
-                {isError ? (
-                  <XCircle className="h-4 w-4 shrink-0 text-bad" aria-hidden />
-                ) : (
-                  <AlertTriangle className="h-4 w-4 shrink-0 text-warn" aria-hidden />
-                )}
+                <SeverityIcon className={cn("h-4 w-4 shrink-0", style.text)} aria-hidden />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <span className="truncate text-sm font-medium text-strong">{issue.label}</span>
@@ -465,8 +494,8 @@ export function IssueExplorer({ issues, totalCells, format, className }: IssueEx
                         {issue.format}
                       </span>
                     )}
-                    <span className={cn("shrink-0 text-[11px] font-semibold uppercase tracking-wide", isError ? "text-bad" : "text-warn")}>
-                      {isError ? "Error" : "Aviso"}
+                    <span className={cn("shrink-0 text-[11px] font-semibold uppercase tracking-wide", style.text)}>
+                      {style.label}
                     </span>
                   </div>
                   <div className="mt-1.5">
@@ -474,7 +503,7 @@ export function IssueExplorer({ issues, totalCells, format, className }: IssueEx
                   </div>
                 </div>
                 <div className="ml-2 flex shrink-0 items-center gap-2">
-                  <span className={cn("text-sm font-bold tabular-nums", isError ? "text-bad" : "text-warn")}>
+                  <span className={cn("text-sm font-bold tabular-nums", style.text)}>
                     {issue.count.toLocaleString("es-ES")}
                   </span>
                   {isExpanded ? (

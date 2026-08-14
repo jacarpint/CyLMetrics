@@ -4,18 +4,20 @@ import {
   deliveryCause,
   distributionsAffectedByIssue,
   findSystemicCauses,
+  formatContentScores,
   groupByField,
+  reportContentScore,
   reuseConsequences,
   summarizeDelivery,
   type FileIssueRow,
 } from '../availability';
-import type { DistributionResult, QualityReport } from '../quality-report';
+import type { DistributionResult, FetchStatus, QualityReport } from '../quality-report';
 
 /**
  * `fetch` por defecto: descargado. En el informe real TODAS las distribuciones
  * traen su objeto `fetch`, así que omitirlo aquí probaba un estado imposible.
  */
-function fetchInfo(status = 'downloaded', httpStatus: number | null = 200) {
+function fetchInfo(status: FetchStatus = 'downloaded', httpStatus: number | null = 200) {
   return {
     status,
     size: 1024,
@@ -68,7 +70,7 @@ describe('classifyDelivery', () => {
   });
 
   it('roto cuando la descarga no trae el fichero', () => {
-    for (const status of ['http_error', 'unreachable', 'service']) {
+    for (const status of ['http_error', 'unreachable', 'service'] as const) {
       expect(classifyDelivery(withIssues('error', ['descarga'], 'CSV', fetchInfo(status, 404))), status).toBe('roto');
     }
   });
@@ -119,6 +121,35 @@ describe('classifyDelivery', () => {
     expect(classifyDelivery(dist({ status: 'skipped' }))).toBe('omitida');
   });
 
+  /**
+   * El caso de los 341 XLSX del informe: descarga correcta, HTTP 200, y el
+   * análisis no llegó a mirar dentro porque no teníamos openpyxl instalado.
+   * Antes caía en `omitida`, junto a los que ni se intentaron.
+   */
+  it('no-analizado cuando el archivo llega pero nos falta el lector', () => {
+    expect(
+      classifyDelivery(withIssues('skipped', ['dependencia-faltante'], 'XLSX'))
+    ).toBe('no-analizado');
+  });
+
+  it('no-analizado también cuando el que falla es nuestro propio analizador', () => {
+    expect(classifyDelivery(withIssues('error', ['fallo-analizador'], 'CSV'))).toBe('no-analizado');
+    expect(classifyDelivery(withIssues('skipped', ['descarga-truncada'], 'SHP'))).toBe('no-analizado');
+  });
+
+  it('una causa bloqueante manda sobre la falta de lector', () => {
+    // Si el ZIP está corrupto, eso lo sabemos y sí es del archivo.
+    expect(
+      classifyDelivery(withIssues('error', ['zip-invalido', 'dependencia-faltante'], 'SHP'))
+    ).toBe('roto');
+  });
+
+  it('omitida cuando el catálogo no publica URL, no roto', () => {
+    // `no_url` no estaba en ninguno de los dos conjuntos de `fetch.status`, así
+    // que caía al respaldo «fallido» y se contaba como un archivo que no abre.
+    expect(classifyDelivery(dist({ status: 'skipped', fetch: fetchInfo('no_url', null) }))).toBe('omitida');
+  });
+
   it('roto si no hay ni información de descarga', () => {
     expect(classifyDelivery(dist({ status: 'error', fetch: null }))).toBe('roto');
   });
@@ -146,6 +177,42 @@ describe('deliveryCause', () => {
       code: 'unreachable',
       label: 'No se pudo contactar con el servidor',
     });
+  });
+
+  /**
+   * El fallo que se veía en producción, fijado aquí.
+   *
+   * La tabla de archivos enseñaba «downloaded» de motivo, en inglés, con HTTP 200
+   * al lado y «openpyxl no está instalado» como resumen: tres datos correctos que
+   * juntos no explicaban nada. El motivo se buscaba en `fetch.status` sin
+   * comprobar antes si los bytes habían llegado.
+   */
+  it('con la descarga correcta, el motivo es nuestro código y NO el fetch.status', () => {
+    const d = withIssues('skipped', ['dependencia-faltante'], 'XLSX', fetchInfo('downloaded', 200));
+    expect(deliveryCause(d)).toMatchObject({
+      code: 'dependencia-faltante',
+      label: 'Este portal no dispone de lector para este formato',
+    });
+  });
+
+  it('nunca devuelve un estado de descarga cuando los bytes llegaron', () => {
+    for (const status of ['downloaded', 'truncated'] as const) {
+      const d = withIssues('skipped', ['dependencia-faltante'], 'XLSX', fetchInfo(status, 200));
+      expect(deliveryCause(d)?.code, status).not.toBe(status);
+    }
+  });
+
+  it('la etiqueta del motivo nunca es el código en crudo', () => {
+    const casos = [
+      withIssues('skipped', ['dependencia-faltante'], 'XLSX'),
+      withIssues('error', ['descarga'], 'CSV', fetchInfo('http_error', 404)),
+      dist({ status: 'skipped', fetch: fetchInfo('no_url', null) }),
+      dist({ status: 'error', fetch: null }),
+    ];
+    for (const d of casos) {
+      const cause = deliveryCause(d);
+      expect(cause?.label, cause?.code).not.toBe(cause?.code);
+    }
   });
 });
 
@@ -187,6 +254,69 @@ describe('summarizeDelivery', () => {
 
   it('sobrevive a la ausencia de informe', () => {
     expect(summarizeDelivery(null).total).toBe(0);
+  });
+});
+
+describe('formatContentScores y reportContentScore', () => {
+  /** Con nota: `withIssues` deja `score: null`, así que hay que ponerla. */
+  function scored(score: number | null, codes: string[], format: string, fetch = fetchInfo()) {
+    const d = withIssues(codes.length ? 'error' : 'ok', codes, format, fetch);
+    return { ...d, analysis: { ...d.analysis!, score } } as DistributionResult;
+  }
+
+  const report = {
+    generated_at: '2026-08-13T20:47:16Z',
+    totals: { distributions: 0, ok: 0, error: 0, skipped: 0, downloaded: 0, avg_score: null, bytes: 0 },
+    by_format: {},
+    datasets: [
+      {
+        dataset_id: 'a', dataset_title: 'A', dataset_index: 0,
+        distributions: 0, analyzed: 0, failed: 0, skipped: 0, scores: [],
+        issues_by_code: {}, score: null, coverage_pct: 0,
+        distribution_results: [
+          // XLSX: las dos notas son ceros de «no teníamos openpyxl».
+          scored(0, ['dependencia-faltante'], 'XLSX'),
+          scored(0, ['dependencia-faltante'], 'XLSX'),
+          // CSV: una nota real y otra contaminada por un fallo nuestro.
+          scored(80, ['celda-faltante'], 'CSV'),
+          scored(0, ['fallo-analizador'], 'CSV'),
+          // Un cero legítimo: el archivo dice ser imagen y es una página web.
+          scored(0, ['no-es-imagen'], 'JPEG'),
+          // Un servicio OGC: no descarga archivo, pero se analizó de verdad.
+          scored(90, [], 'WMS', fetchInfo('service', 200)),
+        ],
+      },
+    ],
+  } as unknown as QualityReport;
+
+  it('un formato cuyas únicas notas son ceros nuestros no puntúa: «—», no cero', () => {
+    expect(formatContentScores(report).XLSX).toEqual({ scored: 0, avgScore: null });
+  });
+
+  it('descarta la nota contaminada y conserva la real', () => {
+    expect(formatContentScores(report).CSV).toEqual({ scored: 1, avgScore: 80 });
+  });
+
+  it('un cero que sí habla del archivo se queda', () => {
+    expect(formatContentScores(report).JPEG).toEqual({ scored: 1, avgScore: 0 });
+  });
+
+  /**
+   * Filtrar por `classifyDelivery === 'ok'` habría borrado esto: un WMS no
+   * descarga ningún archivo, así que se clasifica como `roto`, pero su análisis
+   * se hizo y su nota es buena.
+   */
+  it('los servicios OGC conservan su nota aunque no entreguen archivo', () => {
+    expect(formatContentScores(report).WMS).toEqual({ scored: 1, avgScore: 90 });
+  });
+
+  it('la media global usa el mismo criterio: (80 + 0 + 90) / 3', () => {
+    expect(reportContentScore(report)).toEqual({ scored: 3, avgScore: 56.7 });
+  });
+
+  it('sobrevive a la ausencia de informe', () => {
+    expect(formatContentScores(null)).toEqual({});
+    expect(reportContentScore(null)).toEqual({ scored: 0, avgScore: null });
   });
 });
 
@@ -236,6 +366,34 @@ describe('reuseConsequences', () => {
     const [consequence] = reuseConsequences(reportWith(['encabezado-vacio', 'encabezado-duplicado']));
     expect(consequence.icon).toBe('encabezado');
     expect(consequence.count).toBe(2);
+  });
+
+  /**
+   * El recuento cuenta ARCHIVOS, que es lo que dice la tarjeta, y no la suma de
+   * los recuentos de cada código. Con la suma, un archivo que trae las dos cosas
+   * se contaba dos veces: sobre el informe real la tarjeta decía «164 archivos
+   * afectados» cuando los archivos distintos eran 136, porque 28 tienen a la vez
+   * el encabezado vacío y encabezados duplicados. Mientras la tarjeta no enlazaba
+   * a ningún sitio el error era invisible; con el enlace puesto, la tabla la
+   * desmiente.
+   */
+  it('un archivo con dos códigos del mismo grupo se cuenta una vez', () => {
+    const report = {
+      datasets: [
+        {
+          distribution_results: [
+            withIssues('error', ['encabezado-vacio', 'encabezado-duplicado']),
+          ],
+        },
+      ],
+    } as unknown as QualityReport;
+    const [consequence] = reuseConsequences(report);
+    expect(consequence.count).toBe(1);
+  });
+
+  it('lleva los códigos del grupo, para poder enlazar a la tabla filtrada', () => {
+    const [consequence] = reuseConsequences(reportWith(['encabezado-vacio']));
+    expect(consequence.codes).toEqual(['encabezado-vacio', 'encabezado-duplicado']);
   });
 
   it('omite las consecuencias que no ocurren en este catálogo', () => {

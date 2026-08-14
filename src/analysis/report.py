@@ -12,7 +12,24 @@ def aggregate(results: list[dict]) -> dict:
     datasets_order: list[str] = []
 
     for r in results:
-        key = f"{r['dataset_index']}|{r['dataset_id']}"
+        # Se agrupa por `dataset_id` A SECAS, no por `dataset_index|dataset_id`.
+        #
+        # El índice es la posición en el catálogo del día, y el catálogo está vivo:
+        # basta con que la Junta publique un conjunto nuevo para que todos los
+        # índices posteriores se desplacen. Al reanudar desde un checkpoint, los
+        # resultados reutilizados llevan el índice viejo y los recién analizados el
+        # nuevo, así que un mismo dataset se partía en dos grupos con el mismo id.
+        # Ocurrió: en la ejecución del 14 de agosto salieron 1.153 grupos para 822
+        # datasets reales, 330 partidos. Y como la interfaz indexa por el slug del
+        # `dataset_id` (`reportBySlug` en `quality-report.ts`) y en un `Map` gana la
+        # última entrada, esos 330 conjuntos habrían mostrado solo parte de sus
+        # archivos sin que nada avisara.
+        #
+        # Es el mismo criterio que ya sigue `bundle.py` para nombrar los fragmentos
+        # por la URL y no por el índice: «el informe es una foto y el catálogo está
+        # vivo». `dataset_index` se conserva como dato informativo, del primer
+        # resultado que se vea.
+        key = r["dataset_id"]
         if key not in by_dataset:
             by_dataset[key] = {
                 "dataset_index": r["dataset_index"],

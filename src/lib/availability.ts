@@ -16,7 +16,7 @@
  */
 
 import type { DistributionResult, QualityDatasetSummary, QualityReport } from './quality-report';
-import { issueLabel } from './quality-labels';
+import { ISSUE_LABELS, issueLabel, isPortalLimitation } from './quality-labels';
 import { isBlockingCode } from './alerts';
 
 /**
@@ -28,8 +28,17 @@ import { isBlockingCode } from './alerts';
  * un problema de la plataforma), pero `alerts.ts` la trataba como bloqueante.
  * Ambas cosas son ciertas, así que tiene categoría propia: se ve y se cuenta
  * aparte, pero no entra en el score.
+ *
+ * `no-analizado` se separó de `omitida` por lo mismo. `omitida` juntaba dos
+ * hechos que no se parecen: «no lo intentamos» (supera el tope de descarga, el
+ * catálogo no publica URL) y «lo descargamos entero y no teníamos con qué
+ * abrirlo». El segundo caso alcanzaba a 364 archivos del informe —341 XLSX sin
+ * openpyxl instalado— y al no tener estado propio salía en la tabla con el
+ * `fetch.status` crudo por etiqueta: «downloaded», en inglés, con HTTP 200 al
+ * lado y «openpyxl no está instalado» como resumen. Tres datos correctos que
+ * juntos no querían decir nada.
  */
-export type DeliveryState = 'ok' | 'roto' | 'no-entrega' | 'omitida';
+export type DeliveryState = 'ok' | 'roto' | 'no-entrega' | 'omitida' | 'no-analizado';
 
 /** Códigos que significan "la URL no devuelve el archivo prometido". */
 const NOT_A_FILE_CODES = new Set(['no-es-archivo', 'no-es-imagen']);
@@ -40,10 +49,18 @@ const NOT_A_FILE_CODES = new Set(['no-es-archivo', 'no-es-imagen']);
  * - `downloaded` / `truncated`: los bytes llegaron. `truncated` es un fichero
  *   grande del que se leyó una parte, pero se leyó.
  * - `too_large`: no se intentó por superar el tope. No sabemos si abre.
- * - `http_error` / `unreachable` / `service`: la descarga falló.
+ * - `no_url`: el catálogo describe el recurso sin dar enlace. Tampoco se intentó.
+ * - `http_error` / `unreachable` / `service` / `error`: la descarga falló.
  */
 const FETCH_DELIVERED = new Set(['downloaded', 'truncated']);
-const FETCH_NOT_EVALUATED = new Set(['too_large']);
+/**
+ * `no_url` está aquí y no en el grupo de fallos porque no se intentó nada.
+ * `engine.py` ya lo marca como «omitida», pero al no figurar en ninguno de los
+ * dos conjuntos caía al respaldo `'fallido'` y `classifyDelivery` lo devolvía
+ * como `roto`: una distribución que nunca tuvo URL se contaba como «no se puede
+ * descargar ni abrir», que afirma más de lo que sabemos.
+ */
+const FETCH_NOT_EVALUATED = new Set(['too_large', 'no_url']);
 
 type FetchOutcome = 'entregado' | 'fallido' | 'no-evaluado';
 
@@ -67,14 +84,16 @@ export const DELIVERY_LABELS: Record<DeliveryState, string> = {
   ok: 'Se descarga y se abre',
   roto: 'No se puede descargar ni abrir',
   'no-entrega': 'La URL no devuelve el archivo',
-  omitida: 'Sin analizar',
+  omitida: 'Sin comprobar',
+  'no-analizado': 'Sin analizar: falta el lector en el portal',
 };
 
 export const DELIVERY_SHORT: Record<DeliveryState, string> = {
   ok: 'Correcto',
   roto: 'No abre',
   'no-entrega': 'No entrega el archivo',
-  omitida: 'Sin analizar',
+  omitida: 'Sin comprobar',
+  'no-analizado': 'Sin analizar',
 };
 
 /** Explicación de cada estado que no es «se descarga y se abre». */
@@ -83,7 +102,9 @@ export const DELIVERY_EXPLANATIONS: Record<Exclude<DeliveryState, 'ok'>, string>
   'no-entrega':
     'La URL responde, pero devuelve una página web en lugar del archivo de datos. Bloquea la reutilización automatizada; suele ser un problema de la plataforma de publicación, no del dato en sí, y por eso no penaliza la puntuación.',
   omitida:
-    'El análisis no llegó a comprobar este archivo (por ejemplo, porque supera el tamaño máximo descargable o no declara URL de acceso).',
+    'El análisis no llegó a intentar la descarga de este archivo, porque supera el tamaño máximo descargable o porque el catálogo no publica una URL de acceso.',
+  'no-analizado':
+    'El archivo se descargó completo, pero este portal no tiene con qué leer su formato, así que su contenido no se ha comprobado. No es un defecto del archivo: puede estar perfectamente.',
 };
 
 function issueCodes(dist: DistributionResult): string[] {
@@ -122,11 +143,31 @@ export function classifyDelivery(dist: DistributionResult): DeliveryState {
   // un ZIP corrupto, un shapefile sin sus piezas.
   if (codes.some(isBlockingCode)) return 'roto';
 
+  // Llegó, pero el análisis no llegó a mirar dentro por una limitación nuestra:
+  // no teníamos el lector, se rompió nuestro propio código, se cortó por nuestro
+  // tope. Antes esto caía al `return 'omitida'` del final, indistinguible de un
+  // archivo que ni se intentó descargar.
+  if (codes.some(isPortalLimitation)) return 'no-analizado';
+
   // Llegó y abrió. Si el analizador lo marcó en error, es por el CONTENIDO, y
   // eso lo mide el eje de calidad, no este.
   if (dist.status === 'ok' || dist.status === 'error') return 'ok';
 
   return 'omitida';
+}
+
+/**
+ * Estados en los que el análisis no llega a afirmar nada del archivo.
+ *
+ * Quien calcula porcentajes tiene que dejarlos FUERA del denominador, no
+ * contarlos como fallo: son el hueco de cobertura del análisis. Se agrupan en un
+ * predicado porque son dos estados y hasta ahora los sitios que los descartaban
+ * comprobaban `=== 'omitida'` a mano, así que al añadir `no-analizado` habrían
+ * empezado a contar como archivos que no abren los 364 que solo nos faltaba
+ * leer.
+ */
+export function isUnevaluated(state: DeliveryState): boolean {
+  return state === 'omitida' || state === 'no-analizado';
 }
 
 export interface DeliveryCause {
@@ -142,18 +183,47 @@ export interface DeliveryCause {
  * abre pero trae tipos mezclados no tiene «motivo de indisponibilidad», y antes
  * devolvía «Valores con tipo distinto al de su columna» como si lo fuera.
  *
- * Prioriza el código bloqueante; si la descarga falló sin dejar código, cae al
- * estado de la descarga (`http_error`, `unreachable`…), que ya tiene etiqueta.
+ * El orden importa, y estaba mal. Se preguntaba por el código bloqueante y,
+ * al no haberlo, se caía directamente a `fetch.status` — incluso cuando la
+ * descarga había ido perfectamente. Un XLSX descargado sin incidencias del
+ * archivo pero sin lector en el portal devolvía `'downloaded'` como si
+ * «descargado» fuera el motivo de que no estuviera disponible, y así se pintaba
+ * en la tabla. El código que sí lo explicaba —`dependencia-faltante`, con su
+ * etiqueta escrita— no se consultaba nunca.
+ *
+ * `fetch.status` solo es el motivo cuando los bytes NO llegaron: ahí sí es lo
+ * único que sabemos, y `http_error`/`unreachable`/`service` lo dicen bien.
  */
 export function deliveryCause(dist: DistributionResult): DeliveryCause | null {
   if (classifyDelivery(dist) === 'ok') return null;
   const codes = issueCodes(dist);
+  const delivered = fetchOutcome(dist) === 'entregado';
   const code =
     codes.find((c) => isBlockingCode(c)) ??
-    dist.fetch?.status ??
+    codes.find((c) => isPortalLimitation(c)) ??
+    (delivered ? undefined : dist.fetch?.status) ??
     codes[0] ??
     'desconocido';
-  return { code, label: issueLabel(code) };
+
+  /*
+   * Si el código no está en `ISSUE_LABELS`, se usa la etiqueta que escribió el
+   * propio analizador antes de caer al texto genérico.
+   *
+   * `ISSUE_LABELS` se mantiene a mano y `DEFAULT_ISSUE` de `formats/tabular.py`
+   * puede emitir cualquier tipo crudo de Frictionless como código, así que llegar
+   * con un código sin traducir es una situación normal, no una anomalía. Sin este
+   * paso, todos esos casos distintos colapsaban en un mismo «Incidencia sin
+   * descripción» —y `repair-actions.ts` llegaba a titular una tarea con él—,
+   * cuando el informe ya trae una frase para cada uno.
+   */
+  const label = ISSUE_LABELS[code] ?? issueOwnLabel(dist, code) ?? issueLabel(code);
+  return { code, label };
+}
+
+/** La etiqueta que el analizador escribió para ese código en esta distribución. */
+function issueOwnLabel(dist: DistributionResult, code: string): string | undefined {
+  const own = (dist.analysis?.issues ?? []).find((i) => i.code === code)?.label?.trim();
+  return own || undefined;
 }
 
 /* ------------------------------------------------------------------ */
@@ -166,6 +236,14 @@ export interface DeliverySummary {
   roto: number;
   noEntrega: number;
   omitida: number;
+  /**
+   * Archivos que llegaron completos y que no hemos analizado por falta de lector.
+   *
+   * Se cuenta aparte de `omitida` a propósito: son la medida de nuestra propia
+   * cobertura, no del estado del catálogo, y mezclarlos escondía que 364 archivos
+   * del informe no se habían mirado por un problema nuestro.
+   */
+  noAnalizado: number;
   /** Porcentaje de distribuciones rotas sobre el total (0-100, redondeado). */
   brokenPct: number;
   /** Porcentaje que no entrega archivo, aparte de las rotas. */
@@ -177,12 +255,12 @@ export interface DeliverySummary {
 
 export function summarizeDelivery(report: QualityReport | null): DeliverySummary {
   const empty: DeliverySummary = {
-    total: 0, ok: 0, roto: 0, noEntrega: 0, omitida: 0,
+    total: 0, ok: 0, roto: 0, noEntrega: 0, omitida: 0, noAnalizado: 0,
     brokenPct: 0, notAFilePct: 0, affectedDatasets: 0, totalDatasets: 0,
   };
   if (!report) return empty;
 
-  let ok = 0, roto = 0, noEntrega = 0, omitida = 0, affected = 0;
+  let ok = 0, roto = 0, noEntrega = 0, omitida = 0, noAnalizado = 0, affected = 0;
 
   for (const ds of report.datasets) {
     let dsAffected = false;
@@ -191,14 +269,17 @@ export function summarizeDelivery(report: QualityReport | null): DeliverySummary
       if (state === 'ok') ok++;
       else if (state === 'roto') { roto++; dsAffected = true; }
       else if (state === 'no-entrega') { noEntrega++; dsAffected = true; }
+      else if (state === 'no-analizado') noAnalizado++;
       else omitida++;
+      // Ni `omitida` ni `no-analizado` marcan el dataset como afectado: en los
+      // dos casos el problema es de cobertura del análisis, no del catálogo.
     }
     if (dsAffected) affected++;
   }
 
-  const total = ok + roto + noEntrega + omitida;
+  const total = ok + roto + noEntrega + omitida + noAnalizado;
   return {
-    total, ok, roto, noEntrega, omitida,
+    total, ok, roto, noEntrega, omitida, noAnalizado,
     brokenPct: total > 0 ? Math.round((roto / total) * 100) : 0,
     notAFilePct: total > 0 ? Math.round((noEntrega / total) * 100) : 0,
     affectedDatasets: affected,
@@ -236,10 +317,118 @@ export function summarizeContent(report: QualityReport | null): ContentSummary {
       sum += score;
     }
   }
-  return {
-    scored,
-    avgScore: scored > 0 ? Math.round((sum / scored) * 10) / 10 : null,
-  };
+  return { scored, avgScore: roundedMean(sum, scored) };
+}
+
+/** Media a un decimal, o null si no hay nada que promediar. */
+function roundedMean(sum: number, count: number): number | null {
+  return count > 0 ? Math.round((sum / count) * 10) / 10 : null;
+}
+
+/**
+ * La nota de contenido de una distribución, o null si esa nota no mide el archivo.
+ *
+ * Es el criterio único de `formatContentScores` y de `reportContentScore`: las dos
+ * lo tenían copiado con un comentario que afirmaba que coincidían, y eso es
+ * exactamente lo que se desincroniza.
+ *
+ * Descarta las distribuciones con una incidencia de `PORTAL_LIMITATION_CODES`,
+ * porque `report.py` mete en las medias la nota de TODO resultado que la tenga y
+ * los analizadores devolvían `score: 0` al no encontrar su lector. En el informe
+ * del 13 de agosto eso deja `XLSX: avg_score 0` a partir de 341 ceros que no miden
+ * la calidad de ningún Excel: miden que no teníamos openpyxl instalado.
+ *
+ * NO filtra por `classifyDelivery === 'ok'`, que es lo que hace `summarizeContent`.
+ * La diferencia importa: un WMS o un WFS no descargan ningún archivo, así que
+ * `classifyDelivery` los da por `roto` y filtrar por ahí borraba el 90 % de WMS y
+ * el 100 % de WFS, que sí se analizaron de verdad. Un cero legítimo —una imagen que
+ * resultó ser HTML— también se queda, porque ese sí habla del archivo.
+ */
+function measuredScore(dist: DistributionResult): number | null {
+  for (const issue of dist.analysis?.issues ?? []) {
+    if (isPortalLimitation(issue.code)) return null;
+  }
+  const score = dist.analysis?.score;
+  return typeof score === 'number' ? score : null;
+}
+
+/**
+ * Calidad media por formato, sin las notas que no miden el archivo.
+ *
+ * Existe porque `by_format[fmt].avg_score` del informe no se puede usar tal cual
+ * (ver `measuredScore`). Publicado como «0 %», decía que los Excel del catálogo no
+ * valen nada. Un formato del que no queda ninguna nota utilizable devuelve `null`,
+ * que la interfaz pinta «—»: no lo sabemos, que es la verdad y no es cero.
+ *
+ * PARCHE DE MIGRACIÓN, no un cálculo permanente. Los analizadores ya devuelven
+ * `score: None` cuando no miden nada, así que en cuanto no quede publicado ningún
+ * informe anterior a ese cambio, `by_format[fmt].avg_score` vuelve a ser válido y
+ * esta función se puede borrar junto con su uso en `FicherosSection`.
+ */
+export function formatContentScores(
+  report: QualityReport | null
+): Record<string, ContentSummary> {
+  if (!report) return {};
+  const cached = formatScoreCache.get(report);
+  if (cached) return cached;
+
+  const acc = new Map<string, { scored: number; sum: number }>();
+  for (const ds of report.datasets) {
+    for (const dist of ds.distribution_results) {
+      let entry = acc.get(dist.format);
+      if (!entry) { entry = { scored: 0, sum: 0 }; acc.set(dist.format, entry); }
+      const score = measuredScore(dist);
+      if (score === null) continue;
+      entry.scored++;
+      entry.sum += score;
+    }
+  }
+
+  const out: Record<string, ContentSummary> = {};
+  for (const [format, { scored, sum }] of acc) {
+    out[format] = { scored, avgScore: roundedMean(sum, scored) };
+  }
+  formatScoreCache.set(report, out);
+  return out;
+}
+
+/**
+ * Memoria por informe: `/calidad` se renderiza en cada petición (lee
+ * `searchParams`), así que sin esto cada visita recorría las 1.658 distribuciones
+ * otra vez. El informe es el mismo objeto en todas las peticiones porque
+ * `getQualityReport` lo cachea en el módulo, así que sirve de clave.
+ */
+const formatScoreCache = new WeakMap<QualityReport, Record<string, ContentSummary>>();
+
+/**
+ * La media global, con el mismo criterio que `formatContentScores`.
+ *
+ * Es la que va a la serie de Evolución, y ahí lo único que no se puede hacer es
+ * cambiar de regla a mitad de la serie: un gráfico de tendencia se lee como que
+ * el catálogo ha cambiado, no como que ha cambiado la fórmula. Por eso no vale
+ * `summarizeContent` —que excluye además todo lo que no descarga un archivo, y
+ * daría un salto de 78,7 a 88,3 tan falso como el de 78,7 a 56,6 que venía del
+ * informe—. Se aplica igual a todos los informes: para una ejecución con sus
+ * dependencias instaladas devuelve lo mismo que `totals.avg_score`, y solo corrige
+ * las que se ejecutaron sin ellas.
+ *
+ * A diferencia de `formatContentScores`, esta no es un parche temporal: los
+ * informes históricos son inmutables, así que la corrección tiene que vivir en el
+ * lado que los lee.
+ */
+export function reportContentScore(report: QualityReport | null): ContentSummary {
+  if (!report) return { scored: 0, avgScore: null };
+  let scored = 0;
+  let sum = 0;
+  for (const ds of report.datasets) {
+    for (const dist of ds.distribution_results) {
+      const score = measuredScore(dist);
+      if (score === null) continue;
+      scored++;
+      sum += score;
+    }
+  }
+  return { scored, avgScore: roundedMean(sum, scored) };
 }
 
 /**
@@ -257,7 +446,7 @@ export function datasetAvailabilityPct(
   let ok = 0;
   for (const dist of ds.distribution_results) {
     const state = classifyDelivery(dist);
-    if (state === 'omitida') continue;
+    if (isUnevaluated(state)) continue;
     evaluated++;
     if (state === 'ok') ok++;
   }
@@ -281,7 +470,7 @@ export function formatStates(
     let entry = acc.get(dist.format);
     if (!entry) { entry = { evaluated: 0, ok: 0 }; acc.set(dist.format, entry); }
     const state = classifyDelivery(dist);
-    if (state === 'omitida') continue;
+    if (isUnevaluated(state)) continue;
     entry.evaluated++;
     if (state === 'ok') entry.ok++;
   }
@@ -333,10 +522,18 @@ export interface ReuseConsequence {
   count: number;
   title: string;
   text: string;
+  /**
+   * Los códigos del grupo, para poder enlazar a la tabla ya filtrada.
+   *
+   * Se descartaban al construir el resumen, y por eso estas tarjetas eran las
+   * únicas del portal que daban una cifra concreta sin ninguna forma de ver a qué
+   * archivos correspondía.
+   */
+  codes: string[];
 }
 
 /** Códigos que comparten consecuencia, y cómo se cuenta cada grupo. */
-const CONSEQUENCE_GROUPS: ReadonlyArray<Omit<ReuseConsequence, 'count'> & { codes: string[] }> = [
+const CONSEQUENCE_GROUPS: ReadonlyArray<Omit<ReuseConsequence, 'count'>> = [
   {
     codes: ['descarga'],
     icon: 'enlace',
@@ -379,10 +576,41 @@ const CONSEQUENCE_GROUPS: ReadonlyArray<Omit<ReuseConsequence, 'count'> & { code
 const SEVERITY_ORDER: Record<ReuseConsequence['severity'], number> = { bad: 0, warn: 1 };
 
 export function reuseConsequences(report: QualityReport | null): ReuseConsequence[] {
-  const affected = distributionsAffectedByIssue(report);
-  return CONSEQUENCE_GROUPS.map(({ codes, ...rest }) => ({
-    ...rest,
-    count: codes.reduce((sum, code) => sum + (affected[code] ?? 0), 0),
+  /**
+   * Un archivo cuenta UNA vez por grupo, aunque traiga varios de sus códigos.
+   *
+   * Antes se sumaban los recuentos por código, y un archivo con el encabezado
+   * vacío Y con encabezados duplicados se contaba dos veces: con 119 vacíos y 45
+   * duplicados la tarjeta decía «164 archivos afectados» cuando los archivos
+   * distintos eran 136, porque 28 traen las dos cosas. Mientras la tarjeta no
+   * enlazaba a ninguna parte el error era invisible; en cuanto enlaza a la tabla,
+   * la tabla la desmiente.
+   *
+   * Una sola pasada para todos los grupos: contar cada grupo por separado
+   * recorría el informe entero cuatro veces.
+   */
+  const groupOfCode = new Map<string, number>();
+  CONSEQUENCE_GROUPS.forEach((group, index) => {
+    for (const code of group.codes) groupOfCode.set(code, index);
+  });
+
+  const counts = new Array<number>(CONSEQUENCE_GROUPS.length).fill(0);
+  if (report) {
+    for (const ds of report.datasets) {
+      for (const dist of ds.distribution_results) {
+        const seen = new Set<number>();
+        for (const issue of dist.analysis?.issues ?? []) {
+          const index = groupOfCode.get(issue.code);
+          if (index !== undefined) seen.add(index);
+        }
+        for (const index of seen) counts[index]++;
+      }
+    }
+  }
+
+  return CONSEQUENCE_GROUPS.map((group, index) => ({
+    ...group,
+    count: counts[index],
   }))
     .filter((consequence) => consequence.count > 0)
     .sort(
@@ -428,8 +656,21 @@ export interface FileIssueRow {
   family: IssueFamily;
   /** Estado de entrega. En las filas de contenido es siempre `ok`. */
   state: DeliveryState;
-  /** Causa de entrega, o incidencia principal de contenido. */
+  /** Causa de entrega, o incidencia principal de contenido. La que se rotula. */
   causeCode: string;
+  /**
+   * TODAS las incidencias de error del archivo, para poder filtrar por cualquiera.
+   *
+   * `causeCode` es solo la primera, y filtrar por ella descuadraba las cifras: las
+   * tarjetas de contenido cuentan un archivo si el código aparece en cualquier
+   * posición (`distributionsAffectedByIssue`), así que una tarjeta podía prometer
+   * 120 archivos y la tabla enseñar los 80 en los que ese código salía primero.
+   * Los otros 40 existían y no había forma de verlos.
+   *
+   * Solo se rellena cuando hay más de un código, para no repetir `causeCode` en las
+   * ~1.000 filas que viajan al navegador.
+   */
+  causeCodes?: string[];
   /** Solo en contenido: incidencias de severidad error del fichero. */
   errorIssues?: number;
   /**
@@ -440,6 +681,18 @@ export interface FileIssueRow {
    */
   noteIdx?: number;
   httpStatus?: number | null;
+}
+
+/**
+ * ¿Coincide esta fila con alguno de los códigos pedidos?
+ *
+ * Aquí y no en la tabla porque lo usan los dos lados: la tabla para filtrar y los
+ * recuentos para comprobar que dicen lo mismo. Con la lista vacía no filtra.
+ */
+export function rowMatchesCauses(row: FileIssueRow, causes: readonly string[]): boolean {
+  if (causes.length === 0) return true;
+  if (causes.includes(row.causeCode)) return true;
+  return row.causeCodes?.some((code) => causes.includes(code)) ?? false;
 }
 
 /** Filas de la pestaña de ficheros más las tablas que comparten. */

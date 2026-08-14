@@ -50,6 +50,70 @@ function datasetsMissing(gap: string, count: number): Dataset[] {
   })) as unknown as Dataset[];
 }
 
+/**
+ * Los enlaces de «Ver los N afectados», que es donde estaba el fallo.
+ *
+ * No había ni un test que mirara el `href`, y por eso el enlace pudo estar mal
+ * desde el principio sin que nada lo delatara: la tarjeta decía «Error de descarga
+ * · GML — 32 de 32 archivos GML» y llevaba a `?vista=ficheros&causa=descarga`, o
+ * sea a los 179 errores de descarga del catálogo entero, de cualquier formato y de
+ * las dos familias. El descuadre solo se veía contando las filas a mano.
+ *
+ * La regla que fijan estos tests: si la tarjeta acota por algo, el enlace lo lleva.
+ */
+describe('el enlace de cada tarea lleva todo lo que acota la tarjeta', () => {
+  function paramsOf(href: string): URLSearchParams {
+    return new URLSearchParams(href.slice(href.indexOf('?') + 1));
+  }
+
+  it('una tarea de entrega lleva vista, familia, causa Y FORMATO', () => {
+    const [action] = deliveryActions([cause({ format: 'GML', causeCode: 'descarga' })]);
+    const params = paramsOf(action.href);
+    expect(params.get('vista')).toBe('ficheros');
+    expect(params.get('familia')).toBe('entrega');
+    expect(params.get('causa')).toBe('descarga');
+    expect(params.get('formato')).toBe('GML');
+  });
+
+  it('el formato del enlace es el mismo que el del título y el del modelo', () => {
+    const [action] = deliveryActions([cause({ format: 'KML' })]);
+    expect(action.format).toBe('KML');
+    expect(action.title).toContain('KML');
+    expect(paramsOf(action.href).get('formato')).toBe('KML');
+  });
+
+  it('una tarea de contenido lleva la familia y la causa, y no acota el formato', () => {
+    const [action] = contentActions(reportWithIssue('error-tipo', 3));
+    const params = paramsOf(action.href);
+    expect(params.get('vista')).toBe('ficheros');
+    expect(params.get('familia')).toBe('contenido');
+    expect(params.get('causa')).toBe('error-tipo');
+    // A propósito: «tipos mezclados» sale en CSV, en JSON y en XLSX, y acotar a
+    // uno solo mentiría sobre el alcance que declara la tarjeta.
+    expect(params.get('formato')).toBeNull();
+  });
+
+  it('una tarea de metadatos lleva su hueco', () => {
+    const [action] = metadataActions(datasetsMissing('sin-descripcion', 4));
+    const params = paramsOf(action.href);
+    expect(params.get('vista')).toBe('metadatos');
+    expect(params.get('hueco')).toBe('sin-descripcion');
+  });
+
+  it('ninguna tarea enlaza a una vista sin filtrar', () => {
+    const actions = [
+      ...deliveryActions([cause()]),
+      ...contentActions(reportWithIssue('error-tipo', 2)),
+      ...metadataActions(datasetsMissing('sin-descripcion', 2)),
+    ];
+    for (const action of actions) {
+      const params = paramsOf(action.href);
+      const acota = params.get('causa') ?? params.get('hueco');
+      expect(acota, action.key).toBeTruthy();
+    }
+  });
+});
+
 describe('deliveryActions', () => {
   it('traduce cada causa en una tarea con su «qué hacer»', () => {
     const [action] = deliveryActions([cause()]);

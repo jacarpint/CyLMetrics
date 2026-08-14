@@ -6,6 +6,7 @@ import zipfile
 from pathlib import Path
 
 from .tabular import _normalize
+from ..checks import missing_dependency_issue
 from ..occurrences import add_row, new_issue
 
 REQUIRED_EXTS = (".shp", ".dbf", ".shx")
@@ -50,9 +51,11 @@ def analyze_zip_shapefile(path: Path, ctx: dict) -> dict:
     try:
         import shapefile
     except ImportError:
-        return _normalize(path, ctx, False, 0, "pyshp no está instalado", {}, [
-            {"code": "dependencia-faltante", "label": "pyshp no disponible", "severity": "error", "count": 1},
-        ])
+        return _normalize(
+            path, ctx, False, None,
+            "No analizado: falta pyshp en el entorno de análisis",
+            {}, [missing_dependency_issue("pyshp")],
+        )
 
     with zipfile.ZipFile(path) as zf:
         names = zf.namelist()

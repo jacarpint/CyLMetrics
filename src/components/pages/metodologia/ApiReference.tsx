@@ -48,21 +48,27 @@ const ENDPOINTS: ApiEndpoint[] = [
       },
       { name: "publisher", values: "texto", desc: "Coincidencia parcial sobre la URI del organismo publicador." },
     ],
+    // Respuesta real del informe del 13 de agosto de 2026, no cifras inventadas:
+    // el ejemplo sirve para ver la FORMA de la respuesta, y las cifras concretas
+    // cambian con cada análisis. `no_reader` es el desglose de `not_analyzed`:
+    // cuántos archivos llegaron completos y no se analizaron porque este portal no
+    // tiene lector para su formato. En este informe son los 366 de una ejecución
+    // sin openpyxl ni pyshp instalados.
     example: `{
-  "generated_at": "2026-08-10T13:18:40+00:00",
+  "generated_at": "2026-08-13T20:47:16+00:00",
   "totals": {
-    "distributions": 1655, "ok": 944, "error": 582,
-    "skipped": 129, "downloaded": 1454,
-    "avg_score": 78.7, "bytes": 2713979656
+    "distributions": 1658, "ok": 632, "error": 531,
+    "skipped": 495, "downloaded": 1461,
+    "avg_score": 56.6, "bytes": 23512470859
   },
-  "dataset_count": 824,
+  "dataset_count": 825,
   "availability": {
-    "distributions": 1655, "ok": 1255, "broken": 271,
-    "not_a_file": 128, "not_analyzed": 1,
-    "broken_pct": 16, "affected_datasets": 290
+    "distributions": 1658, "ok": 926, "broken": 237,
+    "not_a_file": 129, "not_analyzed": 366, "no_reader": 366,
+    "broken_pct": 14, "affected_datasets": 271
   },
   "content_score_distribution": {
-    "good": 436, "fair": 0, "poor": 0, "unscored": 388,
+    "good": 386, "fair": 0, "poor": 0, "unscored": 439,
     "thresholds": { "good": ">= 80", "fair": "50-79",
                     "poor": "< 50", "unscored": "sin archivo legible" }
   }

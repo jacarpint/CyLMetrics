@@ -4,15 +4,18 @@ from __future__ import annotations
 from pathlib import Path
 
 from .tabular import _normalize
+from ..checks import missing_dependency_issue
 
 
 def analyze_geojson(path: Path, ctx: dict) -> dict:
     try:
         import geojson
     except ImportError:
-        return _normalize(path, ctx, False, 0, "geojson no está instalado", {}, [
-            {"code": "dependencia-faltante", "label": "geojson no disponible", "severity": "error", "count": 1},
-        ])
+        return _normalize(
+            path, ctx, False, None,
+            "No analizado: falta geojson en el entorno de análisis",
+            {}, [missing_dependency_issue("geojson")],
+        )
 
     try:
         data = geojson.loads(path.read_text(encoding="utf-8", errors="replace"))

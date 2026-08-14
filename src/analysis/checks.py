@@ -7,6 +7,58 @@ from pathlib import Path
 MAGIC_ECW = b"ECW\x00"
 MAGIC_JPEG = b"\xff\xd8\xff"
 
+#: Códigos que hablan del portal, no del archivo analizado.
+#:
+#: Falta una librería de lectura, se agotó nuestro tope de descarga, se rompió
+#: nuestro propio analizador: en los tres casos el archivo puede estar
+#: perfectamente y lo único que sabemos es que no lo hemos comprobado. No pueden
+#: contarse como error del dataset ni entrar en las medias de calidad.
+#:
+#: Tiene que decir lo mismo que `PORTAL_LIMITATION_CODES` en
+#: `src/lib/quality-labels.ts`; hay un test que compara las dos listas, porque la
+#: sincronización entre los analizadores y las tablas de la interfaz es manual.
+#:
+#: Deliberadamente fuera: `no-es-archivo` y `no-es-imagen`. Que la URL publicada
+#: devuelva una página web en vez del archivo es un defecto de publicación, no una
+#: limitación nuestra, aunque `engine.py` los degrade a «omitida» junto a estos.
+PORTAL_LIMITATION_CODES = frozenset({
+    "dependencia-faltante",
+    "fallo-analizador",
+    "error-validacion",
+    "descarga-truncada",
+    "too_large",
+})
+
+#: Códigos en los que la URL publicada no devuelve el archivo que promete.
+#:
+#: No son limitaciones nuestras —el enlace del catálogo apunta a una página web en
+#: vez de al dato— pero tampoco se penalizan como error del contenido: el fallo
+#: está en la plataforma de publicación y la interfaz les da un estado propio.
+#: Es el mismo conjunto que `NOT_A_FILE_CODES` en `src/lib/availability.ts`, y el
+#: test de paridad comprueba los dos.
+PUBLICATION_DEFECT_CODES = frozenset({
+    "no-es-archivo",
+    "no-es-imagen",
+})
+
+
+def missing_dependency_issue(package: str) -> dict:
+    """
+    La incidencia de «nos falta el lector», con la severidad correcta.
+
+    Estaba escrita a mano en cinco analizadores con `severity: "error"`, y eso
+    llegaba a la interfaz como un error del archivo: en el informe del 13 de
+    agosto, 364 archivos —341 XLSX sin openpyxl— aparecían como defectuosos
+    cuando se habían descargado completos y con HTTP 200. La severidad es `info`
+    porque no hay nada que arreglar en el dato: hay que instalar la dependencia
+    en el entorno que ejecuta el análisis.
+    """
+    # Vía `simple_issue` para no volver a escribir a mano la forma de una
+    # incidencia ya cerrada: es quien decide que `stored` va a 0.
+    from .occurrences import simple_issue
+
+    return simple_issue("dependencia-faltante", f"{package} no disponible", "info")
+
 
 def sniff_magic(path: Path, n: int = 1024) -> bytes:
     with open(path, "rb") as fh:

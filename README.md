@@ -14,14 +14,21 @@ Observatorio de la calidad del catálogo de datos abiertos de la Junta de Castil
 # Instalar dependencias Node
 npm install
 
-# Crear entorno virtual Python (opcional, para análisis)
+# Crear entorno virtual Python (solo para ejecutar el análisis)
 python -m venv .venv-analysis
 .venv-analysis\Scripts\activate   # Windows
 # source .venv-analysis/bin/activate  # macOS/Linux
 
 # Instalar dependencias Python
 pip install -r requirements-analysis.txt
+
+# Comprobar que están los siete lectores (no imprime nada si están todos)
+python -c "from src.analysis.formats import missing_readers; print(missing_readers() or 'todos los lectores disponibles')"
 ```
+
+El entorno de Python no es opcional si vas a ejecutar el análisis: sin sus lectores
+el informe sale a medias y **no falla**, solo archiva como «no analizado» todo lo que
+no ha podido abrir. Ver «Análisis de calidad».
 
 ## Desarrollo
 
@@ -36,6 +43,9 @@ Abre [http://localhost:3000](http://localhost:3000).
 ### Análisis de calidad (Python)
 
 ```bash
+# Comprobar el entorno antes de descargar 23 GB: aborta si falta algún lector
+python -m src.analysis --limit 1 --strict-deps
+
 # Analizar todas las distribuciones
 python -m src.analysis --limit 0
 
@@ -48,6 +58,75 @@ python -m src.analysis --only-formats CSV,XLSX
 # Con workers paralelos y tope de descarga
 python -m src.analysis --limit 0 --workers 16 --size-cap 536870912
 ```
+
+**Comprueba las dependencias antes de lanzar un análisis largo.** Al arrancar se
+avisa de los lectores que falten (`openpyxl`, `pyshp`, `icalendar`, `geojson`,
+`Pillow`, `filetype`, `frictionless`) y de los formatos que quedarán sin analizar;
+con `--strict-deps` aborta en vez de avisar. Ha hecho falta dos veces: los informes
+del 9 de agosto a las 14:56 y del 13 de agosto se generaron sin `openpyxl`, y el
+segundo llegó a producción con 341 XLSX archivados como «no analizados» cuando se
+habían descargado con HTTP 200 y no tenían nada malo.
+
+### Volver a analizar solo lo que se quedó sin analizar
+
+Si un informe ya publicado trae distribuciones sin analizar por una limitación
+nuestra —falta un lector, se rompió el analizador, se cortó por el tope de
+descarga—, no hace falta repetir el análisis completo:
+
+```bash
+# 1. Sembrar el checkpoint con lo que YA está bien analizado
+npm run reports:seed -- --dry-run     # ver qué se reutiliza y qué se re-descarga
+npm run reports:seed
+
+# 2. Llevarse el checkpoint FUERA de la carpeta sincronizada (ver el aviso de abajo)
+mkdir %TEMP%\jcyl-analysis
+copy reports\current\analysis.checkpoint.jsonl %TEMP%\jcyl-analysis\checkpoint.jsonl
+
+# 3. Analizar el catálogo completo: solo se descarga lo que falta
+python -m src.analysis --limit 0 --workers 8 ^
+  --checkpoint %TEMP%\jcyl-analysis\checkpoint.jsonl ^
+  --output     %TEMP%\jcyl-analysis\bundle ^
+  --legacy-output %TEMP%\jcyl-analysis\analysis.json
+
+# 4. Copiar el bundle verificado y regenerar lo que se deriva de él
+del reports\current\d\*.json
+copy %TEMP%\jcyl-analysis\bundle\d\*.json reports\current\d\
+copy %TEMP%\jcyl-analysis\bundle\index.json reports\current\index.json
+copy %TEMP%\jcyl-analysis\analysis.json reports\data-analysis.json
+npm run reports -- save
+npm run reports:snapshots
+npm run reports:index
+```
+
+> **Si el repositorio está en OneDrive (o Dropbox, o similar), ejecuta el análisis
+> con `--checkpoint` y `--output` en disco local.** No es una precaución teórica: el
+> 14 de agosto costó dos ejecuciones completas.
+>
+> - El checkpoint crece hasta ~130 MB y, dentro de la carpeta sincronizada, los
+>   `append` empezaron a fallar con `OSError [Errno 22]`. El análisis siguió 45
+>   minutos sin guardar nada.
+> - Y al escribir el informe, `write_bundle` no pudo vaciar `reports/current/d`
+>   porque el cliente de sincronización tenía el directorio abierto.
+>
+> Las dos cosas están mitigadas en el código —ahora el fallo del checkpoint se
+> avisa en voz alta y el directorio de fragmentos se vacía sin borrarse— pero
+> trabajar en disco local evita el problema de raíz.
+
+Funciona porque `run_analysis` indexa el checkpoint **por URL** y no por posición,
+así que reutiliza cada resultado sembrado y solo descarga las URL que no están.
+Después `aggregate()` recorre el conjunto entero y escribe un bundle coherente: no
+hay que fusionar informes ni recalcular totales a mano.
+
+`reports:seed` reconstruye cada resultado juntando `index.json` con su fragmento de
+`d/<id>.json` —donde viven el esquema, las filas de muestra y las posiciones de cada
+incidencia— y **verifica que la reconstrucción es exacta** volviendo a partirla y
+comparándola con el original, por las dos mitades. Si algo no cuadra aborta sin
+escribir nada, porque un checkpoint incompleto degradaría el informe en silencio.
+El checkpoint (`reports/current/analysis.checkpoint.jsonl`, ~100 MB) está en
+`.gitignore` y se puede borrar y regenerar cuando se quiera.
+
+Sobre el informe del 13 de agosto: 1.292 resultados reutilizables y 366 a
+re-analizar (341 XLSX, 24 SHP, 1 iCal), o sea **3 GB de descarga en vez de 23,5**.
 
 El informe se escribe en `reports/current/` como un índice ligero más un
 fragmento por distribución (ver «Despliegue»). Se guardan **todas** las

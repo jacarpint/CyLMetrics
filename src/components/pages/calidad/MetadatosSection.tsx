@@ -10,6 +10,7 @@ import { DownloadButton } from '@/components/ui/download-button';
 import { cn } from '@/lib/utils';
 import { toCsv } from '@/lib/csv-write';
 import { METADATA_GAPS, type MetadataGapCode } from '@/lib/metadata-gaps';
+import { buildQualityUrl } from '@/lib/quality-filters';
 
 /** Lo mínimo de cada dataset que necesita esta vista. */
 export interface MetadataDatasetLite {
@@ -72,8 +73,22 @@ function gapsToCsv(rows: MetadataDatasetLite[], code: string): string {
  * lo que `computeQuality` resume en una cifra.
  */
 export function MetadatosSection({
-  totalDatasets, groups, overdue, initialGap = '',
+  totalDatasets, groups: allGroups, overdue: allOverdue, initialGap = '',
 }: MetadatosSectionProps) {
+  /**
+   * Con `?hueco=`, esta vista enseña SOLO ese campo pendiente.
+   *
+   * Antes el parámetro únicamente desplegaba la lista de la tarjeta que le
+   * correspondía y dejaba las otras doce a la vista. Quien llegaba desde «Ver los
+   * conjuntos de datos afectados» aterrizaba en la página entera y tenía que
+   * localizar a mano cuál de las tarjetas era la suya, que es el mismo problema
+   * que tenían los enlaces de la tabla de archivos.
+   */
+  const gapFilter = allGroups.some((g) => g.code === initialGap) ? initialGap : '';
+  const groups = gapFilter ? allGroups.filter((g) => g.code === gapFilter) : allGroups;
+  // Los vencidos son una tarjeta aparte y no un hueco: solo se enseñan sin filtro.
+  const overdue = gapFilter ? [] : allOverdue;
+
   const byAxis = useMemo(() => {
     const out = {
       actualidad: [] as MetadataGapGroup[],
@@ -115,6 +130,23 @@ export function MetadatosSection({
         campo bien puesto mejora a la vez la búsqueda, la puntuación y la recogida automática por
         parte de datos.gob.es.
       </p>
+
+      {/* Sin esto la vista filtrada sería un callejón: se enseña un solo campo y
+          no hay forma de volver al resto sin editar la URL a mano. */}
+      {gapFilter && (
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <span className="text-faint">Mostrando un solo campo pendiente</span>
+          <span className="inline-flex items-center gap-1 rounded-md border border-border bg-fill px-2 py-0.5 text-body">
+            campo: {METADATA_GAPS[gapFilter as MetadataGapCode].label}
+          </span>
+          <Link
+            href={buildQualityUrl({ vista: 'metadatos' })}
+            className="font-medium text-link underline-offset-2 hover:underline"
+          >
+            Ver todos los campos pendientes
+          </Link>
+        </div>
+      )}
 
       {/* ── Actualidad ───────────────────────────────────────────────────────
           Un retraso aparente y un retraso demostrado se separan a propósito.

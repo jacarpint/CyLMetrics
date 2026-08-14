@@ -28,7 +28,6 @@ import {
   type FormatState,
 } from './availability';
 export type { IssueCategory } from './quality-labels';
-import { issueCategory } from './quality-labels';
 import { getScoreLevel } from './quality';
 import type { DistributionDetail, IssueDetail } from './report-bundle';
 export type {
@@ -71,10 +70,24 @@ const MIN_DATASETS_FOR_FULL_RUN = 50;
  * 850.658, y la ficha enseñaba esas cinco: el resumen y el detalle hablaban del
  * mismo fichero con dos cifras distintas.
  */
+/**
+ * Gravedad de una incidencia.
+ *
+ * `info` no es «un aviso flojito»: es «esto no habla del archivo». Lo emiten los
+ * analizadores cuando el que falla es el portal —falta la librería de lectura, se
+ * rompió nuestro propio código— y existe porque no había forma de decirlo: esos
+ * casos salían con `severity: 'error'` y se contaban como defectos del dato. En el
+ * informe del 13 de agosto eran 364.
+ *
+ * Quien cuente errores debe comparar con `'error'` explícitamente, nunca con
+ * `!== 'warning'`.
+ */
+export type IssueSeverity = 'error' | 'warning' | 'info';
+
 export interface IssueInfo {
   code: string;
   label: string;
-  severity: 'error' | 'warning';
+  severity: IssueSeverity;
   /** Ocurrencias detectadas. */
   count: number;
   /**
@@ -88,8 +101,29 @@ export interface IssueInfo {
   source?: string;
 }
 
+/**
+ * Los ocho resultados que `fetch.status` puede traer del analizador.
+ *
+ * Estaba tipado como `string`, y eso permitió que estos valores se colaran en la
+ * interfaz como si fueran códigos de incidencia: `deliveryCause` caía a ellos y
+ * la tabla de archivos acabó enseñando «downloaded» de etiqueta. Con la unión
+ * cerrada, quien los trate tiene que cubrirlos todos.
+ *
+ * Se emiten en `downloader.py` (`downloaded`, `truncated`, `too_large`,
+ * `http_error`, `unreachable`) y en `engine.py` (`service`, `no_url`, `error`).
+ */
+export type FetchStatus =
+  | 'downloaded'
+  | 'truncated'
+  | 'too_large'
+  | 'http_error'
+  | 'unreachable'
+  | 'service'
+  | 'no_url'
+  | 'error';
+
 export interface FetchInfo {
-  status: string;
+  status: FetchStatus;
   size: number;
   http_status: number | null;
   duration_ms: number;
@@ -194,6 +228,11 @@ export type QualityDatasetLite = {
   error_issues: number;
   /** Incidencias con severidad de advertencia (sobre todo celdas vacías). */
   warning_issues: number;
+  /**
+   * Las dos cifras de arriba NO suman el total de incidencias: las de severidad
+   * `info` quedan fuera de las dos a propósito, porque no son defectos del dato
+   * (ver `IssueSeverity`). Se listan en la ficha del archivo, no aquí.
+   */
   /** % de distribuciones que se descargan y abren, o null si no se analizó. */
   availability_pct: number | null;
   /** Estado agregado de cada formato, para colorear su etiqueta en la tarjeta. */
@@ -577,7 +616,10 @@ export function summarizeReport(report: QualityReport): HistorySnapshot {
     usable: delivery.ok,
     broken: delivery.roto,
     notDelivered: delivery.noEntrega,
-    unanalyzed: delivery.omitida,
+    // Los dos estados en los que no se llegó a afirmar nada del archivo, juntos:
+    // el snapshot mide el catálogo, y para eso «no lo hemos comprobado» y «no
+    // teníamos con qué leerlo» son lo mismo. El desglose está en la ficha.
+    unanalyzed: delivery.omitida + delivery.noAnalizado,
     avgScore: summarizeContent(report).avgScore,
     healthyDatasets: healthy,
     warningDatasets: warning,
@@ -701,8 +743,15 @@ export function toDatasetLite(ds: QualityDatasetSummary): QualityDatasetLite {
     // La severidad solo está en las incidencias de cada distribución;
     // `issues_by_code` la pierde y por eso no sirve para este recuento.
     for (const issue of d.analysis?.issues ?? []) {
+      // Tres ramas explícitas, no `error` contra «todo lo demás».
+      //
+      // Con `else` a secas, las incidencias `info` —las que hablan del portal y no
+      // del archivo— se sumaban a las advertencias, y estos dos recuentos son lo
+      // que la tarjeta del catálogo presenta como defectos del conjunto de datos.
+      // Un XLSX que no pudimos leer habría aparecido como «1 advertencia» sobre un
+      // archivo que puede estar perfectamente.
       if (issue.severity === 'error') error_issues += issue.count;
-      else warning_issues += issue.count;
+      else if (issue.severity === 'warning') warning_issues += issue.count;
     }
   }
   return {
@@ -725,21 +774,11 @@ export function toDatasetLite(ds: QualityDatasetSummary): QualityDatasetLite {
   };
 }
 
-/** Desglose de errores por categoría (disponibilidad, formato, contenido). */
-export interface ErrorBreakdown {
-  availability: number;
-  format: number;
-  content: number;
-}
-
-/** Computa el desglose de incidencias por categoría a partir del informe. */
-export function computeErrorBreakdown(report: QualityReport): ErrorBreakdown {
-  const breakdown: ErrorBreakdown = { availability: 0, format: 0, content: 0 };
-  for (const ds of report.datasets) {
-    for (const [code, count] of Object.entries(ds.issues_by_code)) {
-      const cat = issueCategory(code);
-      breakdown[cat] += count;
-    }
-  }
-  return breakdown;
-}
+/*
+ * Aquí vivían `ErrorBreakdown` y `computeErrorBreakdown`, que agregaban las
+ * ocurrencias por categoría. Se han quitado: no las llamaba nadie —ni la interfaz
+ * ni los tests— y sumaban `dependencia-faltante` a la conformidad de formato, o sea
+ * atribuían al publicador una librería que no habíamos instalado. Mantener código
+ * muerto y además corregirlo no compensa; `issueCategory` sigue disponible para
+ * quien necesite el desglose.
+ */

@@ -16,6 +16,7 @@ from pathlib import Path
 from .bundle import write_bundle
 from .catalog import iter_distributions, load_catalog_xml
 from .engine import run_analysis
+from .formats import missing_readers
 from .report import aggregate, print_summary
 
 DEFAULT_BUNDLE = Path("reports") / "current"
@@ -60,7 +61,37 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--quiet", action="store_true",
                         help="No mostrar la línea de detalle por archivo (inicio/fin de cada descarga)")
     parser.add_argument("--only-formats", default=None, help="Solo estos formatos (coma, ej: CSV,XLSX)")
+    parser.add_argument("--strict-deps", action="store_true",
+                        help="Abortar si falta alguna librería de lectura, en vez de avisar y continuar")
     args = parser.parse_args(argv)
+
+    # Antes de descargar 23 GB: comprobar que están los lectores.
+    #
+    # Sin esto, una ejecución en un entorno incompleto se completa igual, tarda
+    # horas y deja un informe en el que los formatos sin lector aparecen sin
+    # analizar. Ha pasado dos veces (los informes del 9 de agosto a las 14:56 y
+    # del 13 de agosto), y la segunda llegó a producción: 341 XLSX y 22 SHP
+    # publicados como archivos con problemas cuando el problema era del entorno.
+    only_formats = (
+        {f.strip().upper() for f in args.only_formats.split(",")} if args.only_formats else None
+    )
+    missing = missing_readers(only_formats)
+    if missing:
+        affected = sorted({fmt for formats in missing.values() for fmt in formats})
+        print("=" * 70, flush=True)
+        print("AVISO: faltan librerías de lectura en este entorno", flush=True)
+        print("=" * 70, flush=True)
+        for module, formats in sorted(missing.items()):
+            print(f"  {module:<12} -> sin analizar: {', '.join(formats)}", flush=True)
+        print(
+            f"\n  Los formatos {', '.join(affected)} se archivarán como «no analizados»."
+            "\n  Se instalan con:  pip install -r requirements-analysis.txt",
+            flush=True,
+        )
+        if args.strict_deps:
+            print("\n  --strict-deps: se aborta sin analizar nada.", flush=True)
+            return 2
+        print("\n  Continuando de todas formas (usa --strict-deps para abortar).\n", flush=True)
 
     # Checkpoint junto al informe: ahora `--output` es un directorio, así que el
     # checkpoint va dentro y no como hermano con otra extensión.
@@ -72,10 +103,13 @@ def main(argv: list[str] | None = None) -> int:
     items = iter_distributions(xml_bytes)
     print(f"Catálogo: {len(items)} distribuciones · {source_label}", flush=True)
 
-    if args.only_formats:
-        wanted = {f.strip().upper() for f in args.only_formats.split(",")}
-        items = [i for i in items if i["format"] in wanted]
-        print(f"Filtrados a formatos {sorted(wanted)}: {len(items)} distribuciones", flush=True)
+    if only_formats:
+        # `.upper()` en los dos lados. El filtro comparaba el formato tal cual
+        # contra un conjunto ya en mayúsculas, así que los formatos que no se
+        # escriben en mayúsculas —`iCal`, `GeoJSON`— no se podían seleccionar nunca:
+        # `--only-formats iCal` devolvía cero distribuciones sin decir por qué.
+        items = [i for i in items if i["format"].upper() in only_formats]
+        print(f"Filtrados a formatos {sorted(only_formats)}: {len(items)} distribuciones", flush=True)
 
     if args.limit:
         items = items[: args.limit]

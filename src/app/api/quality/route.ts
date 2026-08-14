@@ -138,7 +138,13 @@ export async function GET(request: NextRequest) {
       ok: delivery.ok,
       broken: delivery.roto,
       not_a_file: delivery.noEntrega,
-      not_analyzed: delivery.omitida,
+      // `not_analyzed` sigue significando lo mismo que cuando se publicó —todo
+      // lo que el análisis no llegó a comprobar— para no romper a quien ya lo
+      // consuma. `no_reader` es el desglose que faltaba: de esos, cuántos
+      // llegaron completos y no se miraron porque este portal no tiene lector
+      // para su formato. Es una cifra sobre nosotros, no sobre el catálogo.
+      not_analyzed: delivery.omitida + delivery.noAnalizado,
+      no_reader: delivery.noAnalizado,
       broken_pct: delivery.brokenPct,
       affected_datasets: delivery.affectedDatasets,
     },

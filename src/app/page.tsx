@@ -27,6 +27,7 @@ import {
   reuseConsequences,
   type ReuseConsequence,
 } from "@/lib/availability";
+import { buildQualityUrl } from "@/lib/quality-filters";
 import { PIPELINE, type PipelineStep } from "@/data/pipeline";
 import { cn } from "@/lib/utils";
 
@@ -215,7 +216,10 @@ export default async function HomePage() {
                   de {delivery.totalDatasets.toLocaleString("es-ES")} conjuntos de datos.
                 </p>
                 <Link
-                  href="/calidad?vista=ficheros"
+                  // La cifra de esta tarjeta es la de disponibilidad, así que el
+                  // enlace filtra por esa familia: sin el filtro la tabla abría en
+                  // «Todos» y enseñaba más archivos de los que dice la tarjeta.
+                  href={buildQualityUrl({ vista: "ficheros", familia: "entrega" })}
                   className="mt-auto inline-flex w-fit items-center gap-1.5 pt-4 text-sm font-medium text-link underline-offset-2 hover:underline"
                 >
                   Ver los archivos con problemas <ArrowRight className="h-4 w-4" aria-hidden />
@@ -247,7 +251,7 @@ export default async function HomePage() {
                   contenido que medir.
                 </p>
                 <Link
-                  href="/calidad?vista=ficheros&familia=contenido"
+                  href={buildQualityUrl({ vista: "ficheros", familia: "contenido" })}
                   className="mt-auto inline-flex w-fit items-center gap-1.5 pt-4 text-sm font-medium text-link underline-offset-2 hover:underline"
                 >
                   Ver los archivos que necesitan limpieza <ArrowRight className="h-4 w-4" aria-hidden />
@@ -373,6 +377,21 @@ export default async function HomePage() {
                           {consequence.title}
                         </h3>
                         <p className="mt-1.5 text-xs leading-relaxed text-body">{consequence.text}</p>
+                        {/* Estas tarjetas daban una cifra concreta de archivos y no
+                            tenían ningún enlace: eran las únicas del portal que
+                            decían «hay 179» sin dejar ver cuáles. El grupo puede
+                            reunir varios códigos —un encabezado vacío y uno
+                            duplicado rompen la carga por lo mismo—, y por eso el
+                            filtro de causa acepta una lista. */}
+                        <Link
+                          href={buildQualityUrl({
+                            vista: "ficheros",
+                            causas: consequence.codes,
+                          })}
+                          className="mt-2.5 inline-flex items-center gap-1.5 text-xs font-medium text-link underline-offset-2 hover:underline"
+                        >
+                          Ver los archivos afectados <ArrowRight className="h-3 w-3" aria-hidden />
+                        </Link>
                       </div>
                     </CardContent>
                   </Card>

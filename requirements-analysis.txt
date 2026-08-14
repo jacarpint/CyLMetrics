@@ -1,6 +1,16 @@
 # Dependencias del análisis de calidad de datos (src/analysis)
 # Instalar: python -m venv .venv-analysis && .venv-analysis\Scripts\pip install -r requirements-analysis.txt
+#
+# Comprobar antes de lanzar un análisis:
+#   python -m src.analysis --limit 1 --strict-deps
+# Aborta si falta cualquier lector, en vez de generar un informe a medias. Los dos
+# informes generados sin openpyxl (9 de agosto 14:56 y 13 de agosto) archivaron
+# cientos de XLSX como «no analizados», y el segundo llegó a producción.
 frictionless[excel]>=5.19,<6
+# Explícito, aunque frictionless[excel] ya lo arrastre: depender de él por vía
+# transitiva es exactamente cómo se perdió. Es el lector de XLSX, el formato con
+# más distribuciones del catálogo después de CSV.
+openpyxl>=3.1
 pyshp>=2.3
 Pillow>=10.0
 icalendar>=5.0

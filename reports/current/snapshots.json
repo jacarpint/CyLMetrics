@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-13T15:44:37.962Z",
+  "generated_at": "2026-08-14T14:39:50.988Z",
   "snapshots": [
     {
       "date": "2026-08-09",
@@ -28,6 +28,20 @@
       "criticalDatasets": 0,
       "unscoredDatasets": 388,
       "totalDatasets": 824
+    },
+    {
+      "date": "2026-08-14",
+      "totalDistributions": 1662,
+      "usable": 1289,
+      "broken": 244,
+      "notDelivered": 127,
+      "unanalyzed": 2,
+      "avgScore": 90.2,
+      "healthyDatasets": 430,
+      "warningDatasets": 0,
+      "criticalDatasets": 0,
+      "unscoredDatasets": 392,
+      "totalDatasets": 822
     }
   ]
 }

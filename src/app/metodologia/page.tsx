@@ -111,24 +111,34 @@ const META_FACTORS = [
   },
 ];
 
-/** Los seis resultados posibles de una descarga. Salen de `fetch.status`. */
+/**
+ * Los ocho resultados posibles de una descarga. Salen de `fetch.status`.
+ *
+ * Eran seis, y los dos que faltaban —`no_url` y `error`— no eran un detalle: al no
+ * estar documentados aquí tampoco se les puso etiqueta en la interfaz, y salían en
+ * la tabla de archivos con su nombre en inglés. La lista completa vive en
+ * `FETCH_STATUSES` (`src/analysis/downloader.py`) y hay un test que comprueba que
+ * los ocho tienen traducción.
+ */
 const FETCH_STATES = [
   { code: "downloaded", label: "El archivo llegó completo.", tone: "text-ok" },
-  { code: "truncated", label: "Llegó hasta el tope de 25 MB. Se analiza lo que hay y queda marcado como parcial.", tone: "text-body" },
+  { code: "truncated", label: "Llegó hasta el tope de descarga. Se analiza lo que hay y queda marcado como parcial.", tone: "text-body" },
   { code: "http_error", label: "El servidor respondió con un error.", tone: "text-bad" },
   { code: "unreachable", label: "No se pudo contactar con el servidor.", tone: "text-bad" },
   { code: "service", label: "El servicio rechazó la petición.", tone: "text-bad" },
   { code: "too_large", label: "Declara más del tope, así que no se intentó. No se sabe si abre.", tone: "text-faint" },
+  { code: "no_url", label: "El catálogo describe el recurso pero no publica ninguna URL de acceso.", tone: "text-faint" },
+  { code: "error", label: "El análisis de este portal se interrumpió. Es un problema nuestro, no del archivo.", tone: "text-faint" },
 ];
 
 const LIMITES = [
   {
     title: "Archivos grandes, a medias",
-    text: "Por encima de 25 MB solo se analiza la parte descargada, y el archivo queda marcado como parcial. Las cifras de filas y columnas de esos archivos son del trozo leído, no del total. En la ficha de cada archivo, el explorador lo descarga entero en tu navegador y recalcula, así que ahí sí se ven las cifras reales.",
+    text: "Por encima de 512 MB solo se analiza la parte descargada, y el archivo queda marcado como parcial. Las cifras de filas y columnas de esos archivos son del trozo leído, no del total. En la ficha de cada archivo, el explorador lo descarga entero en tu navegador y recalcula, así que ahí sí se ven las cifras reales.",
   },
   {
-    title: "Cinco ejemplos por problema",
-    text: "El informe guarda hasta cinco muestras de cada tipo de incidencia, con su fila y su columna, para no crecer sin control. Para recorrer todos los casos, el explorador de la ficha los recalcula sobre el archivo real.",
+    title: "Un tope por si un archivo se desborda",
+    text: "De cada tipo de incidencia se guarda la posición de todos los casos, hasta dos millones. Solo se recorta por encima de esa cifra, y cuando pasa la ficha del archivo lo dice en lugar de callarlo. Para recorrer los casos, el explorador de la ficha los recalcula sobre el archivo real.",
   },
   {
     title: "Validez formal, no veracidad",
@@ -607,7 +617,7 @@ export default async function MetodologiaPage() {
             </div>
 
             <div>
-              <h3 className="text-sm font-semibold text-strong">Los seis resultados de una descarga</h3>
+              <h3 className="text-sm font-semibold text-strong">Los ocho resultados de una descarga</h3>
               <p className="mt-1 text-xs text-faint">
                 Estos códigos son los que devuelve la API en el campo{" "}
                 <code className="font-mono text-body">fetch.status</code>.

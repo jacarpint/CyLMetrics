@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ..checks import is_ecw, is_jpeg, looks_like_html
+from ..checks import is_ecw, is_jpeg, looks_like_html, missing_dependency_issue
 from .tabular import _normalize
 
 
@@ -23,9 +23,11 @@ def analyze_jpeg(path: Path, ctx: dict) -> dict:
     try:
         from PIL import Image
     except ImportError:
-        return _normalize(path, ctx, False, 0, "Pillow no está instalado", {}, [
-            {"code": "dependencia-faltante", "label": "Pillow no disponible", "severity": "error", "count": 1},
-        ])
+        return _normalize(
+            path, ctx, False, None,
+            "No analizado: falta Pillow en el entorno de análisis",
+            {}, [missing_dependency_issue("Pillow")],
+        )
     try:
         with Image.open(path) as img:
             img.verify()

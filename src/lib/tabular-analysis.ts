@@ -159,6 +159,14 @@ export interface Occurrence {
 export interface TabularIssue {
   code: string;
   label: string;
+  /**
+   * Sin `info`, a diferencia de `IssueSeverity` en `quality-report.ts`, y a
+   * propósito: este análisis lo hace el navegador sobre el archivo ya descargado,
+   * así que nunca le falta un lector ni tiene nada que declarar como «no
+   * comprobado». Esa estrechez es lo que permite a `table-explorer.tsx` tratar
+   * cualquier severidad que no sea `error` como advertencia; si algún día se
+   * amplía, hay que revisar allí los cinco sitios que lo dan por hecho.
+   */
   severity: 'error' | 'warning';
   /** Explicación de la regla, para que el usuario sepa qué está viendo. */
   rule: string;
