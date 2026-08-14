@@ -3,8 +3,8 @@ import { buildQualityUrl, parseQualityFilters, resolveVista } from '@/lib/qualit
 import { rowMatchesCauses, type FileIssueRow } from '@/lib/availability';
 
 describe('resolveVista', () => {
-  it('acepta las cuatro vistas', () => {
-    for (const v of ['prioridades', 'ficheros', 'metadatos', 'evolucion'] as const) {
+  it('acepta las tres vistas', () => {
+    for (const v of ['prioridades', 'ficheros', 'metadatos'] as const) {
       expect(resolveVista(v)).toBe(v);
     }
   });
@@ -18,6 +18,15 @@ describe('resolveVista', () => {
     expect(resolveVista('organismos')).toBe('prioridades');
     expect(resolveVista('reparar')).toBe('ficheros');
     expect(resolveVista('incidencias')).toBe('ficheros');
+  });
+
+  /**
+   * `evolucion` era la serie histórica, retirada del portal. Estaba enlazada desde
+   * la portada y desde la redirección de `/tendencias`, así que tiene que seguir
+   * resolviendo a algo útil en vez de dar un 404.
+   */
+  it('la vista de evolución retirada aterriza en prioridades', () => {
+    expect(resolveVista('evolucion')).toBe('prioridades');
   });
 
   it('cae a prioridades ante lo desconocido o lo ausente', () => {

@@ -328,8 +328,9 @@ function roundedMean(sum: number, count: number): number | null {
 /**
  * La nota de contenido de una distribución, o null si esa nota no mide el archivo.
  *
- * Es el criterio único de `formatContentScores` y de `reportContentScore`: las dos
- * lo tenían copiado con un comentario que afirmaba que coincidían, y eso es
+ * Es el criterio único de `formatContentScores`. Lo compartía con
+ * `reportContentScore`, que alimentaba la serie histórica y se retiró con ella;
+ * las dos lo tenían copiado con un comentario que afirmaba que coincidían, que es
  * exactamente lo que se desincroniza.
  *
  * Descarta las distribuciones con una incidencia de `PORTAL_LIMITATION_CODES`,
@@ -399,37 +400,6 @@ export function formatContentScores(
  * `getQualityReport` lo cachea en el módulo, así que sirve de clave.
  */
 const formatScoreCache = new WeakMap<QualityReport, Record<string, ContentSummary>>();
-
-/**
- * La media global, con el mismo criterio que `formatContentScores`.
- *
- * Es la que va a la serie de Evolución, y ahí lo único que no se puede hacer es
- * cambiar de regla a mitad de la serie: un gráfico de tendencia se lee como que
- * el catálogo ha cambiado, no como que ha cambiado la fórmula. Por eso no vale
- * `summarizeContent` —que excluye además todo lo que no descarga un archivo, y
- * daría un salto de 78,7 a 88,3 tan falso como el de 78,7 a 56,6 que venía del
- * informe—. Se aplica igual a todos los informes: para una ejecución con sus
- * dependencias instaladas devuelve lo mismo que `totals.avg_score`, y solo corrige
- * las que se ejecutaron sin ellas.
- *
- * A diferencia de `formatContentScores`, esta no es un parche temporal: los
- * informes históricos son inmutables, así que la corrección tiene que vivir en el
- * lado que los lee.
- */
-export function reportContentScore(report: QualityReport | null): ContentSummary {
-  if (!report) return { scored: 0, avgScore: null };
-  let scored = 0;
-  let sum = 0;
-  for (const ds of report.datasets) {
-    for (const dist of ds.distribution_results) {
-      const score = measuredScore(dist);
-      if (score === null) continue;
-      scored++;
-      sum += score;
-    }
-  }
-  return { scored, avgScore: roundedMean(sum, scored) };
-}
 
 /**
  * Porcentaje de distribuciones de un dataset que se descargan y abren (0-100).

@@ -331,7 +331,7 @@ function main(): void {
   console.log(
     '\nSiguiente paso (el catálogo entero; solo descarga lo que falta):\n' +
       '  python -m src.analysis --limit 0\n' +
-      'Y al terminar:  npm run reports:snapshots && npm run reports:index'
+      'Si el repositorio está en OneDrive, pasa --checkpoint y --output a disco local.'
   );
 }
 

@@ -44,8 +44,17 @@ yarn-error.log*
 # el repositorio el portal arranca sin datos.
 /reports/data-analysis.json
 /reports/current/*.checkpoint.jsonl
-# el historial SÍ se tracked (permite ver evolución)
-!/reports/history/
+
+# El historial se versionaba para poder pintar la evolución. Esa vista se retiró:
+# el portal habla solo de la última foto, así que `reports/current/` es lo único
+# que tiene que viajar.
+#
+# Y hay una razón práctica para no versionarlo: un informe completo del catálogo
+# en el formato antiguo (un solo JSON) pesa 164 MB, por encima del límite de
+# 100 MB por fichero de GitHub. Al archivarlo el 14 de agosto quedó dentro de un
+# commit y bloqueó el push entero; hubo que reescribir el commit, porque borrar el
+# fichero después no sirve: el blob viaja igual dentro del commit que lo introdujo.
+/reports/history/
 
 # artefactos de desarrollo — no se versionan
 /reports/*.log

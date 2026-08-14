@@ -85,18 +85,17 @@ copy reports\current\analysis.checkpoint.jsonl %TEMP%\jcyl-analysis\checkpoint.j
 # 3. Analizar el catálogo completo: solo se descarga lo que falta
 python -m src.analysis --limit 0 --workers 8 ^
   --checkpoint %TEMP%\jcyl-analysis\checkpoint.jsonl ^
-  --output     %TEMP%\jcyl-analysis\bundle ^
-  --legacy-output %TEMP%\jcyl-analysis\analysis.json
+  --output     %TEMP%\jcyl-analysis\bundle
 
-# 4. Copiar el bundle verificado y regenerar lo que se deriva de él
+# 4. Copiar el bundle verificado
 del reports\current\d\*.json
 copy %TEMP%\jcyl-analysis\bundle\d\*.json reports\current\d\
 copy %TEMP%\jcyl-analysis\bundle\index.json reports\current\index.json
-copy %TEMP%\jcyl-analysis\analysis.json reports\data-analysis.json
-npm run reports -- save
-npm run reports:snapshots
-npm run reports:index
 ```
+
+> **No uses `--legacy-output` para nada que vaya al repositorio.** Escribe el
+> informe entero en un solo JSON de ~164 MB, por encima del límite de 100 MB por
+> fichero de GitHub. `reports/history/` está en `.gitignore` por ese motivo.
 
 > **Si el repositorio está en OneDrive (o Dropbox, o similar), ejecuta el análisis
 > con `--checkpoint` y `--output` en disco local.** No es una precaución teórica: el
@@ -132,18 +131,6 @@ El informe se escribe en `reports/current/` como un índice ligero más un
 fragmento por distribución (ver «Despliegue»). Se guardan **todas** las
 ocurrencias de cada incidencia, no una muestra: es lo que permite que el
 recuento del resumen y el detalle de la ficha sean la misma cifra.
-
-### Gestión de informes
-
-```bash
-npm run reports:snapshots     # Regenerar reports/current/snapshots.json
-npm run reports -- list       # Listar el historial del formato antiguo
-npm run reports -- rotate 30  # Eliminar informes antiguos > 30 días
-```
-
-`reports:snapshots` hay que ejecutarlo después de cada análisis: es lo que
-alimenta la pestaña de evolución. Descarta las ejecuciones parciales (menos de
-50 datasets), igual que la lectura del informe en el portal.
 
 ### Build, lint y comprobaciones
 
@@ -288,7 +275,6 @@ enseña siempre la fecha del que está publicado.
 ```bash
 export NEXT_PUBLIC_SITE_URL=https://mi-dominio.es
 python -m src.analysis --limit 0   # escribe reports/current/
-npm run reports:snapshots          # actualiza la serie de la pestaña Evolución
 npm run build
 ```
 
@@ -298,7 +284,10 @@ npm run build
 |---|---|
 | `index.json` | Totales, por formato y, por distribución, estado y recuento de cada incidencia |
 | `d/<id>.json` | Todas las posiciones de cada incidencia, el esquema y filas de muestra |
-| `snapshots.json` | Un punto por ejecución para la pestaña Evolución |
+
+El portal enseña **una sola foto**, la del informe publicado. No hay serie
+histórica: se retiró junto con `reports/history/`, `snapshots.json` y
+`history-index.json`.
 
 ### Al desplegar en Vercel
 

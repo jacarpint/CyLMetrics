@@ -472,9 +472,9 @@ export default async function HomePage() {
             {
               icon: Newspaper,
               title: "Investigo o informo",
-              text: "El estado del catálogo es en sí mismo una historia y un objeto de estudio: qué se publica, qué se mantiene y qué se abandona. Se conserva el resultado de cada análisis para poder seguir la evolución.",
-              href: "/calidad?vista=evolucion",
-              cta: "Ver la evolución",
+              text: "El estado del catálogo es en sí mismo una historia y un objeto de estudio: qué se publica, qué se mantiene y qué se abandona. El análisis llega al archivo concreto, con su causa y su cifra.",
+              href: "/calidad?vista=prioridades",
+              cta: "Ver el diagnóstico",
             },
             {
               icon: Building2,
@@ -519,14 +519,14 @@ export default async function HomePage() {
           Datos abiertos sobre los datos abiertos
         </h2>
         <p className="mt-1.5 max-w-3xl text-sm leading-relaxed text-body">
-          Una auditoría que no se puede comprobar no vale de mucho. El resultado de cada archivo, el
-          método y el histórico completo están publicados y son verificables por cualquiera.
+          Una auditoría que no se puede comprobar no vale de mucho. El resultado de cada archivo y el
+          método están publicados y son verificables por cualquiera.
         </p>
         <ul className="mt-4 flex flex-wrap gap-x-6 gap-y-2">
           {[
             { href: "/api/quality", label: "El informe completo en JSON", external: true },
             { href: "/metodologia#limites", label: "Qué no puede saber el portal", external: false },
-            { href: "/calidad?vista=evolucion", label: "El histórico de análisis", external: false },
+            { href: "/metodologia#comprobacion", label: "Cómo se comprueba cada archivo", external: false },
           ].map((source) => (
             <li key={source.href}>
               {source.external ? (

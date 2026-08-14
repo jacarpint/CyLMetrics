@@ -6,13 +6,11 @@ import {
   findSystemicCauses,
   formatContentScores,
   groupByField,
-  reportContentScore,
   reuseConsequences,
   summarizeDelivery,
   type FileIssueRow,
 } from '../availability';
 import type { DistributionResult, FetchStatus, QualityReport } from '../quality-report';
-
 /**
  * `fetch` por defecto: descargado. En el informe real TODAS las distribuciones
  * traen su objeto `fetch`, así que omitirlo aquí probaba un estado imposible.
@@ -28,7 +26,6 @@ function fetchInfo(status: FetchStatus = 'downloaded', httpStatus: number | null
     final_url: null,
   };
 }
-
 function dist(partial: Partial<DistributionResult> & { status: DistributionResult['status'] }): DistributionResult {
   return {
     dataset_index: 0,
@@ -43,7 +40,6 @@ function dist(partial: Partial<DistributionResult> & { status: DistributionResul
     ...partial,
   } as DistributionResult;
 }
-
 function withIssues(
   status: DistributionResult['status'],
   codes: string[],
@@ -63,24 +59,20 @@ function withIssues(
     },
   });
 }
-
 describe('classifyDelivery', () => {
   it('ok cuando la distribución se analizó bien', () => {
     expect(classifyDelivery(dist({ status: 'ok' }))).toBe('ok');
   });
-
   it('roto cuando la descarga no trae el fichero', () => {
     for (const status of ['http_error', 'unreachable', 'service'] as const) {
       expect(classifyDelivery(withIssues('error', ['descarga'], 'CSV', fetchInfo(status, 404))), status).toBe('roto');
     }
   });
-
   it('roto cuando llega pero no se puede interpretar', () => {
     expect(classifyDelivery(withIssues('error', ['json-invalido'], 'JSON'))).toBe('roto');
     expect(classifyDelivery(withIssues('error', ['zip-invalido'], 'SHP'))).toBe('roto');
     expect(classifyDelivery(withIssues('error', ['xlsx-invalido'], 'XLSX'))).toBe('roto');
   });
-
   /**
    * El fallo que sobredimensionaba el titular del portal. `engine.py` pone
    * `status: 'error'` en cuanto hay una incidencia de severidad error, y «tipos
@@ -94,33 +86,26 @@ describe('classifyDelivery', () => {
       expect(classifyDelivery(withIssues('error', [code])), code).toBe('ok');
     }
   });
-
   it('un fichero grande leído a medias sigue estando entregado', () => {
     expect(classifyDelivery(withIssues('error', ['error-tipo'], 'CSV', fetchInfo('truncated')))).toBe('ok');
   });
-
   it('la causa bloqueante manda sobre las de contenido', () => {
     expect(classifyDelivery(withIssues('error', ['error-tipo', 'json-invalido'], 'JSON'))).toBe('roto');
   });
-
   // El caso que engine.py marcaba "skipped" y alerts.ts trataba como bloqueante.
   it('no-entrega cuando la URL devuelve una página en vez del archivo', () => {
     expect(classifyDelivery(withIssues('skipped', ['no-es-archivo']))).toBe('no-entrega');
     expect(classifyDelivery(withIssues('skipped', ['no-es-imagen']))).toBe('no-entrega');
   });
-
   it('no-entrega manda sobre roto: el motivo es más específico que el estado', () => {
     expect(classifyDelivery(withIssues('error', ['no-es-archivo']))).toBe('no-entrega');
   });
-
   it('omitida cuando supera el tope de tamaño: no se llegó a comprobar', () => {
     expect(classifyDelivery(withIssues('skipped', [], 'CSV', fetchInfo('too_large', 200)))).toBe('omitida');
   });
-
   it('omitida para el resto de saltos del analizador', () => {
     expect(classifyDelivery(dist({ status: 'skipped' }))).toBe('omitida');
   });
-
   /**
    * El caso de los 341 XLSX del informe: descarga correcta, HTTP 200, y el
    * análisis no llegó a mirar dentro porque no teníamos openpyxl instalado.
@@ -131,46 +116,38 @@ describe('classifyDelivery', () => {
       classifyDelivery(withIssues('skipped', ['dependencia-faltante'], 'XLSX'))
     ).toBe('no-analizado');
   });
-
   it('no-analizado también cuando el que falla es nuestro propio analizador', () => {
     expect(classifyDelivery(withIssues('error', ['fallo-analizador'], 'CSV'))).toBe('no-analizado');
     expect(classifyDelivery(withIssues('skipped', ['descarga-truncada'], 'SHP'))).toBe('no-analizado');
   });
-
   it('una causa bloqueante manda sobre la falta de lector', () => {
     // Si el ZIP está corrupto, eso lo sabemos y sí es del archivo.
     expect(
       classifyDelivery(withIssues('error', ['zip-invalido', 'dependencia-faltante'], 'SHP'))
     ).toBe('roto');
   });
-
   it('omitida cuando el catálogo no publica URL, no roto', () => {
     // `no_url` no estaba en ninguno de los dos conjuntos de `fetch.status`, así
     // que caía al respaldo «fallido» y se contaba como un archivo que no abre.
     expect(classifyDelivery(dist({ status: 'skipped', fetch: fetchInfo('no_url', null) }))).toBe('omitida');
   });
-
   it('roto si no hay ni información de descarga', () => {
     expect(classifyDelivery(dist({ status: 'error', fetch: null }))).toBe('roto');
   });
 });
-
 describe('deliveryCause', () => {
   it('no hay causa si la distribución está bien', () => {
     expect(deliveryCause(dist({ status: 'ok' }))).toBeNull();
   });
-
   // Un problema de contenido no es un motivo de indisponibilidad: antes esta
   // función devolvía «Valores con tipo distinto» como si el fichero no abriera.
   it('no hay causa si el fichero abre, aunque el contenido traiga errores', () => {
     expect(deliveryCause(withIssues('error', ['error-tipo']))).toBeNull();
   });
-
   it('prioriza el código bloqueante sobre el resto', () => {
     const d = withIssues('error', ['celda-faltante', 'descarga'], 'CSV', fetchInfo('http_error', 404));
     expect(deliveryCause(d)?.code).toBe('descarga');
   });
-
   it('cae al estado de la descarga cuando no hay código bloqueante', () => {
     const d = withIssues('error', ['error-tipo'], 'CSV', fetchInfo('unreachable', null));
     expect(deliveryCause(d)).toMatchObject({
@@ -178,7 +155,6 @@ describe('deliveryCause', () => {
       label: 'No se pudo contactar con el servidor',
     });
   });
-
   /**
    * El fallo que se veía en producción, fijado aquí.
    *
@@ -194,14 +170,12 @@ describe('deliveryCause', () => {
       label: 'Este portal no dispone de lector para este formato',
     });
   });
-
   it('nunca devuelve un estado de descarga cuando los bytes llegaron', () => {
     for (const status of ['downloaded', 'truncated'] as const) {
       const d = withIssues('skipped', ['dependencia-faltante'], 'XLSX', fetchInfo(status, 200));
       expect(deliveryCause(d)?.code, status).not.toBe(status);
     }
   });
-
   it('la etiqueta del motivo nunca es el código en crudo', () => {
     const casos = [
       withIssues('skipped', ['dependencia-faltante'], 'XLSX'),
@@ -215,7 +189,6 @@ describe('deliveryCause', () => {
     }
   });
 });
-
 describe('summarizeDelivery', () => {
   const report = {
     generated_at: '2026-08-10T13:18:40',
@@ -240,30 +213,25 @@ describe('summarizeDelivery', () => {
       },
     ],
   } as unknown as QualityReport;
-
   it('cuenta cada estado por separado', () => {
     const s = summarizeDelivery(report);
     expect(s).toMatchObject({ total: 5, ok: 3, roto: 1, noEntrega: 1, omitida: 0 });
   });
-
   it('cuenta datasets afectados, no distribuciones', () => {
     const s = summarizeDelivery(report);
     expect(s.affectedDatasets).toBe(1);
     expect(s.totalDatasets).toBe(2);
   });
-
   it('sobrevive a la ausencia de informe', () => {
     expect(summarizeDelivery(null).total).toBe(0);
   });
 });
-
-describe('formatContentScores y reportContentScore', () => {
+describe('formatContentScores', () => {
   /** Con nota: `withIssues` deja `score: null`, así que hay que ponerla. */
   function scored(score: number | null, codes: string[], format: string, fetch = fetchInfo()) {
     const d = withIssues(codes.length ? 'error' : 'ok', codes, format, fetch);
     return { ...d, analysis: { ...d.analysis!, score } } as DistributionResult;
   }
-
   const report = {
     generated_at: '2026-08-13T20:47:16Z',
     totals: { distributions: 0, ok: 0, error: 0, skipped: 0, downloaded: 0, avg_score: null, bytes: 0 },
@@ -288,19 +256,15 @@ describe('formatContentScores y reportContentScore', () => {
       },
     ],
   } as unknown as QualityReport;
-
   it('un formato cuyas únicas notas son ceros nuestros no puntúa: «—», no cero', () => {
     expect(formatContentScores(report).XLSX).toEqual({ scored: 0, avgScore: null });
   });
-
   it('descarta la nota contaminada y conserva la real', () => {
     expect(formatContentScores(report).CSV).toEqual({ scored: 1, avgScore: 80 });
   });
-
   it('un cero que sí habla del archivo se queda', () => {
     expect(formatContentScores(report).JPEG).toEqual({ scored: 1, avgScore: 0 });
   });
-
   /**
    * Filtrar por `classifyDelivery === 'ok'` habría borrado esto: un WMS no
    * descarga ningún archivo, así que se clasifica como `roto`, pero su análisis
@@ -309,17 +273,10 @@ describe('formatContentScores y reportContentScore', () => {
   it('los servicios OGC conservan su nota aunque no entreguen archivo', () => {
     expect(formatContentScores(report).WMS).toEqual({ scored: 1, avgScore: 90 });
   });
-
-  it('la media global usa el mismo criterio: (80 + 0 + 90) / 3', () => {
-    expect(reportContentScore(report)).toEqual({ scored: 3, avgScore: 56.7 });
-  });
-
   it('sobrevive a la ausencia de informe', () => {
     expect(formatContentScores(null)).toEqual({});
-    expect(reportContentScore(null)).toEqual({ scored: 0, avgScore: null });
   });
 });
-
 describe('distributionsAffectedByIssue', () => {
   it('cuenta recursos afectados, no ocurrencias', () => {
     const report = {
@@ -342,17 +299,14 @@ describe('distributionsAffectedByIssue', () => {
         },
       ],
     } as unknown as QualityReport;
-
     const counts = distributionsAffectedByIssue(report);
     expect(counts['celda-faltante']).toBe(1);
     expect(counts['descarga']).toBe(1);
   });
-
   it('devuelve un objeto vacío sin informe', () => {
     expect(distributionsAffectedByIssue(null)).toEqual({});
   });
 });
-
 describe('reuseConsequences', () => {
   /** Informe con una distribución por cada código pedido. */
   function reportWith(codes: string[]): QualityReport {
@@ -360,14 +314,12 @@ describe('reuseConsequences', () => {
       datasets: [{ distribution_results: codes.map((code) => withIssues('error', [code])) }],
     } as unknown as QualityReport;
   }
-
   it('agrupa los códigos que rompen la reutilización por el mismo motivo', () => {
     // Un encabezado vacío y uno duplicado son una sola consecuencia.
     const [consequence] = reuseConsequences(reportWith(['encabezado-vacio', 'encabezado-duplicado']));
     expect(consequence.icon).toBe('encabezado');
     expect(consequence.count).toBe(2);
   });
-
   /**
    * El recuento cuenta ARCHIVOS, que es lo que dice la tarjeta, y no la suma de
    * los recuentos de cada código. Con la suma, un archivo que trae las dos cosas
@@ -390,17 +342,14 @@ describe('reuseConsequences', () => {
     const [consequence] = reuseConsequences(report);
     expect(consequence.count).toBe(1);
   });
-
   it('lleva los códigos del grupo, para poder enlazar a la tabla filtrada', () => {
     const [consequence] = reuseConsequences(reportWith(['encabezado-vacio']));
     expect(consequence.codes).toEqual(['encabezado-vacio', 'encabezado-duplicado']);
   });
-
   it('omite las consecuencias que no ocurren en este catálogo', () => {
     const result = reuseConsequences(reportWith(['descarga']));
     expect(result.map((c) => c.icon)).toEqual(['enlace']);
   });
-
   it('lo que no abre va antes que lo que solo hay que limpiar, aunque afecte a menos', () => {
     // Tres archivos con tipos mezclados (aviso) contra uno sin descarga (crítico).
     const report = reportWith(['error-tipo', 'error-tipo', 'error-tipo', 'descarga']);
@@ -409,34 +358,28 @@ describe('reuseConsequences', () => {
     expect(result[0].severity).toBe('bad');
     expect(result[0].count).toBeLessThan(result[1].count);
   });
-
   it('entre consecuencias de la misma gravedad manda el volumen', () => {
     const report = reportWith(['error-tipo', 'error-tipo', 'encabezado-vacio']);
     expect(reuseConsequences(report).map((c) => c.icon)).toEqual(['tipo', 'encabezado']);
   });
-
   it('sin informe no hay consecuencias que contar', () => {
     expect(reuseConsequences(null)).toEqual([]);
   });
 });
-
 describe('findSystemicCauses', () => {
   const rows = (n: number, format: string, causeCode: string, ds = (i: number) => `d${i}`): FileIssueRow[] =>
     Array.from({ length: n }, (_, i) => ({
       datasetSlug: ds(i), datasetTitle: 'x', category: 'c', family: 'entrega' as const,
       format, url: 'u', distSlug: format.toLowerCase(), state: 'roto' as const, causeCode,
     }));
-
   it('marca wholeFormat cuando el fallo alcanza a todos los recursos del formato', () => {
     const causes = findSystemicCauses(rows(32, 'GML', 'descarga'), { GML: 32, CSV: 700 });
     expect(causes[0]).toMatchObject({ format: 'GML', affected: 32, formatTotal: 32, wholeFormat: true });
   });
-
   it('no marca wholeFormat si solo falla una parte', () => {
     const causes = findSystemicCauses(rows(86, 'SHP', 'zip-invalido'), { SHP: 183 });
     expect(causes[0].wholeFormat).toBe(false);
   });
-
   it('el fallo de proceso va primero aunque afecte a menos recursos', () => {
     const causes = findSystemicCauses(
       [...rows(16, 'KML', 'descarga'), ...rows(86, 'SHP', 'zip-invalido', (i) => `s${i}`)],
@@ -445,30 +388,25 @@ describe('findSystemicCauses', () => {
     expect(causes[0].format).toBe('KML');
     expect(causes[1].format).toBe('SHP');
   });
-
   it('cuenta datasets distintos, no filas', () => {
     const causes = findSystemicCauses(rows(4, 'CSV', 'descarga', () => 'mismo'), { CSV: 10 });
     expect(causes[0]).toMatchObject({ affected: 4, datasets: 1 });
   });
 });
-
 describe('groupByField', () => {
   const mk = (category: string, slug: string): FileIssueRow => ({
     datasetSlug: slug, datasetTitle: 't', category, format: 'CSV', family: 'entrega',
     url: 'u', distSlug: 'csv', state: 'roto', causeCode: 'descarga',
   });
-
   it('ordena los grupos por recursos afectados', () => {
     const out = groupByField([mk('Medio ambiente', '1'), mk('Medio ambiente', '2'), mk('Salud', '3')], 'category');
     expect(out[0]).toEqual({ value: 'Medio ambiente', affected: 2, datasets: 2 });
     expect(out[1]).toEqual({ value: 'Salud', affected: 1, datasets: 1 });
   });
-
   it('cuenta datasets distintos, no filas', () => {
     const out = groupByField([mk('Salud', 'x'), mk('Salud', 'x')], 'category');
     expect(out[0]).toMatchObject({ affected: 2, datasets: 1 });
   });
-
   it('recoge los que no traen valor bajo una etiqueta común', () => {
     const out = groupByField([mk('', '1')], 'category');
     expect(out[0].value).toBe('Sin clasificar');

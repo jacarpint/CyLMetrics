@@ -23,12 +23,9 @@ import { distributionVolume } from './quality-labels';
 import {
   datasetAvailabilityPct,
   formatStates,
-  summarizeContent,
-  summarizeDelivery,
   type FormatState,
 } from './availability';
 export type { IssueCategory } from './quality-labels';
-import { getScoreLevel } from './quality';
 import type { DistributionDetail, IssueDetail } from './report-bundle';
 export type {
   DistributionDetail,
@@ -49,17 +46,6 @@ export type {
 const BUNDLE_DIR = path.join(process.cwd(), 'reports', 'current');
 const BUNDLE_INDEX = path.join(BUNDLE_DIR, 'index.json');
 const SHARD_DIR = path.join(BUNDLE_DIR, 'd');
-const SNAPSHOTS_PATH = path.join(BUNDLE_DIR, 'snapshots.json');
-/** Informes del formato antiguo (un JSON por ejecución). Solo como respaldo. */
-const HISTORY_DIR = path.join(process.cwd(), 'reports', 'history');
-
-/**
- * Informes con menos datasets que esto son ejecuciones parciales (`--limit N`)
- * y no representan al catálogo. `build-history-index.ts` ya las descarta; el
- * mismo criterio tiene que aplicarse aquí o el índice y la página cuentan un
- * número distinto de informes.
- */
-const MIN_DATASETS_FOR_FULL_RUN = 50;
 
 /**
  * Una incidencia tal y como viaja en el ÍNDICE: código, severidad y cuántas
@@ -261,30 +247,15 @@ function fileSignature(filePath: string): string | null {
   }
 }
 
-/** Ficheros del historial, del más reciente al más antiguo (por nombre). */
-function historyFiles(): string[] {
-  if (!fs.existsSync(HISTORY_DIR)) return [];
-  return fs
-    .readdirSync(HISTORY_DIR)
-    .filter((f) => f.endsWith('.json'))
-    .sort()
-    .reverse()
-    .map((f) => path.join(HISTORY_DIR, f));
-}
-
 /**
- * Candidatos a informe vigente: primero el bundle nuevo y, si no está, los
- * informes del formato antiguo.
+ * El informe vigente: el bundle de `reports/current/`.
  *
- * El respaldo existe para que un checkout que aún no ha regenerado el informe
- * siga mostrando datos en vez de una página vacía; `normalizeReport` se encarga
- * de que los dos formatos lleguen iguales al resto del portal.
+ * Había además un respaldo sobre los informes del formato antiguo de
+ * `reports/history/`, retirado junto con la serie histórica. No hacía falta:
+ * `reports/current/` está versionado, así que cualquier checkout lo trae.
  */
 function candidateReportPaths(): string[] {
-  const paths: string[] = [];
-  if (fs.existsSync(BUNDLE_INDEX)) paths.push(BUNDLE_INDEX);
-  paths.push(...historyFiles());
-  return paths;
+  return fs.existsSync(BUNDLE_INDEX) ? [BUNDLE_INDEX] : [];
 }
 
 function isValidReport(value: unknown): value is QualityReport {
@@ -295,11 +266,6 @@ function isValidReport(value: unknown): value is QualityReport {
       report.totals != null &&
       typeof report.generated_at === 'string'
   );
-}
-
-/** True si el informe cubre el catálogo entero (no es una ejecución con `--limit`). */
-function isFullRun(report: QualityReport): boolean {
-  return report.datasets.length >= MIN_DATASETS_FOR_FULL_RUN;
 }
 
 /**
@@ -510,166 +476,6 @@ export function getDistributionDetail(id: string | undefined): DistributionDetai
   }
   shardCache.set(id, detail);
   return detail;
-}
-
-/** Información de un informe en el historial. */
-export interface HistoryEntry {
-  filename: string;
-  generatedAt: string;
-  filePath: string;
-}
-
-/**
- * Lista los informes del historial ordenados por fecha descendente.
- *
- * La fecha sale del nombre del fichero (`analysis-2026-08-10T13-18-40.json`),
- * que lo escribe `manage-reports.ts` a partir de `generated_at`. Antes se
- * abría y parseaba cada informe solo para leer ese campo: 200 ms de JSON por
- * una cadena que ya estaba en el nombre.
- */
-export function listHistory(): HistoryEntry[] {
-  return historyFiles()
-    .map((filePath) => ({
-      filename: path.basename(filePath),
-      generatedAt: generatedAtFromFilename(path.basename(filePath)),
-      filePath,
-    }))
-    .filter((entry) => entry.generatedAt);
-}
-
-/** `analysis-2026-08-10T13-18-40.json` → `2026-08-10T13:18:40`. */
-function generatedAtFromFilename(filename: string): string {
-  const match = filename.match(/^analysis-(\d{4}-\d{2}-\d{2})T(\d{2})-(\d{2})-(\d{2})\.json$/);
-  return match ? `${match[1]}T${match[2]}:${match[3]}:${match[4]}` : '';
-}
-
-/* ------------------------------------------------------------------ */
-/* Observatorio histórico                                              */
-/* ------------------------------------------------------------------ */
-
-/**
- * Estado del catálogo en un informe, medido con el MISMO criterio que el resto
- * del portal.
- *
- * Antes estos contadores salían de `report.totals.ok/error/skipped`, que son los
- * del motor de análisis: `engine.py` marca `error` en cuanto aparece una
- * incidencia de severidad error, y «tipos mezclados en una columna» es una de
- * ellas. Por eso la pestaña Evolución decía «582 con fallos» mientras Inicio
- * decía «254 no se pueden usar»: dos cifras contradictorias, del mismo informe,
- * a dos clics de distancia. Aquí se clasifica con `classifyDelivery`, que es la
- * fuente única de «¿se puede abrir este archivo?».
- */
-export interface HistorySnapshot {
-  date: string;
-  totalDistributions: number;
-  /** Archivos que se descargan y abren. */
-  usable: number;
-  /** Archivos que no llegan, o llegan y no se pueden interpretar. */
-  broken: number;
-  /** URLs que responden con una página web en lugar del archivo. */
-  notDelivered: number;
-  /** Archivos que no se llegaron a comprobar. */
-  unanalyzed: number;
-  /**
-   * Calidad media del contenido de lo que SÍ abre. `report.totals.avg_score`
-   * no vale aquí: promedia también los archivos que no se entregan, que dejan
-   * métricas parciales, y el portal afirma en Inicio que esta media no los
-   * incluye.
-   */
-  avgScore: number | null;
-  healthyDatasets: number;
-  warningDatasets: number;
-  criticalDatasets: number;
-  /**
-   * Conjuntos de datos sin puntuación de contenido: ni un solo archivo legible
-   * que medir. Se cuentan aparte en vez de omitirse, que era lo que hacía que la
-   * interfaz enseñara «436 / 0 / 0» de 824 y afirmara «0 críticos» justo al lado
-   * de «el 35% de los archivos no abre».
-   */
-  unscoredDatasets: number;
-  totalDatasets: number;
-}
-
-let snapshotCache: { key: string; snapshots: HistorySnapshot[] } | null = null;
-
-/**
- * Resume un informe ya cargado. Es la definición del snapshot y la usan las dos
- * rutas: el script que precalcula `snapshots.json` y el respaldo de aquí.
- */
-export function summarizeReport(report: QualityReport): HistorySnapshot {
-  let healthy = 0;
-  let warning = 0;
-  let critical = 0;
-  let unscored = 0;
-  // Los umbrales se leen de `getScoreLevel`, única fuente: aquí estaban
-  // repetidos y podían quedarse atrás si se revisaba la escala.
-  for (const ds of report.datasets) {
-    if (ds.score == null) unscored++;
-    else if (getScoreLevel(ds.score) === 'ok') healthy++;
-    else if (getScoreLevel(ds.score) === 'warn') warning++;
-    else critical++;
-  }
-  const delivery = summarizeDelivery(report);
-  return {
-    date: report.generated_at.slice(0, 10),
-    totalDistributions: delivery.total,
-    usable: delivery.ok,
-    broken: delivery.roto,
-    notDelivered: delivery.noEntrega,
-    // Los dos estados en los que no se llegó a afirmar nada del archivo, juntos:
-    // el snapshot mide el catálogo, y para eso «no lo hemos comprobado» y «no
-    // teníamos con qué leerlo» son lo mismo. El desglose está en la ficha.
-    unanalyzed: delivery.omitida + delivery.noAnalizado,
-    avgScore: summarizeContent(report).avgScore,
-    healthyDatasets: healthy,
-    warningDatasets: warning,
-    criticalDatasets: critical,
-    unscoredDatasets: unscored,
-    totalDatasets: report.datasets.length,
-  };
-}
-
-/**
- * Serie histórica para la pestaña Evolución.
- *
- * Se lee de `reports/current/snapshots.json`, que precalcula
- * `npm run reports:snapshots`. Antes esta función abría y parseaba hasta 20
- * informes completos —16 MB cada uno— **en cada arranque en frío**, solo para
- * quedarse con doce cifras por informe. Con las incidencias completas el coste
- * habría crecido con el tamaño del catálogo hasta hacer inviable la página.
- *
- * El respaldo sobre `reports/history/` se mantiene para que un checkout sin
- * `snapshots.json` siga pintando la serie en lugar de una página vacía.
- */
-export function loadHistorySnapshots(maxEntries = 20): HistorySnapshot[] {
-  const precomputed = fileSignature(SNAPSHOTS_PATH);
-  const entries = precomputed ? [] : listHistory().slice(0, maxEntries).reverse();
-  const key = precomputed
-    ? `pre|${maxEntries}|${precomputed}`
-    : `${maxEntries}|${entries.map((e) => fileSignature(e.filePath) ?? e.filename).join(',')}`;
-  if (snapshotCache && snapshotCache.key === key) return snapshotCache.snapshots;
-
-  let snapshots: HistorySnapshot[] = [];
-  if (precomputed) {
-    try {
-      const parsed = JSON.parse(fs.readFileSync(SNAPSHOTS_PATH, 'utf-8')) as { snapshots?: HistorySnapshot[] };
-      snapshots = (parsed.snapshots ?? []).slice(-maxEntries);
-    } catch {
-      snapshots = [];
-    }
-  } else {
-    for (const entry of entries) {
-      const report = readReport(entry.filePath);
-      // Las ejecuciones parciales (`--limit N`) quedan fuera, con el mismo
-      // umbral que aplica `build-history-index.ts`: si no, el índice contaba un
-      // número de informes y esta función otro.
-      if (!report || !isFullRun(report)) continue;
-      snapshots.push(summarizeReport(report));
-    }
-  }
-
-  snapshotCache = { key, snapshots };
-  return snapshots;
 }
 
 /**

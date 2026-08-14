@@ -57,7 +57,9 @@ const SECURITY_HEADERS = [
  */
 const LEGACY_ROUTES = [
   { source: "/gis", destination: "/catalogo?geo=1" },
-  { source: "/tendencias", destination: "/calidad?vista=evolucion" },
+  // `/tendencias` apuntaba a la serie histórica, retirada del portal: ahora lleva
+  // al diagnóstico de la última foto, que es lo que queda.
+  { source: "/tendencias", destination: "/calidad?vista=prioridades" },
   { source: "/transparencia", destination: "/calidad?vista=prioridades" },
   { source: "/alertas", destination: "/calidad?vista=ficheros&familia=contenido" },
 ];
@@ -76,11 +78,7 @@ const LEGACY_ROUTES = [
  * lee la ficha de la distribución y la API de incidencias, así que se limitan a
  * esas rutas para no inflar el resto de funciones.
  */
-const REPORT_INDEX_FILES = [
-  "reports/current/index.json",
-  "reports/current/snapshots.json",
-  "reports/history-index.json",
-];
+const REPORT_INDEX_FILES = ["reports/current/index.json"];
 /** Fragmentos por distribución: solo donde se abren de verdad. */
 const REPORT_DETAIL_FILES = [...REPORT_INDEX_FILES, "reports/current/d/**"];
 

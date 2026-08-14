@@ -3,12 +3,10 @@ import { ArrowRight } from "lucide-react";
 import { getCatalog } from "@/lib/rdf-catalog";
 import {
   getQualityReport,
-  loadHistorySnapshots,
   matchDistributions,
   type FormatSummary,
   type QualityReport,
 } from "@/lib/quality-report";
-import { getHistoryIndex } from "@/lib/quality-history";
 import {
   classifyDelivery,
   createNoteTable,
@@ -32,7 +30,6 @@ import {
   type MetadataDatasetLite,
   type MetadataGapGroup,
 } from "@/components/pages/calidad/MetadatosSection";
-import { EvolucionSection } from "@/components/pages/calidad/EvolucionSection";
 
 export const revalidate = 3600;
 
@@ -272,14 +269,6 @@ export default async function CalidadPage({
           groups={metadataGroups}
           overdue={overdue}
           initialGap={filters.hueco ?? ""}
-        />
-      )}
-      {vista === "evolucion" && (
-        <EvolucionSection
-          catalog={catalog}
-          report={report}
-          index={getHistoryIndex()}
-          snapshots={loadHistorySnapshots(20)}
         />
       )}
     </div>

@@ -25,29 +25,35 @@
 
 import type { IssueFamily } from './availability';
 
-/** Las cuatro vistas. Los identificadores viajan en la URL. */
-export type Vista = 'prioridades' | 'ficheros' | 'metadatos' | 'evolucion';
+/** Las tres vistas. Los identificadores viajan en la URL. */
+export type Vista = 'prioridades' | 'ficheros' | 'metadatos';
 
 export const VISTAS: { id: Vista; label: string }[] = [
   { id: 'prioridades', label: 'Prioridades' },
   { id: 'ficheros', label: 'Archivos' },
   { id: 'metadatos', label: 'Metadatos' },
-  { id: 'evolucion', label: 'Evolución' },
 ];
 
 const VISTA_VALUES = new Set<string>(VISTAS.map((v) => v.id));
 
 /**
- * Vistas anteriores a la reorganización.
+ * Vistas que ya no existen.
  *
  * Se mantienen para no romper los enlaces publicados ni las redirecciones de
  * `next.config.ts`, que apuntan a estas vistas.
+ *
+ * `evolucion` era la serie histórica del catálogo, retirada para que el portal
+ * hable solo de la última foto. Su identificador sigue resolviendo a Prioridades
+ * en vez de dar un 404: es la que estaba enlazada desde la portada y desde la
+ * redirección de `/tendencias`, y quien la tenga guardada merece aterrizar en
+ * algo útil.
  */
 const LEGACY_VISTAS: Record<string, Vista> = {
   resumen: 'prioridades',
   organismos: 'prioridades',
   reparar: 'ficheros',
   incidencias: 'ficheros',
+  evolucion: 'prioridades',
 };
 
 export type FamilyFilter = 'todas' | IssueFamily;
