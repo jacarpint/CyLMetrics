@@ -58,7 +58,7 @@ export function Header() {
           aria-label="Portal de Calidad de Datos Abiertos de Castilla y León, ir al inicio"
         >
           <Image
-            src="/jcyl-data-quality-portal-logo-transparent.png"
+            src="/jcyl-data-quality-portal-logo-header.png"
             alt="Portal de Calidad de Datos Abiertos de Castilla y León"
             width={900}
             height={420}
