@@ -6,6 +6,8 @@ import { Header } from "@/components/layout/Header";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Footer } from "@/components/layout/Footer";
 import { getCatalog } from "@/lib/rdf-catalog";
+import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -75,6 +77,10 @@ export default async function RootLayout({
           </main>
         </div>
         <Footer />
+        {/* Telemetría de Vercel: ambos componentes son `use client`, no pintan
+            nada y solo se activan al desplegar en Vercel. */}
+        <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );
