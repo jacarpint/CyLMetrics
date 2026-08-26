@@ -1,316 +1,191 @@
-# JCyL Data Quality Portal
+<div align="center">
 
-Observatorio de la calidad del catálogo de datos abiertos de la Junta de Castilla y León. Analiza automáticamente metadatos, formatos, licencias y disponibilidad de datasets públicos.
+<img src="src/app/opengraph-image.png" alt="CyLMetrics — ¿Se pueden usar de verdad los datos abiertos de Castilla y León?" width="640">
 
-## Requisitos
+# CyLMetrics
 
-- **Node.js** >= 18
-- **Python** >= 3.10 (para el análisis de datos)
-- **npm**
+**Auditoría independiente de la calidad del catálogo de datos abiertos de Castilla y León.**
 
-## Instalación
+[**→ cylmetrics.vercel.app**](https://cylmetrics.vercel.app)
+
+[![Portal en vivo](https://img.shields.io/badge/portal-cylmetrics.vercel.app-0b5cab?style=flat-square)](https://cylmetrics.vercel.app)
+[![Licencia EUPL 1.2](https://img.shields.io/badge/licencia-EUPL--1.2-1a9e5c?style=flat-square)](LICENSE)
+[![Next.js 16](https://img.shields.io/badge/Next.js-16-000?style=flat-square)](https://nextjs.org)
+[![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-3776ab?style=flat-square)](https://www.python.org)
+
+</div>
+
+---
+
+## Qué es
+
+La mayoría de los observatorios de datos abiertos miden **fichas**: cuentan cuántos campos rellena cada conjunto de datos y publican una nota. Un catálogo puede sacar sobresaliente así y tener la mitad de sus archivos caídos.
+
+CyLMetrics hace la comprobación que falta: **descarga cada archivo publicado en el catálogo y lo abre**, con el lector que le corresponde, igual que haría quien quiere reutilizarlo. Después publica el resultado archivo por archivo, con el motivo de cada fallo, la metodología completa y una API abierta para contrastarlo.
+
+En el último análisis eso son **1.662 archivos y 23,5 GB descargados y abiertos uno a uno**.
+
+## Qué encuentra
+
+Cifras del análisis del **14 de agosto de 2026**, sobre 822 conjuntos de datos y sus 1.662 archivos:
+
+| | |
+|---|---|
+| **14 %** de los archivos | no se pueden descargar o no se pueden abrir (227 de 1.662) |
+| **127 archivos** | devuelven una página web en lugar del dato |
+| **259 conjuntos** de 822 | tienen al menos un archivo inservible |
+| **90,3 %** de calidad media | sobre los 1.306 archivos que sí abren y tienen contenido que medir |
+| **761 de 836 conjuntos** | no publican `dct:modified`, así que su actualidad no se puede verificar |
+
+Cada cifra del portal se calcula desde el informe publicado; ninguna está escrita a mano.
+
+## Cómo se mide
+
+Dos preguntas distintas, medidas por separado porque **promediarlas engaña en las dos direcciones**:
+
+- **Disponibilidad** — ¿se descarga y se abre el archivo? Es bloqueante.
+- **Calidad de contenido** — ¿está limpio? Encabezados, tipos de dato, celdas vacías. Solo tiene sentido sobre lo que sí abre.
+
+El índice compuesto de cada ficha pondera `40 % metadatos + 30 % disponibilidad + 30 % contenido`, con umbrales ≥80 buena / 50-79 mejorable / <50 deficiente. Los pesos y los umbrales viven en un único módulo (`src/lib/quality.ts`) del que leen la interfaz, la API, el sello y la propia página de metodología, y hay tests que impiden que la documentación publicada contradiga al código.
+
+La metodología completa —alcance, fórmulas, umbrales, límites conocidos y lo que el análisis decide **no** imputar a quien publica— está en [**/metodologia**](https://cylmetrics.vercel.app/metodologia).
+
+## Dos audiencias
+
+| Sección | Para quién | Qué resuelve |
+|---|---|---|
+| [`/catalogo`](https://cylmetrics.vercel.app/catalogo) | quien **reutiliza** | buscar un conjunto, ver si sus archivos abren y qué estructura tienen antes de invertir tiempo. Cada ficha descarga el archivo real en tu navegador y lo pinta como tabla, esquema o mapa |
+| [`/calidad`](https://cylmetrics.vercel.app/calidad) | quien **publica** | qué está roto y qué hay que hacer, ordenado por lo que se recupera al corregirlo, descargable en CSV con los filtros puestos |
+
+Los defectos se reducen a tres familias, que son también tres tipos de corrección distintos: **entrega** (el archivo no llega o no se interpreta), **contenido** (llega, pero sucio) y **metadatos** (la ficha está incompleta). Cuando un fallo alcanza a un formato entero sube el primero, porque delata un proceso de publicación y se arregla de una vez.
+
+## API pública
+
+Un observatorio de datos abiertos debería publicar también los suyos. Todo lo que se ve en el portal está en JSON, **sin registro, sin clave y sin límite de peticiones**:
 
 ```bash
-# Instalar dependencias Node
+curl https://cylmetrics.vercel.app/api/quality                       # informe global
+curl https://cylmetrics.vercel.app/api/quality?dataset=1285663381041 # un conjunto
+curl https://cylmetrics.vercel.app/api/catalog?q=padron&limit=5      # catálogo filtrable
+curl https://cylmetrics.vercel.app/api/alerts                        # incidencias abiertas
+```
+
+Y un sello de calidad incrustable en cualquier web, que refleja siempre el último análisis:
+
+```html
+<img src="https://cylmetrics.vercel.app/api/sello?dataset=1285663381041" alt="Índice de calidad">
+```
+
+Referencia completa en [**/api**](https://cylmetrics.vercel.app/api).
+
+## Arranque rápido
+
+**Requisitos:** Node.js `^20.19` o `>=22.12` · npm · Python `>=3.10` (solo para ejecutar el análisis).
+
+```bash
+git clone https://github.com/jacarpint/CyLMetrics.git
+cd CyLMetrics
 npm install
+npm run dev          # http://localhost:3000
+```
 
-# Crear entorno virtual Python (solo para ejecutar el análisis)
-python -m venv .venv-analysis
-.venv-analysis\Scripts\activate   # Windows
-# source .venv-analysis/bin/activate  # macOS/Linux
+El portal arranca con el informe ya versionado en `reports/current/`, así que no hace falta ejecutar el análisis para verlo funcionando.
 
-# Instalar dependencias Python
+### Comprobaciones
+
+```bash
+npm run build        # build de producción (~2.500 páginas estáticas)
+npm run lint         # ESLint
+npm run typecheck    # TypeScript sin emitir
+npm test             # Vitest — 35 ficheros de test
+npm run check:contrast   # contraste WCAG AA de la paleta, en claro y en oscuro
+```
+
+Hay además comprobaciones de extremo a extremo para las piezas delicadas del visor: `check:xlsx`, `check:json`, `check:shp`, `check:geo`, `check:table` y `check:tabular`.
+
+## El análisis
+
+El motor de análisis es Python y **se ejecuta en local**: descarga el catálogo entero, abre cada archivo con su lector y escribe el informe. Solo el resultado viaja al despliegue.
+
+```bash
 pip install -r requirements-analysis.txt
 
-# Comprobar que están los siete lectores (no imprime nada si están todos)
-python -c "from src.analysis.formats import missing_readers; print(missing_readers() or 'todos los lectores disponibles')"
+python -m src.analysis --limit 1 --strict-deps   # verifica el entorno antes de bajar 23 GB
+python -m src.analysis --limit 0                 # análisis completo
 ```
 
-El entorno de Python no es opcional si vas a ejecutar el análisis: sin sus lectores
-el informe sale a medias y **no falla**, solo archiva como «no analizado» todo lo que
-no ha podido abrir. Ver «Análisis de calidad».
+> [!IMPORTANT]
+> Ejecuta siempre `--strict-deps` antes de un análisis largo. Si falta un lector, el informe **no falla**: archiva en silencio como «no analizado» todo lo que no pudo abrir. Ha pasado dos veces, y una llegó a producción con 341 XLSX marcados como ilegibles que estaban perfectos.
 
-## Desarrollo
-
-```bash
-npm run dev
-```
-
-Abre [http://localhost:3000](http://localhost:3000).
-
-## Scripts disponibles
-
-### Análisis de calidad (Python)
-
-```bash
-# Comprobar el entorno antes de descargar 23 GB: aborta si falta algún lector
-python -m src.analysis --limit 1 --strict-deps
-
-# Analizar todas las distribuciones
-python -m src.analysis --limit 0
-
-# Analizar primeras 25 distribuciones
-python -m src.analysis --limit 25
-
-# Solo formatos CSV/XLSX
-python -m src.analysis --only-formats CSV,XLSX
-
-# Con workers paralelos y tope de descarga
-python -m src.analysis --limit 0 --workers 16 --size-cap 536870912
-```
-
-**Comprueba las dependencias antes de lanzar un análisis largo.** Al arrancar se
-avisa de los lectores que falten (`openpyxl`, `pyshp`, `icalendar`, `geojson`,
-`Pillow`, `filetype`, `frictionless`) y de los formatos que quedarán sin analizar;
-con `--strict-deps` aborta en vez de avisar. Ha hecho falta dos veces: los informes
-del 9 de agosto a las 14:56 y del 13 de agosto se generaron sin `openpyxl`, y el
-segundo llegó a producción con 341 XLSX archivados como «no analizados» cuando se
-habían descargado con HTTP 200 y no tenían nada malo.
-
-### Volver a analizar solo lo que se quedó sin analizar
-
-Si un informe ya publicado trae distribuciones sin analizar por una limitación
-nuestra —falta un lector, se rompió el analizador, se cortó por el tope de
-descarga—, no hace falta repetir el análisis completo:
-
-```bash
-# 1. Sembrar el checkpoint con lo que YA está bien analizado
-npm run reports:seed -- --dry-run     # ver qué se reutiliza y qué se re-descarga
-npm run reports:seed
-
-# 2. Llevarse el checkpoint FUERA de la carpeta sincronizada (ver el aviso de abajo)
-mkdir %TEMP%\jcyl-analysis
-copy reports\current\analysis.checkpoint.jsonl %TEMP%\jcyl-analysis\checkpoint.jsonl
-
-# 3. Analizar el catálogo completo: solo se descarga lo que falta
-python -m src.analysis --limit 0 --workers 8 ^
-  --checkpoint %TEMP%\jcyl-analysis\checkpoint.jsonl ^
-  --output     %TEMP%\jcyl-analysis\bundle
-
-# 4. Copiar el bundle verificado
-del reports\current\d\*.json
-copy %TEMP%\jcyl-analysis\bundle\d\*.json reports\current\d\
-copy %TEMP%\jcyl-analysis\bundle\index.json reports\current\index.json
-```
-
-> **No uses `--legacy-output` para nada que vaya al repositorio.** Escribe el
-> informe entero en un solo JSON de ~164 MB, por encima del límite de 100 MB por
-> fichero de GitHub. `reports/history/` está en `.gitignore` por ese motivo.
-
-> **Si el repositorio está en OneDrive (o Dropbox, o similar), ejecuta el análisis
-> con `--checkpoint` y `--output` en disco local.** No es una precaución teórica: el
-> 14 de agosto costó dos ejecuciones completas.
->
-> - El checkpoint crece hasta ~130 MB y, dentro de la carpeta sincronizada, los
->   `append` empezaron a fallar con `OSError [Errno 22]`. El análisis siguió 45
->   minutos sin guardar nada.
-> - Y al escribir el informe, `write_bundle` no pudo vaciar `reports/current/d`
->   porque el cliente de sincronización tenía el directorio abierto.
->
-> Las dos cosas están mitigadas en el código —ahora el fallo del checkpoint se
-> avisa en voz alta y el directorio de fragmentos se vacía sin borrarse— pero
-> trabajar en disco local evita el problema de raíz.
-
-Funciona porque `run_analysis` indexa el checkpoint **por URL** y no por posición,
-así que reutiliza cada resultado sembrado y solo descarga las URL que no están.
-Después `aggregate()` recorre el conjunto entero y escribe un bundle coherente: no
-hay que fusionar informes ni recalcular totales a mano.
-
-`reports:seed` reconstruye cada resultado juntando `index.json` con su fragmento de
-`d/<id>.json` —donde viven el esquema, las filas de muestra y las posiciones de cada
-incidencia— y **verifica que la reconstrucción es exacta** volviendo a partirla y
-comparándola con el original, por las dos mitades. Si algo no cuadra aborta sin
-escribir nada, porque un checkpoint incompleto degradaría el informe en silencio.
-El checkpoint (`reports/current/analysis.checkpoint.jsonl`, ~100 MB) está en
-`.gitignore` y se puede borrar y regenerar cuando se quiera.
-
-Sobre el informe del 13 de agosto: 1.292 resultados reutilizables y 366 a
-re-analizar (341 XLSX, 24 SHP, 1 iCal), o sea **3 GB de descarga en vez de 23,5**.
-
-El informe se escribe en `reports/current/` como un índice ligero más un
-fragmento por distribución (ver «Despliegue»). Se guardan **todas** las
-ocurrencias de cada incidencia, no una muestra: es lo que permite que el
-recuento del resumen y el detalle de la ficha sean la misma cifra.
-
-### Build, lint y comprobaciones
-
-```bash
-npm run build          # Build de producción
-npm run lint           # ESLint
-npm run typecheck      # TypeScript sin emitir
-npm test               # Vitest
-npm start              # Servidor de producción
-
-npm run check:contrast # Contraste WCAG de la paleta, en claro y oscuro
-npm run check:xlsx     # Lectura de XLSX en navegador
-npm run check:json     # Detección de registros en JSON
-npm run check:shp      # Lectura de shapefiles
-npm run check:geo      # Pipeline geoespacial completo
-npm run check:table    # Visor de tablas
-npm run check:tabular  # Análisis tabular en cliente
-```
+Lee **[`docs/ANALISIS.md`](docs/ANALISIS.md)** para el manual completo: opciones del CLI, reanudación desde checkpoint para no volver a descargar 23 GB, formato del informe y los avisos de operación que conviene conocer.
 
 ## Arquitectura
 
 ```
 src/
-├── app/                    # Next.js App Router (páginas)
-│   ├── page.tsx           # Inicio
-│   ├── catalogo/          # Explorador de catálogo, ficha y distribución
-│   ├── calidad/           # Para publicadores: prioridades, ficheros, metadatos, evolución
-│   ├── metodologia/       # Pesos, umbrales, sello y API pública
-│   ├── api/               # quality, catalog, alerts, sello, proxy, ogc
-│   ├── not-found.tsx      # 404 propia
-│   ├── sitemap.ts         # ~2.500 URLs (catálogo + distribuciones)
-│   └── robots.ts
+├── app/                 # Next.js App Router
+│   ├── page.tsx         # Inicio
+│   ├── catalogo/        # Explorador, ficha de conjunto y ficha de archivo
+│   ├── calidad/         # Para publicadores: prioridades, ficheros, metadatos
+│   ├── metodologia/     # Pesos, umbrales y límites declarados
+│   ├── api/             # quality, catalog, alerts, sello, proxy, ogc
+│   └── sitemap.ts       # ~2.500 URLs
 ├── components/
-│   ├── layout/            # Header, Sidebar, ThemeToggle, FilterContent
-│   ├── pages/             # CatalogView, BrokenFilesView, AlertasList, calidad/*
-│   ├── quality/           # ScoreGauge, FileExplorer, TableExplorer, mapas
-│   └── ui/                # Componentes genéricos (Card, Badge, Sheet, etc.)
-├── lib/
-│   ├── rdf-catalog.ts     # Parser RDF/XML del catálogo DCAT
-│   ├── quality-report.ts  # Lectura del informe (caché por firma de fichero)
-│   ├── quality.ts         # Calidad global 40/30/30 y umbrales (única fuente)
-│   ├── availability.ts    # ¿Se puede abrir el archivo? (eje independiente)
-│   ├── quality-labels.ts  # Etiquetas de incidencias (client-safe)
-│   ├── metadata-gaps.ts   # Huecos de la ficha DCAT y diagnóstico de actualidad
-│   ├── repair-actions.ts  # Lista de tareas del publicador, por impacto
-│   ├── catalog-filters.ts # Filtros URL (server + client)
-│   ├── proxy-allow.ts     # Allowlist de dominios del proxy y de la CSP
-│   ├── wfs-paging.ts      # Talla de página del visor WFS, medida por peso
-│   └── types.ts           # Tipos compartidos
-├── analysis/              # Python: descarga, validación, scoring
-│   ├── cli.py             # CLI del análisis
-│   ├── engine.py          # Motor de descarga y validación
-│   └── report.py          # Agregación del informe
-└── data/
-    └── rdf-catalog.rdf    # Copia local del catálogo (fallback)
+│   ├── layout/          # Header, Sidebar, buscador, tema
+│   ├── pages/           # Vistas de catálogo y calidad
+│   ├── quality/         # Medidores, explorador de tablas, visores geográficos
+│   └── ui/              # Primitivas (Card, Badge, Sheet…)
+├── lib/                 # Lógica compartida — fuente única de cada criterio
+│   ├── quality.ts       # Pesos 40/30/30 y umbrales
+│   ├── availability.ts  # ¿Se puede abrir el archivo? (eje independiente)
+│   ├── metadata-gaps.ts # Huecos de la ficha DCAT y diagnóstico de actualidad
+│   ├── rdf-catalog.ts   # Parser RDF/XML del catálogo DCAT
+│   └── proxy-allow.ts   # Allowlist de dominios del proxy y de la CSP
+└── analysis/            # Python: descarga, validación y puntuación
+    ├── cli.py           # CLI del análisis
+    ├── engine.py        # Motor de descarga y validación
+    ├── formats/         # Un lector por familia de formato
+    └── report.py        # Agregación del informe
 ```
 
-Las rutas `/gis`, `/transparencia`, `/alertas` y `/tendencias` son redirecciones
-a la pestaña correspondiente de `/calidad`, para que los enlaces antiguos sigan
-funcionando. Las vistas anteriores de `/calidad` (`?vista=resumen`, `reparar`,
-`incidencias`, `organismos`) también se mapean a las nuevas en `LEGACY_VISTAS`.
+**Stack:** Next.js 16 (App Router, React 19) · TypeScript · Tailwind CSS 4 · Radix UI · Leaflet · Vitest · Python 3.10+ con Frictionless, openpyxl, pyshp, Pillow e icalendar.
 
-## Dos audiencias
+**Un lector por formato.** En el último análisis se abrieron 16: CSV, XLSX, JSON, SHP, XML, GML, KML, RDF, RSS, iCal, ECW, TXT, WMS, WFS, binarios y sin clasificar.
 
-- **`/catalogo`** es para quien **reutiliza**: buscar un dataset, ver si sus
-  archivos abren y qué estructura tienen antes de invertir tiempo en él.
-- **`/calidad`** es para quien **publica**: qué está roto y qué hay que hacer,
-  ordenado por lo que se recupera al corregirlo. Tres familias de defecto, que
-  son también tres tipos de corrección distintos:
+### Decisiones que conviene conocer
 
-  | Familia | Qué pasa | Dónde |
-  |---|---|---|
-  | Entrega | el fichero no llega o no se puede interpretar | pestaña Ficheros |
-  | Contenido | el fichero abre, pero los datos vienen sucios | pestaña Ficheros |
-  | Metadatos | la ficha DCAT está incompleta o no permite verificar nada | pestaña Metadatos |
-
-  `repair-actions.ts` reduce las tres a un mismo modelo de tarea y las ordena por
-  impacto; los fallos que alcanzan a un formato entero suben primero porque
-  delatan un proceso de publicación y se arreglan de una vez.
-
-## Cómo se mide la calidad
-
-Son dos preguntas distintas y se responden por separado, porque promediarlas
-engaña en las dos direcciones:
-
-- **Disponibilidad** — ¿se descarga y se abre el archivo? Es bloqueante.
-- **Calidad de contenido** — ¿está limpio? Encabezados, tipos, celdas vacías.
-  Solo tiene sentido sobre lo que sí abre.
-
-Un archivo es «no disponible» únicamente si la descarga falla (`fetch.status` de
-`http_error`, `unreachable` o `error`) o si llega y no se puede interpretar
-(algún código de `BLOCKING_ISSUE_CODES`: JSON inválido, ZIP corrupto, shapefile
-incompleto…). **No basta con que `engine.py` le ponga `status: 'error'`**: ese
-estado se activa con cualquier incidencia de severidad error, y «tipos mezclados
-en una columna» es una de ellas. Ese detalle inflaba la disponibilidad del 16%
-real al 35%, porque 328 de las 582 marcadas en error se descargan, se abren y
-devuelven filas. La regla vive en `classifyDelivery` de `src/lib/availability.ts`.
-
-Los servicios (WMS/WFS) tampoco entran por la puerta de la descarga: `engine.py`
-les pone `fetch.status: 'service'` **antes** de consultarlos, porque no hay
-archivo que bajar. Tratarlo como un fallo de descarga daba por rotos los 18
-servicios del catálogo —incluidos los 17 que responden y cuyas capas dibuja la
-vista previa— con el motivo «El servicio de origen no atendió la petición». Un
-servicio se juzga por su `GetCapabilities`: si no responde, el analizador deja
-`servicio-no-disponible`, que ya es un código bloqueante.
-
-La **calidad global** que aparece en cada ficha pondera `40% metadatos +
-30% disponibilidad + 30% contenido`. Los umbrales (≥80 buena, 50–79 mejorable,
-<50 deficiente) viven en un único sitio, `getScoreLevel` de `src/lib/quality.ts`;
-la interfaz, la API y el sello los leen de ahí.
-
-### Actualidad: «no verificable» no es «vencido»
-
-La actualidad pesa un 25% del score de metadatos y se mide contra la periodicidad
-declarada. El problema es la fecha de referencia: **749 de 824 datasets no
-publican `dct:modified`**, así que la única fecha disponible es la de publicación
-y el cálculo los trata como si llevaran siglos sin refrescarse. De los que
-aparecen con retraso, solo 58 lo tienen demostrado (publican `dct:modified` y lo
-han pasado); los otros 670 lo tienen *aparente*.
-
-`diagnoseFreshness` distingue los cinco casos (`al-dia`, `vencido`,
-`no-verificable`, `sin-periodicidad`, `sin-fecha`) para poder decirlo bien en la
-interfaz. **No cambia la puntuación**: son dos acciones distintas —publicar el
-metadato o actualizar el dato— y el portal ahora las presenta separadas.
-
-### Completitud: una sola definición
-
-`findMetadataGaps` (`src/lib/metadata-gaps.ts`) es la única lista de qué campos
-cuentan, y `computeQuality` deriva de ella su 40% de completitud. Calcular la nota
-por un lado y la lista de huecos por otro es exactamente cómo `classifyDelivery`
-llegó a contradecir el criterio que decía aplicar.
-
-## Datos
-
-La fuente primaria es el catálogo RDF/DCAT de [datosabiertos.jcyl.es](https://datosabiertos.jcyl.es). Se descarga y parsea en tiempo de request con revalidación de 1 hora. Si el servicio no responde, se usa una copia local en `src/data/rdf-catalog.rdf`.
+- **Un solo criterio por pregunta.** Cada regla vive en un módulo y todo lo demás lee de ahí. La completitud de metadatos la define `findMetadataGaps` y la nota deriva de ella; la disponibilidad la define `classifyDelivery` y nada la recalcula por su cuenta. Calcular la nota por un lado y la lista de defectos por otro es exactamente cómo el portal llegó a contradecir su propio criterio publicado.
+- **El catálogo se lee en vivo; el análisis es una foto fechada.** Los dos totales no coinciden y el portal lo explica donde aparecen juntos, en vez de dejar que parezca un error de cuentas.
+- **Accesibilidad.** 92 combinaciones de color verificadas AA en claro y en oscuro (`npm run check:contrast`), el color nunca como único portador de estado, navegación completa por teclado y enlace de salto al contenido.
+- **Seguridad.** CSP restrictiva, y el proxy que salta el CORS del visor tiene una allowlist explícita de dominios de la Junta que **no** se deriva del RDF en tiempo de ejecución: si el catálogo cambiara, el proxy no debe ampliarse solo.
 
 ## Despliegue
 
 ```bash
+export NEXT_PUBLIC_SITE_URL=https://cylmetrics.vercel.app
 npm run build
 npm start
 ```
 
-Configura `NEXT_PUBLIC_SITE_URL` con el dominio público: es lo que usan
-`sitemap.xml` y `robots.txt` para construir las URLs absolutas.
+`NEXT_PUBLIC_SITE_URL` es lo que usan `sitemap.xml`, `robots.txt` y las tarjetas Open Graph para construir URLs absolutas.
 
-El análisis se ejecuta **en local** y solo su resultado viaja al despliegue. No
-hay periodicidad establecida: cada informe es una foto fechada, y el portal
-enseña siempre la fecha del que está publicado.
+`reports/current/` es el artefacto de despliegue y **se versiona**: un índice ligero (`index.json`) más un fragmento por archivo (`d/<id>.json`) con todas las posiciones de cada incidencia, el esquema y filas de muestra. El portal enseña siempre una sola foto, la del informe publicado.
 
-```bash
-export NEXT_PUBLIC_SITE_URL=https://mi-dominio.es
-python -m src.analysis --limit 0   # escribe reports/current/
-npm run build
-```
-
-`reports/current/` es el artefacto de despliegue y **se versiona**:
-
-| Fichero | Qué lleva |
-|---|---|
-| `index.json` | Totales, por formato y, por distribución, estado y recuento de cada incidencia |
-| `d/<id>.json` | Todas las posiciones de cada incidencia, el esquema y filas de muestra |
-
-El portal enseña **una sola foto**, la del informe publicado. No hay serie
-histórica: se retiró junto con `reports/history/`, `snapshots.json` y
-`history-index.json`.
-
-### Al desplegar en Vercel
-
-Esos ficheros se leen con `fs` desde rutas que se construyen en tiempo de
-ejecución, así que el rastreador de Next no las ve y hay que declararlas en
-`outputFileTracingIncludes` (`next.config.ts`). Si se tocan las rutas, hay que
-tocar también esa lista: sin ella el informe no viaja al despliegue, `/api/quality`
-responde 503 y el portal se renderiza sin datos. En local no se nota, porque ahí
-los ficheros están en disco.
-
-Las rutas `/api/proxy` y `/api/ogc` declaran `maxDuration`; el valor sale de
-`PLATFORM_MAX_DURATION_S` en `src/lib/download-budget.ts`, que es también de
-donde se deriva el plazo del proxy. 60 s es el máximo del plan Hobby.
+> [!WARNING]
+> Esos ficheros se leen con `fs` desde rutas construidas en tiempo de ejecución, así que el rastreador de Next no las ve y hay que declararlas en `outputFileTracingIncludes` (`next.config.ts`). Sin esa lista el informe no viaja al despliegue, `/api/quality` responde 503 y el portal se renderiza sin datos. En local no se nota.
 
 ## Licencia
 
-Proyecto interno de la Junta de Castilla y León.
+Copyright © 2026 Javier Carpintero
+
+Licensed under the EUPL — ver [`LICENSE`](LICENSE) para el texto completo de la [Licencia Pública de la Unión Europea v. 1.2](https://joinup.ec.europa.eu/collection/eupl/eupl-text-eupl-12), disponible también [en castellano](https://joinup.ec.europa.eu/sites/default/files/custom-page/attachment/eupl_v1.2_es.pdf).
+
+Los **datos** analizados son propiedad de la Junta de Castilla y León y se publican bajo las condiciones de reutilización de su [portal de datos abiertos](https://datosabiertos.jcyl.es). Esta licencia cubre únicamente el código de este repositorio y los resultados del análisis.
+
+## Aviso
+
+CyLMetrics es un **proyecto independiente**. No está desarrollado, mantenido, financiado ni respaldado por la Junta de Castilla y León. Su única relación con la administración es que analiza un catálogo que esta publica abiertamente.
+
+Los pesos y umbrales del índice de calidad son criterio de este proyecto, **no un estándar oficial**, y así se declara en la propia página de metodología.
+
+Propuesta presentada al [X Concurso de Datos Abiertos de Castilla y León](https://datosabiertos.jcyl.es/web/es/concurso-datos-abiertos/concurso-datos-abiertos.html), categoría de Productos y Servicios.
