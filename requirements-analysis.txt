@@ -2,7 +2,7 @@
 # Instalar: python -m venv .venv-analysis && .venv-analysis\Scripts\pip install -r requirements-analysis.txt
 #
 # Comprobar antes de lanzar un análisis:
-#   python -m src.analysis --limit 1 --strict-deps
+#   python -m src.analysis --check-deps
 # Aborta si falta cualquier lector, en vez de generar un informe a medias. Los dos
 # informes generados sin openpyxl (9 de agosto 14:56 y 13 de agosto) archivaron
 # cientos de XLSX como «no analizados», y el segundo llegó a producción.

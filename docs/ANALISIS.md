@@ -56,7 +56,7 @@ perfectamente— vivían justo ahí.
 
 ```bash
 # Comprobar el entorno antes de descargar 23 GB: aborta si falta algún lector
-python -m src.analysis --limit 1 --strict-deps
+python -m src.analysis --check-deps
 
 # Analizar todas las distribuciones
 python -m src.analysis --limit 0

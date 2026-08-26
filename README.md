@@ -113,14 +113,17 @@ El motor de análisis es Python y **se ejecuta en local**: descarga el catálogo
 ```bash
 pip install -r requirements-analysis.txt
 
-python -m src.analysis --limit 1 --strict-deps   # verifica el entorno antes de bajar 23 GB
-python -m src.analysis --limit 0                 # análisis completo
+python -m src.analysis --check-deps               # ¿está el entorno listo? No descarga ni escribe nada
+python -m src.analysis --limit 0                  # análisis completo
 
-python -m pytest src/analysis/tests -q           # 47 tests del analizador
+python -m pytest src/analysis/tests -q            # 48 tests del analizador
 ```
 
 > [!IMPORTANT]
-> Ejecuta siempre `--strict-deps` antes de un análisis largo. Si falta un lector, el informe **no falla**: archiva en silencio como «no analizado» todo lo que no pudo abrir. Ha pasado dos veces, y una llegó a producción con 341 XLSX marcados como ilegibles que estaban perfectos.
+> Ejecuta siempre `--check-deps` antes de un análisis largo. Si falta un lector, el informe **no falla**: archiva en silencio como «no analizado» todo lo que no pudo abrir. Ha pasado dos veces, y una llegó a producción con 341 XLSX marcados como ilegibles que estaban perfectos.
+
+> [!CAUTION]
+> `--output` vale `reports/current` por defecto, que es **el informe que publica el portal**. Cualquier ejecución de prueba tiene que apuntar `--output` a otro sitio, o se lo lleva por delante: analiza lo que le pidas y sobrescribe el informe entero con ese puñado de distribuciones.
 
 Lee **[`docs/ANALISIS.md`](docs/ANALISIS.md)** para el manual completo: opciones del CLI, reanudación desde checkpoint para no volver a descargar 23 GB, formato del informe y los avisos de operación que conviene conocer.
 

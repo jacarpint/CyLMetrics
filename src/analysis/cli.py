@@ -1,10 +1,15 @@
 """CLI del análisis de calidad de datos.
 
 Ejemplos:
+  python -m src.analysis --check-deps                  # ¿está el entorno listo?
   python -m src.analysis --limit 0                     # todas las distribuciones
   python -m src.analysis --limit 25                    # primeras 25
   python -m src.analysis --only-formats CSV,XLSX,SHP   # solo ciertos formatos
   python -m src.analysis --limit 0 --workers 16 --output reports/data-analysis.json
+
+Ojo con `--output`: vale `reports/current` por defecto, que es el informe que
+publica el portal. Cualquier ejecución de prueba debe pasar `--output` a otro
+sitio, o se lo lleva por delante.
 """
 from __future__ import annotations
 
@@ -63,6 +68,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--only-formats", default=None, help="Solo estos formatos (coma, ej: CSV,XLSX)")
     parser.add_argument("--strict-deps", action="store_true",
                         help="Abortar si falta alguna librería de lectura, en vez de avisar y continuar")
+    parser.add_argument("--check-deps", action="store_true",
+                        help="Solo comprobar los lectores del entorno y salir, sin analizar ni escribir nada")
     args = parser.parse_args(argv)
 
     # Antes de descargar 23 GB: comprobar que están los lectores.
@@ -88,10 +95,23 @@ def main(argv: list[str] | None = None) -> int:
             "\n  Se instalan con:  pip install -r requirements-analysis.txt",
             flush=True,
         )
-        if args.strict_deps:
-            print("\n  --strict-deps: se aborta sin analizar nada.", flush=True)
+        if args.strict_deps or args.check_deps:
+            print("\n  Se aborta sin analizar nada.", flush=True)
             return 2
         print("\n  Continuando de todas formas (usa --strict-deps para abortar).\n", flush=True)
+
+    # `--check-deps` termina AQUÍ, antes de tocar el catálogo y, sobre todo, antes
+    # de escribir nada.
+    #
+    # La comprobación previa que documentaban el README y este mismo fichero era
+    # `--limit 1 --strict-deps`, y tiene un efecto que nadie espera de algo que se
+    # presenta como una comprobación: `--output` vale `reports/current` por
+    # defecto, o sea que analiza una distribución y **sobrescribe el informe
+    # publicado con esa única distribución**. El artefacto de despliegue se va al
+    # suelo —de 1.187 fragmentos a 1— y solo se recupera porque está versionado.
+    if args.check_deps:
+        print("Todos los lectores del entorno están disponibles.", flush=True)
+        return 0
 
     # Checkpoint junto al informe: ahora `--output` es un directorio, así que el
     # checkpoint va dentro y no como hermano con otra extensión.
@@ -149,7 +169,11 @@ def main(argv: list[str] | None = None) -> int:
         legacy.write_text(json.dumps(report, ensure_ascii=False), encoding="utf-8")
         print(f"  formato antiguo {legacy} ({legacy.stat().st_size / 1e6:.1f} MB)")
 
-    print("\nSiguiente paso: npm run reports:snapshots (actualiza la pestaña Evolución)")
+    # Aquí se anunciaba «Siguiente paso: npm run reports:snapshots (actualiza la
+    # pestaña Evolución)». Ni el script ni la pestaña existen: se retiraron con la
+    # serie histórica, y el mensaje se quedó mandando a la nada.
+    if out_path.resolve() != DEFAULT_BUNDLE.resolve():
+        print(f"\nEste informe NO es el publicado. Para que lo sea, copia su contenido a {DEFAULT_BUNDLE}.")
     return 0
 
 
