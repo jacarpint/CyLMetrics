@@ -1,4 +1,4 @@
-import { datasetAvailabilityPct } from '@/lib/availability';
+import { datasetAvailabilityPct, datasetContentScore } from '@/lib/availability';
 import type { QualityDatasetSummary } from '@/lib/quality-report';
 
 /**
@@ -62,7 +62,15 @@ export function compositeScore({ metadata, availability, content }: ScoreInputs)
   );
 }
 
-/** Score compuesto de un dataset a partir de su ficha del informe de análisis. */
+/**
+ * Score compuesto de un dataset a partir de su ficha del informe de análisis.
+ *
+ * Los dos ejes que dependen de los archivos se derivan de
+ * `distribution_results` con el criterio de `classifyDelivery`, no del `score`
+ * que trae el informe: ese venía inflado por construcción (ver
+ * `datasetContentScore`) y dejaba el 30% de contenido valiendo entre 95 y 100
+ * para todos los conjuntos, así que no separaba a nadie de nadie.
+ */
 export function scoreForDataset(
   metadataScore: number | null,
   reportDataset: QualityDatasetSummary | null | undefined
@@ -70,7 +78,7 @@ export function scoreForDataset(
   return compositeScore({
     metadata: metadataScore,
     availability: datasetAvailabilityPct(reportDataset),
-    content: reportDataset?.score ?? null,
+    content: datasetContentScore(reportDataset),
   });
 }
 

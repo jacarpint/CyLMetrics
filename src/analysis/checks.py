@@ -41,6 +41,41 @@ PUBLICATION_DEFECT_CODES = frozenset({
     "no-es-imagen",
 })
 
+#: Códigos con los que el archivo directamente no se puede abrir.
+#:
+#: Un JSON inválido, un ZIP corrupto, un shapefile al que le faltan piezas: no hay
+#: contenido que medir, así que su nota NO puede entrar en la media de calidad de
+#: contenido del conjunto de datos. Es distinto de «abre pero viene sucio», que sí
+#: entra y es lo que ese eje mide.
+#:
+#: Tiene que decir lo mismo que `BLOCKING_ISSUE_CODES` en `src/lib/alerts.ts`, que
+#: es donde lo consume `classifyDelivery`; el test de paridad compara las dos.
+BLOCKING_ISSUE_CODES = frozenset({
+    "descarga",
+    "error-fuente",
+    "no-es-archivo",
+    "archivo-vacio",
+    "servicio-no-disponible",
+    "servicio-error",
+    "no-es-imagen",
+    "formato-no-esperado",
+    "json-invalido",
+    "xml-no-bien-formado",
+    "xlsx-invalido",
+    "zip-invalido",
+    "tipo-no-identificado",
+    "error-validacion",
+    "error-esquema",
+    "ical-invalido",
+    "firma-invalida",
+    "geojson-invalido",
+    "raiz-invalida",
+    "imagen-corrupta",
+    "shp-faltante",
+    "zip-extraccion",
+    "shp-lectura",
+})
+
 
 def missing_dependency_issue(package: str) -> dict:
     """

@@ -339,14 +339,71 @@ export function summarizeContent(report: QualityReport | null): ContentSummary {
   let sum = 0;
   for (const ds of report.datasets) {
     for (const dist of ds.distribution_results) {
-      if (classifyDelivery(dist) !== 'ok') continue;
-      const score = dist.analysis?.score;
-      if (typeof score !== 'number') continue;
+      const score = readableScore(dist);
+      if (score === null) continue;
       scored++;
       sum += score;
     }
   }
   return { scored, avgScore: roundedMean(sum, scored) };
+}
+
+/**
+ * La nota de contenido de una distribución que SÍ se puede abrir, o null.
+ *
+ * Es el predicado único de la calidad de contenido, y lo comparten la media
+ * global (`summarizeContent`) y la de cada conjunto de datos
+ * (`datasetContentScore`). Estaba escrito solo dentro de `summarizeContent`, así
+ * que la media del dataset se calculaba en otro sitio y con otro criterio: ver
+ * el comentario de `datasetContentScore`.
+ *
+ * No hace falta descartar aquí las limitaciones del portal —el `openpyxl` que
+ * falta, el analizador que se rompe— porque `classifyDelivery` ya las devuelve
+ * como `no-analizado` y nunca como `ok`. Esa es justamente la ventaja de
+ * derivar de `classifyDelivery` en lugar de mirar `dist.status`.
+ */
+function readableScore(dist: DistributionResult): number | null {
+  if (classifyDelivery(dist) !== 'ok') return null;
+  const score = dist.analysis?.score;
+  return typeof score === 'number' ? score : null;
+}
+
+/**
+ * Calidad de contenido de un conjunto de datos: media de sus archivos legibles.
+ *
+ * Gemelo de `datasetAvailabilityPct`, y por el mismo motivo. El valor que traía
+ * el informe (`QualityDatasetSummary.score`) lo calcula `aggregate()` en
+ * `report.py` promediando **solo las distribuciones con `status == 'ok'`**, y
+ * `engine.py` pone `status: 'error'` ante cualquier incidencia de severidad
+ * error —«tipos mezclados en una columna» es una de ellas—. El resultado es que
+ * toda distribución con contenido regular quedaba fuera de su propia media: de
+ * las 1.478 con nota, 533 se descartaban, y **entre ellas todas las que puntúan
+ * por debajo de 80**. Los 430 conjuntos con nota salían entre 95 y 100, y el
+ * eje de contenido —el 30% del índice compuesto— no distinguía nada.
+ *
+ * Es el mismo error que `classifyDelivery` corrigió para el eje de entrega
+ * («no basta con que `engine.py` le ponga `status: 'error'`»), que había
+ * sobrevivido intacto un nivel más arriba, en la agregación por conjunto.
+ *
+ * Devuelve null si no queda ningún archivo legible que medir. Eso NO es un
+ * cero: `compositeScore` decide qué hacer con la ausencia, y lo cuenta como
+ * cero solo cuando el conjunto sí se llegó a comprobar.
+ */
+export function datasetContentScore(
+  ds: Pick<QualityDatasetSummary, 'distribution_results'> | null | undefined
+): number | null {
+  if (!ds) return null;
+  let scored = 0;
+  let sum = 0;
+  for (const dist of ds.distribution_results) {
+    const score = readableScore(dist);
+    if (score === null) continue;
+    scored++;
+    sum += score;
+  }
+  // Redondeo a entero, como venía haciendo `report.py`: es una nota que se
+  // pinta en un círculo, no una media que se vuelva a promediar.
+  return scored === 0 ? null : Math.round(sum / scored);
 }
 
 /** Media a un decimal, o null si no hay nada que promediar. */

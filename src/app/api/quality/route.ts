@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getQualityReport, matchDistributions } from "@/lib/quality-report";
 import { getCatalog } from "@/lib/rdf-catalog";
-import { classifyDelivery, summarizeDelivery } from "@/lib/availability";
+import {
+  classifyDelivery,
+  datasetContentScore,
+  summarizeContent,
+  summarizeDelivery,
+} from "@/lib/availability";
 import { getScoreLevel } from "@/lib/quality";
 import { distributionSlugs, resolveDistributionIndex } from "@/lib/distribution-slug";
 import { datasetSlug } from "@/lib/utils";
@@ -78,7 +83,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       dataset_id: ds.dataset_id,
       title: ds.dataset_title,
-      score: ds.score,
+      // Calculado con `classifyDelivery`, no leído del informe: el valor que
+      // trae `report.py` excluye de su propia media toda distribución que el
+      // analizador marcó en error, y eso es cualquiera con contenido regular.
+      score: datasetContentScore(ds),
       issues_by_code: ds.issues_by_code,
       distributions: ds.distributions,
       analyzed: ds.analyzed,
@@ -99,7 +107,7 @@ export async function GET(request: NextRequest) {
       const pub = publisherBySlug.get(datasetSlug(d.dataset_id));
       return !!pub && pub.toLowerCase().includes(needle);
     });
-    const scores = pds.map((d) => d.score).filter((s): s is number => s != null);
+    const scores = pds.map(datasetContentScore).filter((s): s is number => s != null);
     return NextResponse.json({
       publisher,
       dataset_count: pds.length,
@@ -108,7 +116,7 @@ export async function GET(request: NextRequest) {
         id: d.dataset_id,
         title: d.dataset_title,
         publisher: publisherBySlug.get(datasetSlug(d.dataset_id)) ?? null,
-        score: d.score,
+        score: datasetContentScore(d),
       })),
     }, { headers: cacheHeaders });
   }
@@ -120,16 +128,42 @@ export async function GET(request: NextRequest) {
    * mejorable, <50 deficiente), no con una escala propia de 80/60/40 que no
    * coincidía con ninguna otra parte. Y los datasets sin puntuación se cuentan:
    * antes no caían en ningún cubo, así que la suma daba 436 de 824 sin decirlo.
+   *
+   * La nota sale de `datasetContentScore` y no del informe. Con la del informe
+   * este reparto era inservible: `fair` y `poor` valían 0 **siempre**, porque
+   * `report.py` excluye de la media de cada conjunto toda distribución que no
+   * tenga `status == 'ok'` y ahí caen todas las que puntúan por debajo de 80.
+   * Se publicaban unos umbrales («50-79», «< 50») que describían cubos
+   * imposibles de llenar, y 392 conjuntos figuraban como «sin archivo legible»
+   * cuando 304 de ellos sí tenían contenido medido.
    */
   const levels = { good: 0, fair: 0, poor: 0, unscored: 0 };
+  const LEVEL_BUCKET = { ok: 'good', warn: 'fair', bad: 'poor' } as const;
   for (const ds of report.datasets) {
-    if (ds.score == null) levels.unscored++;
-    else levels[getScoreLevel(ds.score) === 'ok' ? 'good' : getScoreLevel(ds.score) === 'warn' ? 'fair' : 'poor']++;
+    const score = datasetContentScore(ds);
+    if (score == null) levels.unscored++;
+    else levels[LEVEL_BUCKET[getScoreLevel(score)]]++;
   }
+
+  const content = summarizeContent(report);
 
   return NextResponse.json({
     generated_at: report.generated_at,
-    totals: report.totals,
+    totals: {
+      ...report.totals,
+      /**
+       * Derivada, no la del informe. `report.totals.avg_score` promediaba toda
+       * nota no nula —incluidas las de archivos que no abren— y daba 79,9
+       * mientras la portada publicaba 90,3 para lo que dice ser lo mismo: la
+       * calidad media del contenido legible. Dos cifras del mismo hecho, las dos
+       * públicas. Los informes generados desde la corrección de `report.py` ya
+       * traen aquí el valor bueno; esto lo garantiza también para el que esté
+       * publicado ahora.
+       */
+      avg_score: content.avgScore,
+      /** Denominador de esa media: los archivos que abren y tienen qué medir. */
+      scored: content.scored,
+    },
     dataset_count: report.datasets.length,
     // Disponibilidad aparte del score: son dos preguntas distintas y
     // promediarlas escondía que un tercio de los ficheros no abre.

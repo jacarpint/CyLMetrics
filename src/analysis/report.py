@@ -4,7 +4,56 @@ from __future__ import annotations
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
 
+from .checks import (
+    BLOCKING_ISSUE_CODES,
+    PORTAL_LIMITATION_CODES,
+    PUBLICATION_DEFECT_CODES,
+)
+
 STATUS_LABEL = {"ok": "ok", "error": "error", "skipped": "skipped"}
+
+#: Estados de descarga en los que el archivo llegó (o no había nada que bajar).
+#:
+#: `service` está dentro a propósito: un WMS/WFS no descarga bytes y su análisis
+#: sale de las capacidades, así que juzgarlo por la descarga lo daría por roto.
+_DELIVERED_FETCH = frozenset({"downloaded", "truncated", "service"})
+
+#: Todo lo que impide que haya contenido legible que medir.
+_UNREADABLE_CODES = BLOCKING_ISSUE_CODES | PORTAL_LIMITATION_CODES | PUBLICATION_DEFECT_CODES
+
+
+def content_score(result: dict) -> float | None:
+    """
+    La nota de contenido de una distribución que SÍ se abre, o None.
+
+    Es el criterio que decide qué entra en la media de un conjunto de datos, y
+    replica el de `classifyDelivery` en `src/lib/availability.ts`, que es donde
+    vive la definición canónica.
+
+    Antes esta media se calculaba con `r["status"] == "ok"` a secas, y ahí estaba
+    el fallo: `engine.py` pone `status: "error"` ante CUALQUIER incidencia de
+    severidad error, y «tipos mezclados en una columna» es una de ellas. O sea
+    que toda distribución con el contenido regular quedaba fuera de la media que
+    precisamente mide cómo de regular es el contenido.
+
+    El efecto sobre el informe del 14 de agosto: de las 1.478 distribuciones con
+    nota, 533 se descartaban, y entre ellas **todas** las que puntúan por debajo
+    de 80. Los 430 conjuntos con nota salían entre 95 y 100, así que el eje no
+    separaba a nadie de nadie. Es el mismo error que `classifyDelivery` ya había
+    corregido para el eje de disponibilidad, un nivel más abajo.
+    """
+    analysis = result.get("analysis")
+    if not analysis:
+        return None
+    score = analysis.get("score")
+    if score is None:
+        return None
+    if (result.get("fetch") or {}).get("status") not in _DELIVERED_FETCH:
+        return None
+    codes = {i.get("code") for i in analysis.get("issues", [])}
+    if codes & _UNREADABLE_CODES:
+        return None
+    return score
 
 
 def aggregate(results: list[dict]) -> dict:
@@ -52,10 +101,14 @@ def aggregate(results: list[dict]) -> dict:
         ds = by_dataset[key]
         ds["distributions"] += 1
         ds["distribution_results"].append(r)
+        # La nota entra si el archivo ABRE, no si el analizador lo dio por bueno:
+        # son dos preguntas distintas y `content_score` explica por qué mezclarlas
+        # dejaba la media sin ninguna nota por debajo de 80.
+        score = content_score(r)
+        if score is not None:
+            ds["scores"].append(score)
         if r["status"] == "ok":
             ds["analyzed"] += 1
-            if r["analysis"] and r["analysis"].get("score") is not None:
-                ds["scores"].append(r["analysis"]["score"])
         elif r["status"] == "skipped":
             ds["skipped"] += 1
         else:
@@ -95,9 +148,15 @@ def aggregate(results: list[dict]) -> dict:
         size = fetch.get("size") or 0
         stat["bytes"] += size
         totals["bytes"] += size
-        if r["analysis"] and r["analysis"].get("score") is not None:
-            stat["scores"].append(r["analysis"]["score"])
-            totals["scores"].append(r["analysis"]["score"])
+        # Mismo criterio que la media por conjunto de datos. Antes esto promediaba
+        # toda nota no nula, así que `totals.avg_score` (79,9) contradecía al
+        # 90,3 % que publica la portada, que sí mide solo lo que abre; y
+        # `by_format` daba «XLSX: 0» a partir de 341 ceros que no medían ningún
+        # Excel, sino que no teníamos openpyxl instalado.
+        fmt_score = content_score(r)
+        if fmt_score is not None:
+            stat["scores"].append(fmt_score)
+            totals["scores"].append(fmt_score)
         if r["analysis"] and r["analysis"].get("issues"):
             for issue in r["analysis"]["issues"]:
                 stat["issues"][issue["code"]] += issue.get("count", 1)

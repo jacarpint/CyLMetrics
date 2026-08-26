@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getQualityReport } from "@/lib/quality-report";
 import { getCatalog } from "@/lib/rdf-catalog";
 import { buildAlerts, isBlockingCode } from "@/lib/alerts";
+import { datasetContentScore } from "@/lib/availability";
 import { categoryLabel, issueCategory, issueLabel, type IssueCategory } from "@/lib/quality-labels";
 import { datasetSlug } from "@/lib/utils";
 import { scoreForDataset } from "@/lib/quality";
@@ -29,10 +30,15 @@ export async function GET(request: NextRequest) {
   );
 
   // El score expuesto es el compuesto (metadatos + disponibilidad + contenido),
-  // el mismo que ve el usuario en el portal.
-  const alerts = buildAlerts(report, (ds) =>
-    scoreForDataset(metadataBySlug.get(datasetSlug(ds.dataset_id)) ?? null, ds)
-  )
+  // el mismo que ve el usuario en el portal. El nivel, en cambio, lo decide la
+  // calidad de contenido, derivada con `classifyDelivery` y no leída del
+  // informe: la del informe nunca baja de 95, así que «contenido por debajo de
+  // 50» jamás marcaba una alerta como crítica.
+  const alerts = buildAlerts(report, {
+    contentScore: datasetContentScore,
+    resolveScore: (ds) =>
+      scoreForDataset(metadataBySlug.get(datasetSlug(ds.dataset_id)) ?? null, ds),
+  })
     .filter((a) => (level ? a.level === level : true))
     .filter((a) => (category ? a.causes.some((c) => issueCategory(c.code) === category) : true));
 

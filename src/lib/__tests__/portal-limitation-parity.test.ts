@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import { ISSUE_LABELS, PORTAL_LIMITATION_CODES } from '@/lib/quality-labels';
+import { BLOCKING_ISSUE_CODES } from '@/lib/alerts';
 
 /**
  * Las listas que tienen que decir lo mismo a los dos lados.
@@ -72,6 +73,50 @@ describe('paridad de PORTAL_LIMITATION_CODES entre Python y TypeScript', () => {
     expect(PORTAL_LIMITATION_CODES.has('no-es-archivo')).toBe(false);
     expect(PORTAL_LIMITATION_CODES.has('no-es-imagen')).toBe(false);
     expect(PORTAL_LIMITATION_CODES.has('descarga')).toBe(false);
+  });
+});
+
+/**
+ * El tercer conjunto que cruza la frontera.
+ *
+ * `report.py` lo necesita para no meter en la media de calidad de contenido los
+ * archivos que ni siquiera abren: un JSON inválido no tiene contenido que medir
+ * y su cero pertenece al eje de disponibilidad. Mientras no lo tuvo, la media de
+ * cada conjunto se calculaba con `status == 'ok'` a secas y descartaba de paso
+ * TODAS las notas por debajo de 80.
+ */
+describe('paridad de BLOCKING_ISSUE_CODES entre Python y TypeScript', () => {
+  it('las dos listas contienen exactamente los mismos códigos', () => {
+    const fromPython = pythonStrings(CHECKS_PY, 'BLOCKING_ISSUE_CODES');
+    expect(fromPython.sort()).toEqual([...BLOCKING_ISSUE_CODES].sort());
+  });
+
+  it('todos tienen etiqueta en español', () => {
+    for (const code of BLOCKING_ISSUE_CODES) {
+      expect(ISSUE_LABELS[code], code).toBeTruthy();
+    }
+  });
+
+  /**
+   * Los dos defectos de publicación sí están aquí, y no es una contradicción con
+   * el test de arriba: que la URL devuelva una página web no es una limitación
+   * NUESTRA (por eso no está en `PORTAL_LIMITATION_CODES`), pero desde luego
+   * impide abrir el archivo, así que su nota tampoco puede entrar en la media.
+   */
+  it('incluye los defectos de publicación, que también impiden abrir', () => {
+    expect(BLOCKING_ISSUE_CODES.has('no-es-archivo')).toBe(true);
+    expect(BLOCKING_ISSUE_CODES.has('no-es-imagen')).toBe(true);
+  });
+
+  /**
+   * Un problema de contenido no puede colarse aquí: si «tipos mezclados en una
+   * columna» pasara a ser bloqueante, el archivo saldría de la media de
+   * contenido y volveríamos justo al fallo que esto corrige.
+   */
+  it('no incluye incidencias de contenido, que sí se miden', () => {
+    for (const code of ['error-tipo', 'celda-faltante', 'encabezado-vacio', 'fila-duplicada']) {
+      expect(BLOCKING_ISSUE_CODES.has(code), code).toBe(false);
+    }
   });
 });
 

@@ -42,8 +42,16 @@ export interface DatasetAlert {
   totalDistributions: number;
 }
 
-/** Códigos que inutilizan el recurso (disponibilidad o conformidad de formato). */
-const BLOCKING_ISSUE_CODES = new Set<string>([
+/**
+ * Códigos que inutilizan el recurso (disponibilidad o conformidad de formato).
+ *
+ * Se exporta porque `report.py` necesita el mismo conjunto para no meter en la
+ * media de contenido de un conjunto de datos los archivos que no llegan a
+ * abrirse. Allí está copiado como `BLOCKING_ISSUE_CODES` en `checks.py`, igual
+ * que ya lo estaban `PORTAL_LIMITATION_CODES` y `PUBLICATION_DEFECT_CODES`, y
+ * `portal-limitation-parity.test.ts` comprueba que las dos listas coincidan.
+ */
+export const BLOCKING_ISSUE_CODES = new Set<string>([
   'descarga',
   'error-fuente',
   'no-es-archivo',
@@ -99,7 +107,21 @@ export function isBlockingCode(code: string): boolean {
  * Clasifica un dataset del informe en una alerta accionable, o null si solo
  * tiene incidencias menores (celdas vacías esporádicas) o ninguna.
  */
-export function classifyDataset(ds: QualityDatasetSummary): DatasetAlert | null {
+export function classifyDataset(
+  ds: QualityDatasetSummary,
+  /**
+   * Nota de contenido con la que se decide el nivel y que se publica en la
+   * alerta. Por defecto la del informe, que viene inflada por construcción (ver
+   * `datasetContentScore` en `availability`): `report.py` promedia solo las
+   * distribuciones con `status == 'ok'`, así que ninguna baja de 95 y la
+   * condición «contenido por debajo de 50» no se cumplía nunca. Con ella, el
+   * nivel crítico lo decidía en la práctica solo `hasBlocking`.
+   *
+   * Se inyecta en vez de importarse porque `availability` ya importa
+   * `isBlockingCode` de este módulo, y al revés sería un ciclo.
+   */
+  contentScore: number | null = ds.score
+): DatasetAlert | null {
   const causes: AlertCause[] = [];
   let hasBlocking = false;
   let hasContent = false;
@@ -120,7 +142,7 @@ export function classifyDataset(ds: QualityDatasetSummary): DatasetAlert | null 
   if (!hasBlocking && !hasContent) return null;
 
   const level: AlertLevel =
-    hasBlocking || (ds.score != null && ds.score < 50) ? 'critical' : 'warning';
+    hasBlocking || (contentScore != null && contentScore < 50) ? 'critical' : 'warning';
 
   causes.sort(
     (a, b) =>
@@ -130,7 +152,7 @@ export function classifyDataset(ds: QualityDatasetSummary): DatasetAlert | null 
   return {
     datasetId: ds.dataset_id,
     title: ds.dataset_title,
-    score: ds.score,
+    score: contentScore,
     level,
     causes,
     failedDistributions: ds.failed,
@@ -141,19 +163,28 @@ export function classifyDataset(ds: QualityDatasetSummary): DatasetAlert | null 
 /**
  * Construye la lista de alertas, de peor puntuación a mejor.
  *
- * `resolveScore` permite sustituir la puntuación de contenido del informe por la
- * compuesta, que es la que ve el usuario en el resto del portal. El nivel
- * (crítico / advertencia) no depende de ella: lo decide si hay una incidencia
- * bloqueante o si el contenido baja de 50, como hasta ahora.
+ * Las dos notas que intervienen son distintas y por eso se inyectan por
+ * separado:
+ *
+ * - `contentScore` es la calidad de contenido, y es la que decide el nivel
+ *   (crítico si hay una incidencia bloqueante o si baja de 50). Pásale
+ *   `datasetContentScore`; sin ella se usa la del informe, que viene inflada.
+ * - `resolveScore` sustituye la nota que se PUBLICA en la alerta por la
+ *   compuesta, que es la que ve el usuario en el resto del portal. No afecta al
+ *   nivel.
  */
 export function buildAlerts(
   report: QualityReport | null,
-  resolveScore?: (ds: QualityDatasetSummary) => number | null
+  options: {
+    contentScore?: (ds: QualityDatasetSummary) => number | null;
+    resolveScore?: (ds: QualityDatasetSummary) => number | null;
+  } = {}
 ): DatasetAlert[] {
   if (!report) return [];
+  const { contentScore, resolveScore } = options;
   const alerts: DatasetAlert[] = [];
   for (const ds of report.datasets) {
-    const alert = classifyDataset(ds);
+    const alert = classifyDataset(ds, contentScore ? contentScore(ds) : ds.score);
     if (!alert) continue;
     if (resolveScore) alert.score = resolveScore(ds);
     alerts.push(alert);

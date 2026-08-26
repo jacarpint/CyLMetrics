@@ -22,6 +22,7 @@ export type { DistributionVolume, VolumeMetric } from './quality-labels';
 import { distributionVolume } from './quality-labels';
 import {
   datasetAvailabilityPct,
+  datasetContentScore,
   formatStates,
   type FormatState,
 } from './availability';
@@ -166,6 +167,18 @@ export interface QualityDatasetSummary {
   scores: number[];
   distribution_results: DistributionResult[];
   issues_by_code: Record<string, number>;
+  /**
+   * Nota de contenido tal y como la escribió el analizador.
+   *
+   * @deprecated No la leas: usa `datasetContentScore(ds)` de `availability`.
+   * `aggregate()` promedia solo las distribuciones con `status == 'ok'`, y
+   * `engine.py` marca `status: 'error'` ante cualquier incidencia de severidad
+   * error, así que toda distribución con contenido regular queda fuera de su
+   * propia media y ninguna nota baja de 95. Los informes generados a partir de
+   * la corrección de `report.py` ya traen aquí el valor bueno, pero el portal lo
+   * deriva igualmente para no depender de con qué versión se generó el informe
+   * que esté publicado.
+   */
   score: number | null;
   coverage_pct: number;
 }
@@ -567,7 +580,9 @@ export function toDatasetLite(ds: QualityDatasetSummary): QualityDatasetLite {
     analyzed: ds.analyzed,
     failed: ds.failed,
     skipped: ds.skipped,
-    score: ds.score,
+    // Derivada, no la del informe: ver `datasetContentScore`. Es el mismo
+    // criterio que aplican `availability_pct` y `format_states` aquí al lado.
+    score: datasetContentScore(ds),
     coverage_pct: ds.coverage_pct,
     issues_by_code: ds.issues_by_code,
     status,
