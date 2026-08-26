@@ -503,15 +503,49 @@ export function TableExplorer({
                             }
                           : undefined
                       }
-                      aria-selected={onSelectRow ? isSelected : undefined}
                       className={cn(
                         'border-b border-border last:border-0',
                         onSelectRow && 'cursor-pointer',
                         isSelected ? 'bg-warn-surface' : isOccurrenceRow ? 'bg-fill' : 'hover:bg-fill'
                       )}
                     >
-                      <td className={cn('px-2.5 py-1.5 tabular-nums', isSelected ? 'font-semibold text-warn' : 'text-faint')}>
-                        {(index + 1).toLocaleString('es-ES')}
+                      {/* La celda del número es también el control de selección.
+                          Aquí había un `aria-selected` en el `<tr>` y un `onClick`
+                          suelto, o sea dos problemas: `aria-selected` no es válido
+                          en una fila de una tabla normal (solo en `grid` o
+                          `treegrid`, y esto no lo es porque es una tabla de datos
+                          que se lee, no una rejilla que se recorre), y sobre todo
+                          la selección NO se podía hacer con el teclado.
+                          Importa más de lo que parece: seleccionar es lo que
+                          empareja una entidad del mapa con su fila, y la otra vía
+                          —pulsar en el mapa— tampoco vale, porque las capas
+                          vectoriales de Leaflet no son enfocables. Sin esto, quien
+                          navega con teclado no tenía ninguna forma de usar la
+                          función.
+                          Con un `<button>` real sale gratis: foco, Enter y Espacio
+                          los trae el navegador, y `aria-pressed` es exactamente lo
+                          que describe un control de dos estados. */}
+                      <td className={cn('p-0 tabular-nums', isSelected ? 'font-semibold text-warn' : 'text-faint')}>
+                        {onSelectRow ? (
+                          <button
+                            type="button"
+                            aria-pressed={isSelected}
+                            aria-label={`${capitalize(words.row)} ${(index + 1).toLocaleString('es-ES')}`}
+                            onClick={(event) => {
+                              // La fila entera también responde al ratón, así que
+                              // sin esto un clic en el botón alternaría dos veces
+                              // y se quedaría como estaba.
+                              event.stopPropagation();
+                              selectedFromTable.current = true;
+                              onSelectRow(isSelected ? null : index);
+                            }}
+                            className="w-full px-2.5 py-1.5 text-left underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                          >
+                            {(index + 1).toLocaleString('es-ES')}
+                          </button>
+                        ) : (
+                          <span className="block px-2.5 py-1.5">{(index + 1).toLocaleString('es-ES')}</span>
+                        )}
                       </td>
                       {header.map((_, ci) => {
                         const value = row[ci];
