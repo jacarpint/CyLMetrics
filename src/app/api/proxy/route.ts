@@ -61,6 +61,69 @@ function jsonError(status: number, error: string, reason: string): Response {
   });
 }
 
+/** Saltos máximos al seguir redirecciones. Cinco es de sobra para un fichero. */
+const MAX_REDIRECTS = 5;
+
+/** Los códigos que piden ir a otro sitio. */
+const REDIRECT_STATUS = new Set([301, 302, 303, 307, 308]);
+
+/**
+ * Sigue las redirecciones comprobando la allowlist ANTES de cada salto.
+ *
+ * Con `redirect: "follow"` la comprobación llegaba tarde: para cuando se miraba
+ * `response.url`, la petición al destino ya se había hecho desde el servidor. Un
+ * `Location` a `169.254.169.254` o a un servicio interno se pedía igual, y lo
+ * único que impedía la allowlist era devolver el cuerpo. El cuerpo es lo de
+ * menos: la petición en sí ya es la vulnerabilidad, porque puede alcanzar cosas
+ * a las que solo llega el servidor, y el tiempo de respuesta las delata.
+ *
+ * Hace falta un `Location` malicioso o mal configurado en un dominio permitido
+ * para llegar aquí, así que el riesgo era bajo; pero cerrar la puerta cuesta
+ * esto y una lista de saltos.
+ *
+ * `redirect: "manual"` en Node devuelve la respuesta 3xx con sus cabeceras
+ * legibles —a diferencia del navegador, que la deja opaca—, así que el
+ * `Location` se puede leer y validar antes de pedir nada.
+ */
+export async function followUpstream(
+  url: string,
+  method: "GET" | "HEAD",
+  headers: Record<string, string>,
+  signal: AbortSignal
+): Promise<{ response: Response } | { error: Response }> {
+  let current = url;
+
+  for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+    const response = await fetch(current, { method, signal, headers, redirect: "manual" });
+    if (!REDIRECT_STATUS.has(response.status)) return { response };
+
+    const location = response.headers.get("location");
+    // Un 3xx sin `Location` no lleva a ninguna parte: se devuelve tal cual y que
+    // lo cuente el estado de origen.
+    if (!location) return { response };
+
+    // El cuerpo de un 3xx no interesa, pero hay que cerrarlo o la conexión se
+    // queda colgando hasta que la recoja el recolector.
+    void response.body?.cancel().catch(() => {});
+
+    let next: string;
+    try {
+      // Un `Location` relativo es legal y se resuelve contra el salto actual.
+      next = new URL(location, current).toString();
+    } catch {
+      return { error: jsonError(502, "El recurso redirige a una dirección ilegible", "redirect-invalido") };
+    }
+    if (!isAllowedHost(next)) {
+      return {
+        error: jsonError(400, "El recurso redirige fuera de los dominios permitidos", "redirect-fuera-de-dominio"),
+      };
+    }
+    current = next;
+  }
+
+  return { error: jsonError(502, `El recurso encadena más de ${MAX_REDIRECTS} redirecciones`, "demasiados-redirects") };
+}
+
 /**
  * Petición al origen con el plazo del proxy. Devuelve la respuesta o el motivo
  * del fallo, distinguiendo el vencimiento de todo lo demás: hasta ahora un
@@ -82,12 +145,15 @@ async function fetchUpstream(
   if (range) headers.range = range;
 
   try {
-    const response = await fetch(url, { method, signal: controller.signal, headers, redirect: "follow" });
-    // La allowlist también tiene que valer para el destino de los redirects.
-    if (!isAllowedResponse(response, url)) {
+    const result = await followUpstream(url, method, headers, controller.signal);
+    if ("error" in result) return result;
+    // Última comprobación sobre la URL final. Con los saltos ya validados uno a
+    // uno es redundante, y se queda: cuesta nada y cubre el día que alguien
+    // vuelva a tocar el bucle de arriba.
+    if (!isAllowedResponse(result.response, url)) {
       return { error: jsonError(400, "El recurso redirige fuera de los dominios permitidos", "redirect-fuera-de-dominio") };
     }
-    return { response };
+    return result;
   } catch (err) {
     if (err instanceof Error && err.name === "AbortError") {
       return {
