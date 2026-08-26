@@ -24,6 +24,34 @@ El entorno de Python no es opcional si vas a ejecutar el análisis: sin sus lect
 el informe sale a medias y **no falla**, solo archiva como «no analizado» todo lo
 que no ha podido abrir.
 
+> [!TIP]
+> **Si el repositorio está en OneDrive, crea el entorno fuera de la carpeta
+> sincronizada.** Un venv con `frictionless` son unos 3.000 ficheros, y el
+> cliente de sincronización los va a copiar todos y a mantenerlos abiertos
+> mientras `pytest` los lee. Es el mismo problema que el checkpoint (ver abajo),
+> y se evita igual:
+>
+> ```bash
+> python -m venv %LOCALAPPDATA%\venvs\cylmetrics
+> %LOCALAPPDATA%\venvs\cylmetrics\Scripts\python -m pip install -r requirements-analysis.txt
+> ```
+>
+> El intérprete funciona igual desde la raíz del repositorio; `.venv-analysis`
+> está en `.gitignore` para quien no tenga este problema.
+
+## Tests
+
+```bash
+python -m pytest src/analysis/tests -q     # 47 tests
+```
+
+Cubren los analizadores de cada formato del catálogo, la agregación del informe
+(`test_report.py`) y el descargador (`test_downloader.py`). Los dos últimos son
+recientes: esos módulos no tenían ni un test, y los dos fallos más serios que ha
+tenido el proyecto —la nota de contenido que descartaba todo lo que puntuaba por
+debajo de 80, y los diez CSV acusados de no descargarse cuando se descargan
+perfectamente— vivían justo ahí.
+
 ## Ejecutar
 
 ```bash
