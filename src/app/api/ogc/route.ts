@@ -93,7 +93,31 @@ function normalizeEndpoint(rawUrl: string, fallback: string): string {
   }
 }
 
-type Fetched = { text: string; finalUrl: string; ok: boolean };
+/**
+ * El endpoint que declara el servicio, pero solo si apunta a donde debe.
+ *
+ * `getMapUrl` sale del `<OnlineResource xlink:href>` del propio documento de
+ * capacidades, o sea de contenido remoto, y viaja hasta el navegador: `geo-preview-map`
+ * se lo pasa a `L.tileLayer.wms()` y `legendUrls` construye con él el `<img>` de
+ * la leyenda. Salía sin comprobar contra la allowlist.
+ *
+ * El caso probable no es un ataque, es una mala configuración muy común: un
+ * GeoServer detrás de un proxy inverso que publica su href interno
+ * (`http://localhost:8080/geoserver/ows`). Entonces el navegador de quien visita
+ * el portal pide las teselas a SU PROPIO localhost. La CSP lo bloquea —`img-src`
+ * solo admite los dominios de la Junta y los de las teselas—, así que el mapa
+ * falla sin decir por qué en vez de dibujarse contra el endpoint bueno.
+ *
+ * Ante un href que no pasa la allowlist se usa la URL final de la que se
+ * descargaron las capacidades, que sí está comprobada y es, casi siempre, el
+ * mismo `…/ows` que el servicio quería anunciar.
+ */
+export function safeEndpoint(href: string, finalUrl: string): string {
+  const endpoint = normalizeEndpoint(href, finalUrl);
+  return isAllowedHost(endpoint) ? endpoint : normalizeEndpoint(finalUrl, finalUrl);
+}
+
+type Fetched = { text: string; finalUrl: string; ok: boolean; truncated: boolean };
 
 /**
  * Descarga texto conservando SIEMPRE la URL final tras los redirects, incluso
@@ -106,32 +130,46 @@ type Fetched = { text: string; finalUrl: string; ok: boolean };
  * capacidades.
  */
 /**
- * Lee el cuerpo sin pasar de `OGC_MAX_BYTES`.
+ * Lee el cuerpo sin pasar de `OGC_MAX_BYTES`, y avisa si tuvo que cortar.
  *
  * `res.text()` no tenía ningún tope, a diferencia del proxy. Un
  * `GetCapabilities` de un servicio con miles de capas son decenas de MB de XML
  * que se acumulaban enteros y acto seguido pasaban a `fast-xml-parser`, que
- * construye un árbol de varias veces ese tamaño. Aquí se corta antes de llegar
- * a eso; el parser solo necesita las primeras capas para responder.
+ * construye un árbol de varias veces ese tamaño.
+ *
+ * Aquí decía que «el parser solo necesita las primeras capas para responder», y
+ * es falso: `fast-xml-parser` exige un documento bien formado y un XML cortado a
+ * la mitad lo hace lanzar («Closing Tag is not closed»). O sea que el tope no
+ * degrada la respuesta, la anula. Por eso se devuelve el aviso: un documento que
+ * no parsea DESPUÉS de haberlo cortado es una limitación nuestra, y hay que
+ * decirlo así en vez de dar a entender que el servicio está roto.
+ *
+ * Con el catálogo actual no llega a pasar —el mayor `GetCapabilities` de los 18
+ * servicios son 49 KB, frente a un tope de 8 MB—, pero la respuesta tiene que
+ * ser honesta el día que pase.
  */
-async function readCapped(res: Response, limit: number): Promise<string> {
-  if (!res.body) return "";
+async function readCapped(res: Response, limit: number): Promise<{ text: string; truncated: boolean }> {
+  if (!res.body) return { text: "", truncated: false };
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let text = "";
   let seen = 0;
+  let truncated = false;
   try {
     for (;;) {
       const { done, value } = await reader.read();
       if (done) break;
       seen += value.byteLength;
       text += decoder.decode(value, { stream: true });
-      if (seen >= limit) break;
+      if (seen >= limit) {
+        truncated = true;
+        break;
+      }
     }
   } finally {
     void reader.cancel().catch(() => {});
   }
-  return text + decoder.decode();
+  return { text: text + decoder.decode(), truncated };
 }
 
 /**
@@ -157,7 +195,8 @@ async function fetchText(url: string, deadline: number): Promise<Fetched | null>
     // La allowlist se comprobó sobre la URL pedida; el redirect puede llevar a
     // otro sitio, así que se vuelve a comprobar el destino final.
     if (!isAllowedResponse(res, url)) return null;
-    return { text: await readCapped(res, OGC_MAX_BYTES), finalUrl: res.url || url, ok: res.ok };
+    const { text, truncated } = await readCapped(res, OGC_MAX_BYTES);
+    return { text, truncated, finalUrl: res.url || url, ok: res.ok };
   } catch {
     return null;
   } finally {
@@ -193,8 +232,12 @@ function wmsLayerBbox(n: Record<string, unknown>): Bbox | null {
  * Capas que se devuelven como mucho. Cada una es un `<option>` del selector, y
  * un servicio con miles convierte la lista en algo que no se puede usar además
  * de una respuesta enorme. Cuando se alcanza, la interfaz lo dice.
+ *
+ * Vale para los dos servicios. Lo aplicaba solo el WMS, así que un WFS con miles
+ * de tipos de entidad devolvía la lista entera: el mismo problema por la puerta
+ * de al lado.
  */
-const MAX_WMS_LAYERS = 500;
+const MAX_LAYERS = 500;
 /** Profundidad máxima del árbol de capas, como corta a un XML malicioso o roto. */
 const MAX_LAYER_DEPTH = 12;
 
@@ -208,7 +251,7 @@ const MAX_LAYER_DEPTH = 12;
  */
 function collectWmsLayers(node: unknown, acc: Layer[], inheritedBbox: Bbox | null, depth = 0): void {
   if (!node || typeof node !== "object") return;
-  if (depth > MAX_LAYER_DEPTH || acc.length >= MAX_WMS_LAYERS) return;
+  if (depth > MAX_LAYER_DEPTH || acc.length >= MAX_LAYERS) return;
   const n = node as Record<string, unknown>;
   const own = wmsLayerBbox(n) ?? inheritedBbox;
 
@@ -236,7 +279,7 @@ function parseWms(xml: string, finalUrl: string) {
   const getMap = request?.GetMap as Record<string, unknown> | undefined;
   const http = (getMap?.DCPType as Record<string, unknown>)?.HTTP as Record<string, unknown> | undefined;
   const get = (http?.Get as Record<string, unknown>)?.OnlineResource as Record<string, unknown> | undefined;
-  const getMapUrl = normalizeEndpoint((get?.["@_href"] as string) ?? "", finalUrl);
+  const getMapUrl = safeEndpoint((get?.["@_href"] as string) ?? "", finalUrl);
 
   const topLayer = capability?.Layer as Record<string, unknown> | undefined;
   const bbox = topLayer ? wmsLayerBbox(topLayer) : null;
@@ -299,7 +342,8 @@ function parseWfs(xml: string, finalUrl: string) {
         crs: crsRaw != null ? String(crsRaw) : undefined,
       };
     })
-    .filter((t) => t.name);
+    .filter((t) => t.name)
+    .slice(0, MAX_LAYERS);
 
   return {
     service: "WFS" as const,
@@ -342,6 +386,17 @@ export async function GET(request: Request) {
     if (!parsed) return Response.json({ error: "Capacidades no reconocidas" }, { status: 502 });
     return Response.json(parsed, { headers: { "cache-control": "public, max-age=3600" } });
   } catch {
+    // Si el documento venía cortado por nuestro tope, el fallo es de casa y no
+    // del servicio: decirlo evita apuntar a un servicio que responde bien.
+    if (fetched.truncated) {
+      return Response.json(
+        {
+          error: `Las capacidades del servicio superan los ${Math.round(OGC_MAX_BYTES / 1024 / 1024)} MB que lee este portal`,
+          reason: "capacidades-demasiado-grandes",
+        },
+        { status: 502 }
+      );
+    }
     return Response.json({ error: "Error al analizar las capacidades" }, { status: 502 });
   }
 }
