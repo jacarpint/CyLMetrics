@@ -93,7 +93,7 @@ El portal arranca con el informe ya versionado en `reports/current/`, así que n
 npm run build        # build de producción (~2.500 páginas estáticas)
 npm run lint         # ESLint
 npm run typecheck    # TypeScript sin emitir
-npm test             # Vitest — 38 ficheros, 487 tests
+npm test             # Vitest — 496 tests: lógica en node, componentes en jsdom
 npm run check:contrast   # contraste WCAG AA de la paleta, en claro y en oscuro
 npm run verify:broken    # contrasta contra el origen los archivos que el portal da por rotos
 ```
