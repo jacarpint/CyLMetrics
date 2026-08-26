@@ -1,16 +1,13 @@
 import Link from "next/link";
 import {
   ArrowRight,
-  Building2,
   ClipboardCheck,
-  Code2,
   Columns3,
   Database,
   Download,
   FileQuestion,
   FileWarning,
   Gauge,
-  Newspaper,
   ScanSearch,
   Search,
   Sigma,
@@ -102,13 +99,6 @@ export default async function HomePage() {
      vez de dejar que parezca un error de cuentas del portal. */
   const newSinceAnalysis = report ? catalog.stats.totalDatasets - delivery.totalDatasets : 0;
 
-  /* Cobertura del análisis, derivada del propio catálogo: es lo que respalda
-     que esto no sea una muestra ni una selección temática. */
-  const formatsUsed = Object.entries(catalog.stats.formatsBreakdown)
-    .sort((a, b) => (b[1] ?? 0) - (a[1] ?? 0))
-    .map(([format]) => format);
-  const categoryCount = Object.keys(catalog.stats.byCategory).length;
-
   /* Cifras de contexto: viven en la cabecera, no en tarjetas propias. */
   const heroStats = [
     { value: catalog.stats.totalDatasets.toLocaleString("es-ES"), label: "conjuntos de datos" },
@@ -124,10 +114,10 @@ export default async function HomePage() {
           <Database className="h-3.5 w-3.5" aria-hidden />
           Datos Abiertos de Castilla y León
         </div>
-        <h1 className="max-w-3xl text-3xl font-extrabold leading-tight tracking-tight text-strong md:text-[2.6rem]">
+        <h1 className="max-w-4xl text-3xl font-extrabold leading-tight tracking-tight text-strong md:text-[2.6rem]">
           ¿Se pueden usar de verdad los datos abiertos de Castilla y León?
         </h1>
-        <p className="mt-4 max-w-2xl text-base leading-relaxed text-body">
+        <p className="mt-4 max-w-4xl text-base leading-relaxed text-body">
           Este portal no se limita a revisar fichas: <strong className="text-strong">descarga cada archivo
           publicado e intenta abrirlo</strong>, como haría quien quiere reutilizarlo. El resultado se
           publica aquí, archivo por archivo, con el motivo de cada fallo.
@@ -184,7 +174,7 @@ export default async function HomePage() {
           <h2 id="dos-preguntas" className="text-lg font-bold tracking-tight text-strong">
             El catálogo responde a dos preguntas distintas
           </h2>
-          <p className="mt-1 max-w-2xl text-sm text-faint">
+          <p className="mt-1 max-w-4xl text-sm text-faint">
             Un archivo que no se puede abrir y un archivo con celdas vacías son problemas de
             naturaleza distinta. Mezclarlos en una sola nota esconde el primero.
           </p>
@@ -267,7 +257,7 @@ export default async function HomePage() {
         <h2 id="como-funciona" className="text-lg font-bold tracking-tight text-strong">
           Cómo se comprueba
         </h2>
-        <p className="mt-1 max-w-3xl text-sm text-faint">
+        <p className="mt-1 max-w-4xl text-sm text-faint">
           Un catálogo puede tener fichas impecables y archivos que no abren. Por eso la comprobación
           no se queda en la ficha: se descarga el archivo y se abre con el lector que le corresponde.
         </p>
@@ -295,29 +285,6 @@ export default async function HomePage() {
           })}
         </ol>
 
-        {/* La cobertura es el respaldo de los cuatro pasos, no una sección
-            aparte: sin ella, «se comprueba cada archivo» no dice sobre cuántos. */}
-        <p className="mt-4 max-w-3xl text-sm leading-relaxed text-body">
-          Y no sobre una muestra: se analizan{" "}
-          <strong className="text-strong">
-            los {catalog.stats.totalDatasets.toLocaleString("es-ES")} conjuntos de datos
-          </strong>{" "}
-          del portal de la Junta de Castilla y León y{" "}
-          <strong className="text-strong">
-            sus {catalog.stats.totalDistributions.toLocaleString("es-ES")} archivos y servicios
-          </strong>
-          , repartidos en {categoryCount} temáticas y {formatsUsed.length} formatos distintos.
-        </p>
-        <ul className="mt-3 flex flex-wrap gap-1.5" aria-label="Formatos analizados">
-          {formatsUsed.map((format) => (
-            <li
-              key={format}
-              className="rounded-md border border-border bg-fill px-2 py-0.5 font-mono text-[11px] text-body"
-            >
-              {format}
-            </li>
-          ))}
-        </ul>
         <Link
           href="/metodologia"
           className="mt-4 inline-flex items-center gap-1.5 text-sm font-medium text-link underline-offset-2 hover:underline"
@@ -329,17 +296,29 @@ export default async function HomePage() {
       {/* ── Por qué importa ──────────────────────────────────────────────────
           Cada consecuencia va con el número real de este catálogo, contado por
           archivos afectados y no por ocurrencias, para que la explicación no sea
-          abstracta ni se quede obsoleta. */}
+          abstracta ni se quede obsoleta.
+
+          Todo el texto va ANTES de las tarjetas. El argumento estaba partido en
+          dos por la rejilla —una mitad arriba y otra debajo—, y al leer obligaba
+          a saltar por encima de ocho tarjetas para encontrar el final de una
+          idea que había empezado mucho antes. Las tarjetas cierran la sección:
+          son el dato que respalda lo que se acaba de leer, no un paréntesis. */}
       <section aria-labelledby="por-que-importa">
         <h2 id="por-que-importa" className="text-lg font-bold tracking-tight text-strong">
           Por qué importa la calidad, y no solo la cantidad
         </h2>
-        <p className="mt-1 max-w-3xl text-sm leading-relaxed text-body">
+        <p className="mt-1 max-w-4xl text-sm leading-relaxed text-body">
           Publicar un dato abierto cuesta dinero público: recogerlo, prepararlo, documentarlo y
           mantenerlo. Ese gasto solo se convierte en retorno cuando alguien lo reutiliza sin pedir
           permiso ni pelearse con el archivo. Un archivo que no abre consume el coste entero y
           devuelve cero; uno que abre sucio traslada la limpieza a cada persona que lo use, y ese
           mismo trabajo se repite y se paga tantas veces como reutilizadores tenga.
+        </p>
+        <p className="mt-3 max-w-4xl text-sm leading-relaxed text-body">
+          Recuperarlos casi nunca exige rehacer el dato: la mayoría se arreglan corrigiendo un
+          enlace o un proceso de exportación. Por eso la lista de trabajo está agrupada por causa y
+          no por incidencia suelta —cuando un fallo afecta a todo un formato, se señala como un
+          único arreglo que recupera decenas de archivos—.
         </p>
 
         {consequences.length > 0 && (
@@ -400,13 +379,6 @@ export default async function HomePage() {
             </div>
           </>
         )}
-
-        <p className="mt-4 max-w-3xl text-sm leading-relaxed text-body">
-          Recuperar casi ninguno de estos archivos exige rehacer el dato: la mayoría se arreglan
-          corrigiendo un enlace o un proceso de exportación. Por eso la lista de trabajo está
-          agrupada por causa y no por incidencia suelta —cuando un fallo afecta a todo un formato,
-          se señala como un único arreglo que recupera decenas de archivos—.
-        </p>
       </section>
 
       {/* ── Por dónde empezar ── */}
@@ -466,87 +438,6 @@ export default async function HomePage() {
             </CardContent>
           </Card>
         </div>
-
-        <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
-          {[
-            {
-              icon: Newspaper,
-              title: "Investigo o informo",
-              text: "El estado del catálogo es en sí mismo una historia y un objeto de estudio: qué se publica, qué se mantiene y qué se abandona. El análisis llega al archivo concreto, con su causa y su cifra.",
-              href: "/calidad?vista=prioridades",
-              cta: "Ver el diagnóstico",
-            },
-            {
-              icon: Building2,
-              title: "Trabajo en otra administración",
-              text: "El método —descargar, abrir, separar disponibilidad de contenido y agrupar por causa— es reproducible sobre cualquier catálogo publicado con el estándar europeo DCAT. La metodología está al detalle.",
-              href: "/metodologia",
-              cta: "Ver la metodología",
-            },
-            {
-              icon: Code2,
-              title: "Quiero construir algo encima",
-              text: "Todo lo que se ve aquí está también en JSON, sin registro ni clave. Y hay un distintivo de calidad que se pega en cualquier web como una imagen y refleja siempre el último análisis publicado.",
-              href: "/metodologia#api",
-              cta: "Ver la API",
-            },
-          ].map((profile) => (
-            <Card key={profile.title}>
-              <CardContent className="flex h-full flex-col">
-                <span className="mb-3 flex h-8 w-8 items-center justify-center rounded-lg bg-fill">
-                  <profile.icon className="h-4 w-4 text-body" aria-hidden />
-                </span>
-                <h3 className="text-sm font-semibold text-strong">{profile.title}</h3>
-                <p className="mt-1.5 text-xs leading-relaxed text-body">{profile.text}</p>
-                <Link
-                  href={profile.href}
-                  className="mt-auto inline-flex w-fit items-center gap-1.5 pt-4 text-xs font-medium text-link underline-offset-2 hover:underline"
-                >
-                  {profile.cta} <ArrowRight className="h-3 w-3" aria-hidden />
-                </Link>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </section>
-
-      {/* ── Transparencia ────────────────────────────────────────────────────
-          Un observatorio de datos abiertos tiene que publicar los suyos. Va como
-          banda de enlaces y no como tres tarjetas de texto: lo que aporta son
-          las fuentes, y el argumento ya está dicho arriba. */}
-      <section aria-labelledby="transparencia" className="rounded-xl border border-border bg-fill p-6">
-        <h2 id="transparencia" className="text-base font-bold tracking-tight text-strong">
-          Datos abiertos sobre los datos abiertos
-        </h2>
-        <p className="mt-1.5 max-w-3xl text-sm leading-relaxed text-body">
-          Una auditoría que no se puede comprobar no vale de mucho. El resultado de cada archivo y el
-          método están publicados y son verificables por cualquiera.
-        </p>
-        <ul className="mt-4 flex flex-wrap gap-x-6 gap-y-2">
-          {[
-            { href: "/api/quality", label: "El informe completo en JSON", external: true },
-            { href: "/metodologia#limites", label: "Qué no puede saber el portal", external: false },
-            { href: "/metodologia#comprobacion", label: "Cómo se comprueba cada archivo", external: false },
-          ].map((source) => (
-            <li key={source.href}>
-              {source.external ? (
-                <a
-                  href={source.href}
-                  className="inline-flex items-center gap-1.5 text-sm font-medium text-link underline-offset-2 hover:underline"
-                >
-                  {source.label} <ArrowRight className="h-3.5 w-3.5" aria-hidden />
-                </a>
-              ) : (
-                <Link
-                  href={source.href}
-                  className="inline-flex items-center gap-1.5 text-sm font-medium text-link underline-offset-2 hover:underline"
-                >
-                  {source.label} <ArrowRight className="h-3.5 w-3.5" aria-hidden />
-                </Link>
-              )}
-            </li>
-          ))}
-        </ul>
       </section>
     </div>
   );

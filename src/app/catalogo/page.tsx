@@ -6,6 +6,19 @@ import { datasetSlug } from "@/lib/utils";
 
 export const revalidate = 3600;
 
+/**
+ * Es la página más enlazada del portal —los dos botones de la portada, el 404,
+ * el glosario y la metodología llevan aquí— y era la única sin metadatos
+ * propios: heredaba el nombre del sitio a secas y la descripción genérica del
+ * layout, así que en una pestaña o en un buscador no se distinguía de la
+ * portada.
+ */
+export const metadata = {
+  title: "Catálogo de datos",
+  description:
+    "Los conjuntos de datos abiertos de Castilla y León, con el estado real de sus archivos: qué formatos publica cada uno, cuáles se pueden abrir y qué licencia los cubre.",
+};
+
 /** Descripción recortada en servidor: la tarjeta solo muestra 2 líneas. */
 const CARD_DESCRIPTION_CHARS = 180;
 

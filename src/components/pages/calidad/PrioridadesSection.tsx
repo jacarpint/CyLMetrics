@@ -94,7 +94,7 @@ export function PrioridadesSection({
 
   return (
     <div className="space-y-8">
-      <p className="max-w-3xl text-sm leading-relaxed text-body">
+      <p className="max-w-4xl text-sm leading-relaxed text-body">
         Esta sección está pensada para quien <strong className="text-strong">publica</strong> los
         datos. Reúne todo lo que el análisis ha encontrado en el catálogo, agrupado por la corrección
         que hay que hacer y ordenado por lo que se recupera al hacerla. Quien busca datos para
@@ -137,7 +137,7 @@ export function PrioridadesSection({
           <ListChecks className="h-4 w-4 text-faint" aria-hidden />
           Qué arreglar primero
         </h2>
-        <p className="mt-1 max-w-3xl text-sm text-faint">
+        <p className="mt-1 max-w-4xl text-sm text-faint">
           Un mismo fallo repetido en muchos archivos no son N incidencias: es una. Cuando algo falla
           en todos los archivos de un formato aparece arriba, porque delata un proceso de publicación
           y se corrige de una vez.
@@ -168,13 +168,13 @@ export function PrioridadesSection({
             {hidden > 0 && (
               <p className="mt-4 text-sm text-faint">
                 Y {hidden.toLocaleString("es-ES")} {hidden === 1 ? "tarea" : "tareas"} más de menor
-                alcance. El detalle completo, archivo a archivo, está en{" "}
+                alcance. El detalle completo está en{" "}
                 <Link href={buildQualityUrl({ vista: "ficheros" })} className="font-medium text-link underline-offset-2 hover:underline">
-                  Archivos
+                  Archivo por archivo
                 </Link>{" "}
                 y{" "}
                 <Link href={buildQualityUrl({ vista: "metadatos" })} className="font-medium text-link underline-offset-2 hover:underline">
-                  Metadatos
+                  Fichas incompletas
                 </Link>
                 .
               </p>

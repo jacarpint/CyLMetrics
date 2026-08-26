@@ -41,6 +41,10 @@ const STYLES = `
   }
   .ge-button:hover { background: var(--ge-primary-hover); }
   .ge-button:focus-visible { outline: 2px solid var(--ge-primary); outline-offset: 2px; }
+  .ge-digest {
+    margin-top: 1rem; font-size: 0.6875rem; color: var(--ge-body);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
 `;
 
 export default function GlobalError({
@@ -57,18 +61,29 @@ export default function GlobalError({
   return (
     <html lang="es">
       <body>
+        {/* Un componente cliente no puede exportar `metadata`, así que el título
+            se pone con el `<title>` de React. Sin él, esta pantalla era lo único
+            del portal que salía en inglés: Next rotula la pestaña con su
+            «500: This page couldn't load». */}
+        <title>Error | Portal de Calidad de Datos Abiertos de Castilla y León</title>
         <style dangerouslySetInnerHTML={{ __html: STYLES }} />
         <div className="ge-root">
           <div className="ge-icon" aria-hidden>
             !
           </div>
-          <h1 className="ge-title">Error crítico de la aplicación</h1>
+          <h1 className="ge-title">No se ha podido cargar el portal</h1>
+          {/* Texto fijo, nunca `error.message`, por lo mismo que en `error.tsx`:
+              ese mensaje puede ser una traza interna y viene en inglés. El
+              detalle va a la consola, y el digest queda a la vista para cruzarlo
+              con los registros. */}
           <p className="ge-text">
-            {error.message || "No ha sido posible inicializar el portal. Por favor, inténtelo de nuevo."}
+            Ha fallado algo básico y la página no ha llegado a montarse. Puede ser un problema
+            puntual; inténtalo de nuevo en unos segundos.
           </p>
           <button type="button" className="ge-button" onClick={reset}>
             Reintentar
           </button>
+          {error.digest && <p className="ge-digest">Referencia del error: {error.digest}</p>}
         </div>
       </body>
     </html>

@@ -19,7 +19,16 @@ export interface PipelineStep {
   short: string;
   /** Versión de metodología: lo mismo, con los límites reales del código. */
   long: string;
-  /** Límites operativos concretos de este paso. */
+  /**
+   * Límites operativos concretos de este paso.
+   *
+   * Estas cifras viven en el analizador, que es Python, así que no se pueden
+   * importar y hay que escribirlas. Ya envejecieron una vez —se publicaba «tope
+   * 25 MB · … · 60 s de lectura» mucho después de que el análisis subiera a 512
+   * MB y 120 s—, y llegaron a contradecir a la propia página de Metodología.
+   * `pipeline-limits.test.ts` las contrasta contra `cli.py` y `downloader.py`
+   * para que no vuelva a pasar: si tocas un tope allí, este texto falla aquí.
+   */
   detail: string;
 }
 
@@ -40,7 +49,7 @@ export const PIPELINE: PipelineStep[] = [
       'Uno a uno, siguiendo redirecciones y respetando límites de tamaño. Aquí ya se descubre lo que ningún inventario de metadatos ve: enlaces caídos y direcciones que devuelven una página en vez del dato.',
     long:
       'Uno a uno. Primero se pregunta cuánto pesa: si declara más del tope, se anota y no se descarga, y queda como «sin analizar» en vez de contarse como fallo. Si cabe, se descarga siguiendo redirecciones y conservando la extensión original, porque los lectores de CSV y Excel deducen el formato de ella.',
-    detail: 'tope 25 MB · 15 s para conectar · 60 s de lectura · 2 reintentos',
+    detail: 'tope 512 MB · 15 s para conectar · 120 s de lectura · 2 reintentos',
   },
   {
     icon: 'lectura',

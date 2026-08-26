@@ -813,3 +813,43 @@ export function groupByField(
     .map(([value, g]) => ({ value, affected: g.affected, datasets: g.datasets.size }))
     .sort((a, b) => b.affected - a.affected);
 }
+
+/**
+ * Agrupa los ficheros por causa, para poder ofrecer la causa como filtro.
+ *
+ * No sirve `groupByField`: la causa no es un campo de texto único. Un archivo
+ * puede fallar por varios motivos a la vez —un encabezado vacío y otro
+ * duplicado—, y `causeCode` guarda solo el primero. Contar por ahí daría cifras
+ * más bajas que las que ya publican las tarjetas de la portada, que cuentan un
+ * archivo si el código aparece en cualquier posición.
+ *
+ * Por eso se recorre el mismo conjunto de códigos que mira `rowMatchesCauses`:
+ * lo que se cuenta aquí y lo que filtra la tabla tienen que ser lo mismo, o la
+ * cifra del botón no cuadrará con las filas que enseña al pulsarlo.
+ *
+ * Consecuencia esperada: un archivo con tres causas suma en las tres, así que el
+ * total de los grupos supera al de filas. Es un recuento por causa, no un
+ * reparto de las filas, y quien lo pinte debe rotularlo como tal.
+ */
+export interface CauseFailures {
+  code: string;
+  affected: number;
+  datasets: number;
+}
+
+export function groupByCause(rows: FileIssueRow[]): CauseFailures[] {
+  const map = new Map<string, { affected: number; datasets: Set<string> }>();
+  for (const row of rows) {
+    // `causeCodes` solo se rellena cuando hay más de uno, y entonces ya incluye
+    // a `causeCode`; si no está, la única causa es `causeCode`.
+    for (const code of row.causeCodes ?? [row.causeCode]) {
+      let g = map.get(code);
+      if (!g) { g = { affected: 0, datasets: new Set() }; map.set(code, g); }
+      g.affected++;
+      g.datasets.add(row.datasetSlug);
+    }
+  }
+  return [...map.entries()]
+    .map(([code, g]) => ({ code, affected: g.affected, datasets: g.datasets.size }))
+    .sort((a, b) => b.affected - a.affected);
+}

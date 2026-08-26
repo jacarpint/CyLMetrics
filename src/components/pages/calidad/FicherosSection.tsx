@@ -1,10 +1,10 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
-  Building2, CheckCircle2, ChevronDown, ChevronRight, ExternalLink, FileWarning,
-  Search, SearchCode, Table2, X,
+  CheckCircle2, ChevronDown, ChevronRight, ExternalLink, FileWarning,
+  ListFilter, Search, SearchCode, Table2, X,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -13,7 +13,7 @@ import { cn } from '@/lib/utils';
 import { issueLabel, formatBytes } from '@/lib/quality-labels';
 import { isGeoFormat } from '@/lib/geo';
 import {
-  DELIVERY_EXPLANATIONS, DELIVERY_SHORT, groupByField, rowMatchesCauses,
+  DELIVERY_EXPLANATIONS, DELIVERY_SHORT, groupByCause, rowMatchesCauses,
   type ContentSummary, type DeliveryState, type FileIssueRow,
 } from '@/lib/availability';
 import { toCsv } from '@/lib/csv-write';
@@ -47,6 +47,15 @@ interface FicherosSectionProps {
 
 /** Filas por página, y las que añade cada «Mostrar más». */
 const PAGE = 50;
+
+/**
+ * Cuántas causas se ofrecen como botón.
+ *
+ * El catálogo tiene 15 distintas y una cola muy fina —las últimas afectan a uno
+ * o dos archivos—, así que este corte deja fuera lo anecdótico sin esconder nada
+ * con volumen. Las causas activas se añaden aparte aunque caigan fuera.
+ */
+const TOP_CAUSES = 12;
 
 /**
  * Chip de filtro activo, con el anillo de foco que lleva el resto del portal.
@@ -95,8 +104,9 @@ function rowStateLabel(row: FileIssueRow): string {
   return row.family === 'contenido' ? 'Contenido' : DELIVERY_SHORT[row.state];
 }
 
+/** Las columnas siguen a los rótulos de la tabla: `estado` pasó a ser `problema`. */
 const CSV_HEADER = [
-  'dimension', 'estado', 'formato', 'conjunto_de_datos', 'tematica', 'causa', 'codigo_causa',
+  'dimension', 'problema', 'formato', 'conjunto_de_datos', 'tematica', 'causa', 'codigo_causa',
   'errores_contenido', 'http', 'url', 'ficha',
 ];
 
@@ -137,24 +147,50 @@ export function FicherosSection({
     return c;
   }, [rows]);
 
-  // Por categoría temática y no por organismo: el catálogo declara el mismo
-  // organismo en casi todos los datasets, así que ese eje no reparte nada.
-  const categories = useMemo(() => groupByField(rows, 'category'), [rows]);
-
-  const filtered = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-    return rows.filter((r) => {
+  /**
+   * Todo el filtrado MENOS la causa.
+   *
+   * Se separa porque la tira de causas se cuenta sobre esto y no sobre `rows`:
+   * si los botones contaran el total, al estar en «Abren con errores» seguirían
+   * ofreciendo causas de entrega —«Error de descarga»— que al pulsarlas dejan la
+   * tabla vacía. Es la misma combinación imposible que `selectFamily` ya evita
+   * al cambiar de pestaña.
+   */
+  const matchesBase = useCallback(
+    (r: FileIssueRow) => {
+      const needle = query.trim().toLowerCase();
       if (family !== 'todas' && r.family !== family) return false;
-      // `rowMatchesCauses` y no `r.causeCode === cause`: una fila puede traer
-      // varios códigos de error, y filtrar solo por el primero escondía archivos
-      // que las tarjetas de Prioridades sí cuentan.
-      if (!rowMatchesCauses(r, causes)) return false;
       if (format && r.format !== format) return false;
       if (category && r.category !== category) return false;
       if (needle && !`${r.datasetTitle} ${r.category} ${r.format} ${r.url}`.toLowerCase().includes(needle)) return false;
       return true;
-    });
-  }, [rows, family, causes, format, category, query]);
+    },
+    [family, format, category, query]
+  );
+
+  const causeBase = useMemo(() => rows.filter(matchesBase), [rows, matchesBase]);
+
+  const topCauses = useMemo(() => {
+    const all = groupByCause(causeBase);
+    const top = all.slice(0, TOP_CAUSES);
+    // Una causa activa se pinta siempre, aunque caiga fuera del corte: si no, el
+    // botón para quitarla desaparece justo cuando está en uso, y al llegar desde
+    // un enlace con `?causa=` la tira no mostraría el filtro que está aplicado.
+    for (const code of causes) {
+      if (!top.some((c) => c.code === code)) {
+        top.push(all.find((c) => c.code === code) ?? { code, affected: 0, datasets: 0 });
+      }
+    }
+    return top;
+  }, [causeBase, causes]);
+
+  // `rowMatchesCauses` y no `r.causeCode === cause`: una fila puede traer varios
+  // códigos de error, y filtrar solo por el primero escondía archivos que las
+  // tarjetas de «Qué arreglar primero» sí cuentan.
+  const filtered = useMemo(
+    () => causeBase.filter((r) => rowMatchesCauses(r, causes)),
+    [causeBase, causes]
+  );
 
   const shown = filtered.slice(0, limit);
   const hasSubFilter =
@@ -216,7 +252,7 @@ export function FicherosSection({
 
   return (
     <div className="space-y-6">
-      <p className="max-w-3xl text-sm leading-relaxed text-faint">
+      <p className="max-w-4xl text-sm leading-relaxed text-faint">
         Inventario completo, archivo a archivo. Cada fila enlaza con su ficha, donde el explorador
         descarga el archivo real y permite recorrer las incidencias caso por caso. Las celdas vacías
         no generan fila propia —son la inmensa mayoría de las incidencias del catálogo y ahogarían la
@@ -277,34 +313,63 @@ export function FicherosSection({
         />
       </div>
 
-      {/* ── Áreas temáticas ── */}
-      {categories.length > 1 && (
+      {/* ── Causas más frecuentes ────────────────────────────────────────────
+          Aquí había una tira de temáticas. El filtro por causa existía desde
+          siempre —los chips lo muestran y la URL lo transporta— pero no tenía
+          ningún selector: solo se llegaba a él desde un enlace de la portada o
+          de «Qué arreglar primero», así que desde esta vista era invisible. La
+          temática, en cambio, sigue alcanzable desde el buscador de texto, que
+          ya la incluye, y desde `?tematica=`.
+
+          Es un filtro de selección múltiple porque `causas` siempre fue una
+          lista: hay fallos que rompen la reutilización por el mismo motivo
+          —encabezado vacío y encabezado duplicado— y conviene poder verlos
+          juntos. */}
+      {topCauses.length > 1 && (
         <section>
-          <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-strong">
-            <Building2 className="h-4 w-4 text-faint" aria-hidden />
-            Temáticas más afectadas
+          <h2 className="mb-1 flex items-center gap-2 text-sm font-semibold text-strong">
+            <ListFilter className="h-4 w-4 text-faint" aria-hidden />
+            Causas más frecuentes
           </h2>
+          {/* La advertencia no es un tecnicismo: un archivo con el encabezado
+              vacío Y duplicado suma en los dos botones, así que sumarlos da más
+              que el total de filas. Sin decirlo, las cifras parecen no cuadrar. */}
+          <p className="mb-3 text-xs text-faint">
+            Archivos afectados por cada causa. Un archivo con varios fallos cuenta en cada uno, así
+            que las cifras no suman el total de la tabla.
+          </p>
           <div className="flex flex-wrap gap-2">
-            {categories.slice(0, 10).map((c) => (
-              <button
-                key={c.value}
-                type="button"
-                onClick={() => { setCategory(category === c.value ? '' : c.value); resetView(); }}
-                aria-pressed={category === c.value}
-                className={cn(
-                  'inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs transition-colors',
-                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-canvas',
-                  category === c.value
-                    ? 'border-primary bg-primary text-primary-fg'
-                    : 'border-border bg-card text-body hover:border-border-strong hover:bg-fill'
-                )}
-              >
-                <span className="max-w-[24ch] truncate">{c.value}</span>
-                <span className={cn('tabular-nums', category === c.value ? 'opacity-80' : 'text-faint')}>
-                  {c.affected}
-                </span>
-              </button>
-            ))}
+            {topCauses.map((c) => {
+              const isActive = causes.includes(c.code);
+              return (
+                <button
+                  key={c.code}
+                  type="button"
+                  onClick={() => {
+                    setCauses(isActive ? causes.filter((x) => x !== c.code) : [...causes, c.code]);
+                    resetView();
+                  }}
+                  aria-pressed={isActive}
+                  aria-label={
+                    isActive
+                      ? `Quitar el filtro por causa: ${issueLabel(c.code)}`
+                      : `Filtrar por causa: ${issueLabel(c.code)}, ${c.affected} archivos afectados`
+                  }
+                  className={cn(
+                    'inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs transition-colors',
+                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-canvas',
+                    isActive
+                      ? 'border-primary bg-primary text-primary-fg'
+                      : 'border-border bg-card text-body hover:border-border-strong hover:bg-fill'
+                  )}
+                >
+                  <span className="max-w-[28ch] truncate">{issueLabel(c.code)}</span>
+                  <span className={cn('tabular-nums', isActive ? 'opacity-80' : 'text-faint')}>
+                    {c.affected.toLocaleString('es-ES')}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </section>
       )}
@@ -396,11 +461,16 @@ export function FicherosSection({
               <caption className="sr-only">Archivos con problemas de disponibilidad o de contenido</caption>
               <thead>
                 <tr className="border-b border-border bg-fill text-left">
-                  <th scope="col" className="px-3 py-2 font-semibold text-faint">Estado</th>
+                  {/* «Problema» y «Causa», no «Estado» y «Qué le pasa»: los dos
+                      rótulos viejos sonaban a lo mismo y no dejaban ver que son
+                      ejes distintos —si el archivo sirve o no, y por qué—.
+                      «Causa» además es la palabra que ya usan los chips del
+                      filtro y la tira de causas de arriba. */}
+                  <th scope="col" className="px-3 py-2 font-semibold text-faint">Problema</th>
                   <th scope="col" className="px-3 py-2 font-semibold text-faint">Formato</th>
                   <th scope="col" className="px-3 py-2 font-semibold text-faint">Conjunto de datos</th>
                   <th scope="col" className="hidden px-3 py-2 font-semibold text-faint lg:table-cell">Temática</th>
-                  <th scope="col" className="px-3 py-2 font-semibold text-faint">Qué le pasa</th>
+                  <th scope="col" className="px-3 py-2 font-semibold text-faint">Causa</th>
                   <th scope="col" className="px-3 py-2 font-semibold text-faint"><span className="sr-only">Acciones</span></th>
                 </tr>
               </thead>

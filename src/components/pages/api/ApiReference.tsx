@@ -32,6 +32,14 @@ interface ApiEndpoint {
  *
  * Los ejemplos están recortados pero las claves son las que devuelve el código;
  * si se renombra un campo, hay que tocarlas aquí.
+ *
+ * COBERTURA. Aquí están los cinco endpoints de datos. Las otras dos rutas de
+ * `src/app/api` quedan fuera a propósito, y no por olvido: `/api/proxy` y
+ * `/api/ogc` son fontanería del navegador —esquivar el CORS al previsualizar un
+ * archivo y leer las capas de un servicio de mapas—, están acotadas a
+ * `*.jcyl.es` y no devuelven nada sobre la calidad del catálogo. Publicarlas
+ * como API sería anunciar un proxy. Si algún día se añade una ruta de datos,
+ * tiene que aparecer en esta lista.
  */
 const ENDPOINTS: ApiEndpoint[] = [
   {
@@ -152,6 +160,35 @@ const ENDPOINTS: ApiEndpoint[] = [
     errors: "503 si todavía no se ha generado ningún informe",
   },
   {
+    // Faltaba en la referencia y es un endpoint de datos como los demás: lo usa
+    // el explorador de cada ficha para recorrer los casos de una incidencia sin
+    // bajarse las posiciones enteras, que pueden ser cientos de miles.
+    path: "/api/quality/issues",
+    summary: "Dónde está cada caso de una incidencia, por páginas",
+    returns:
+      "Sin «code», el resumen de las incidencias de ese archivo con cuántas posiciones hay guardadas de cada una. Con «code», el tramo pedido de posiciones —fila y columna— de esa incidencia concreta. El fragmento se lee en el servidor y solo viaja el tramo pedido.",
+    params: [
+      { name: "dist", values: "identificador del recurso", desc: "Obligatorio. Es el campo «id» que trae cada distribución en /api/quality." },
+      { name: "code", values: "código de incidencia", desc: "Si se omite, devuelve el resumen por código en lugar de las posiciones." },
+      { name: "offset", values: "entero ≥ 0", desc: "Desde qué posición empezar. Por defecto 0." },
+      { name: "limit", values: "1-500", desc: "Cuántas posiciones devolver. Por defecto 50, tope 500." },
+    ],
+    example: `{
+  "code": "celda-faltante", "severity": "warning",
+  "count": 135,    // ocurrencias detectadas
+  "total": 135,    // posiciones guardadas (menor si se recortaron)
+  "offset": 0,
+  "positions": [
+    { "row": 2676, "col": 6, "sheet": "Hoja1", "field": "DIRECCIÓN" }
+  ]
+}`,
+    tryIt: "/api/quality/issues?dist=00570b5122d0e97d",
+    // Un informe publicado ya no cambia, así que el fragmento es inmutable.
+    cache: "1 hora en el navegador, 1 día en el CDN (inmutable)",
+    errors:
+      "400 si falta «dist» · 404 si no hay detalle para ese recurso, o si el recurso no tiene esa incidencia",
+  },
+  {
     path: "/api/sello",
     summary: "Imagen con la calidad, para incrustar",
     returns:
@@ -206,7 +243,7 @@ export function ApiReference() {
             </div>
 
             <p className="mt-1.5 text-sm font-medium text-body">{ep.summary}</p>
-            <p className="mt-1.5 max-w-3xl text-sm leading-relaxed text-faint">{ep.returns}</p>
+            <p className="mt-1.5 max-w-4xl text-sm leading-relaxed text-faint">{ep.returns}</p>
 
             <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
               <div className="min-w-0">
@@ -257,22 +294,6 @@ export function ApiReference() {
           </CardContent>
         </Card>
       ))}
-
-      {/* Rutas de infraestructura: se documentan para que no queden como cajas
-          negras, pero no son una API de datos. */}
-      <Card tone="muted">
-        <CardContent>
-          <h3 className="text-sm font-semibold text-strong">Rutas internas del visor</h3>
-          <p className="mt-1.5 max-w-3xl text-sm leading-relaxed text-body">
-            <code className="font-mono text-xs">/api/proxy</code> y{" "}
-            <code className="font-mono text-xs">/api/ogc</code> existen para que el navegador pueda
-            previsualizar los recursos sin chocar con CORS: la primera reenvía un archivo, la segunda
-            lee las capacidades de un servicio WMS o WFS. Las dos están limitadas por una lista de
-            dominios de la Junta y comprueban también el destino de las redirecciones, así que no
-            sirven como proxy general. No son parte de la API de datos y su formato puede cambiar.
-          </p>
-        </CardContent>
-      </Card>
     </div>
   );
 }

@@ -28,10 +28,24 @@ import type { IssueFamily } from './availability';
 /** Las tres vistas. Los identificadores viajan en la URL. */
 export type Vista = 'prioridades' | 'ficheros' | 'metadatos';
 
+/**
+ * Las etiquetas dicen qué se va a ver; los `id` NO cambian nunca.
+ *
+ * «Prioridades», «Archivos» y «Metadatos» nombraban la materia, no la vista, y
+ * las tres se confundían: «Archivos» parecía el listado del catálogo entero en
+ * vez de solo lo defectuoso, y «Metadatos» no dejaba claro si enseñaba los
+ * metadatos o lo que les falta. Los rótulos nuevos son los que el portal ya usa
+ * por dentro —«Qué arreglar primero» es el título de esa vista y el botón de la
+ * portada, «archivo a archivo» abre el texto de la tabla, «ficha incompleta» es
+ * la etiqueta de la tarjeta de metadatos—.
+ *
+ * Los identificadores viajan en enlaces publicados y en las redirecciones de
+ * `next.config.ts`, así que renombrarlos rompería direcciones guardadas.
+ */
 export const VISTAS: { id: Vista; label: string }[] = [
-  { id: 'prioridades', label: 'Prioridades' },
-  { id: 'ficheros', label: 'Archivos' },
-  { id: 'metadatos', label: 'Metadatos' },
+  { id: 'prioridades', label: 'Qué arreglar primero' },
+  { id: 'ficheros', label: 'Archivo por archivo' },
+  { id: 'metadatos', label: 'Fichas incompletas' },
 ];
 
 const VISTA_VALUES = new Set<string>(VISTAS.map((v) => v.id));

@@ -1,35 +1,26 @@
 "use client";
 
 import Image from "next/image";
-import { FormEvent, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { BarChart3, Database, Home, Menu, Search, X, BookOpen, Library } from "lucide-react";
+import { usePathname } from "next/navigation";
+import { BarChart3, Code2, Database, Home, Menu, X, BookOpen, Library } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
+import { DatasetSearch } from "@/components/layout/DatasetSearch";
 
 const navItems = [
   { label: "Inicio", href: "/", icon: Home },
   { label: "Catálogo", href: "/catalogo", icon: Database },
   { label: "Calidad", href: "/calidad", icon: BarChart3 },
   { label: "Metodología", href: "/metodologia", icon: BookOpen },
+  { label: "API", href: "/api", icon: Code2 },
   { label: "Glosario", href: "/glosario", icon: Library },
 ];
 
 export function Header() {
   const pathname = usePathname();
-  const router = useRouter();
-  const [query, setQuery] = useState("");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-
-  const submitSearch = (event?: FormEvent<HTMLFormElement>) => {
-    event?.preventDefault();
-    const term = query.trim();
-    if (!term) return;
-    router.push(`/catalogo?q=${encodeURIComponent(term)}`);
-    setQuery("");
-    setIsMobileMenuOpen(false);
-  };
 
   const isActive = (href: string) =>
     pathname === href || (href !== "/" && pathname.startsWith(`${href}/`));
@@ -91,17 +82,7 @@ export function Header() {
         </nav>
 
         <div className="flex items-center gap-2">
-          <form className="relative hidden lg:block" onSubmit={submitSearch} role="search">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-faint" />
-            <input
-              type="search"
-              placeholder="Buscar conjuntos de datos…"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              aria-label="Buscar conjuntos de datos"
-              className="h-10 w-56 rounded-lg border border-field bg-fill pl-9 pr-3 text-sm text-body placeholder:text-faint transition-all focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
-            />
-          </form>
+          <DatasetSearch />
           <ThemeToggle />
           <button
             type="button"
@@ -121,17 +102,9 @@ export function Header() {
           id="mobile-navigation"
           className="border-t border-border bg-card px-4 py-4 shadow-lg lg:hidden"
         >
-          <form className="relative mb-3" onSubmit={submitSearch} role="search">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-faint" />
-            <input
-              type="search"
-              placeholder="Buscar conjuntos de datos…"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              aria-label="Buscar conjuntos de datos"
-              className="h-11 w-full rounded-lg border border-field bg-fill pl-9 pr-3 text-sm text-body placeholder:text-faint focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
-            />
-          </form>
+          <div className="mb-3">
+            <DatasetSearch variant="mobile" onNavigate={() => setIsMobileMenuOpen(false)} />
+          </div>
           <nav className="grid grid-cols-2 gap-1" aria-label="Navegación móvil">
             {navItems.map((item) => {
               const Icon = item.icon;

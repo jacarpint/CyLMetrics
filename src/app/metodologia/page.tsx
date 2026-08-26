@@ -1,41 +1,49 @@
 import Link from "next/link";
 import {
-  ArrowRight, Ban, Code2, Database, Download, FileSearch, Gauge, Layers, ListChecks,
-  ScanSearch, ScrollText, Settings2, ShieldCheck, TriangleAlert,
+  ArrowRight, Ban, Database, Download, FileSearch, Gauge, Layers, ListChecks,
+  ScanSearch, Target, Terminal, TriangleAlert,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import EmbedBlock from "@/components/ui/embed-block";
-import { ApiReference } from "@/components/pages/metodologia/ApiReference";
 import { PIPELINE, type PipelineStep } from "@/data/pipeline";
+import { CONTENT_PENALTIES, CONTENT_START } from "@/data/content-scoring";
 import { getCatalog } from "@/lib/rdf-catalog";
-import { getQualityReport } from "@/lib/quality-report";
+import { getQualityReport, formatLongDate } from "@/lib/quality-report";
 import { summarizeDelivery } from "@/lib/availability";
 import { METADATA_WEIGHTS, SCORE_LEVELS, SCORE_WEIGHTS } from "@/lib/quality";
 
 /** Un peso 0-1 del código, escrito como el porcentaje que se publica. */
 const asPercent = (weight: number) => Math.round(weight * 100);
 
+/** El mismo repositorio que enlaza el pie. */
+const REPO_URL = "https://github.com/jacarpint/CyLMetrics";
+
 export const revalidate = 3600;
 
 export const metadata = {
   title: "Metodología",
   description:
-    "Cómo se comprueba cada archivo del catálogo de datos abiertos de Castilla y León, cómo se calculan las puntuaciones de calidad y cómo consultar todo por API.",
+    "Sobre qué se aplica, cómo se comprueba cada archivo del catálogo de datos abiertos de Castilla y León, cómo se calculan las puntuaciones de calidad y cómo volver a ejecutar el análisis.",
 };
 
 /**
- * Índice de la página, en tres niveles de profundidad: primero lo que cualquiera
- * necesita para juzgar si fiarse del portal, después las referencias para quien
- * va a construir algo, y el detalle de operación al final y plegado.
+ * Índice de la página, de lo general a lo verificable: primero sobre qué se
+ * aplica el método, luego cómo se ejecuta y cómo puntúa, después dónde acaba su
+ * alcance y, al final, cómo repetirlo.
+ *
+ * La API y el sello tenían aquí su sección y se fueron a `/api`: son otro
+ * público —quien construye encima, no quien juzga si fiarse— y estaban
+ * documentados dos veces. El «detalle técnico» era un acordeón con tres bloques;
+ * los topes de cada paso están ahora junto a su paso, los ocho códigos de
+ * descarga en la página de API —documentan un campo que la API devuelve— y la
+ * guardia contra servidores lentos se dejó caer.
  */
 const SECTIONS = [
+  { id: "alcance", label: "Alcance" },
   { id: "comprobacion", label: "Cómo se comprueba" },
   { id: "fallos", label: "Qué cuenta como fallo" },
   { id: "calculos", label: "Cómo se puntúa" },
   { id: "limites", label: "Qué no puede saber" },
-  { id: "api", label: "API" },
-  { id: "sello", label: "Sello" },
-  { id: "detalle", label: "Detalle técnico" },
+  { id: "reproducir", label: "Cómo reproducirlo" },
 ];
 
 const PIPELINE_ICONS: Record<PipelineStep["icon"], typeof Database> = {
@@ -56,36 +64,26 @@ const DIMENSIONS = [
   {
     name: "Metadatos",
     weight: asPercent(SCORE_WEIGHTS.metadata),
+    /** La pregunta que responde el eje. Va en la tabla de la fórmula. */
+    measures: "Si la ficha permite encontrar y entender el dato",
     headline: "La ficha está incompleta",
     text: "El archivo está perfecto, pero su ficha no permite encontrarlo, fecharlo o saber si se puede reutilizar. Es lo más barato de corregir y lo que más rinde.",
   },
   {
     name: "Disponibilidad",
     weight: asPercent(SCORE_WEIGHTS.availability),
+    measures: "Si el archivo se puede descargar y abrir",
     headline: "No se puede usar",
     text: "O la descarga falla, o el archivo llega y no se puede interpretar. Es bloqueante: no hay dato que reutilizar, por muy completa que esté la ficha.",
   },
   {
     name: "Contenido",
     weight: asPercent(SCORE_WEIGHTS.content),
+    measures: "Si lo que hay dentro está limpio",
     headline: "Abre, pero necesita limpieza",
     text: "Encabezados vacíos o repetidos, tipos mezclados en una columna, filas de más o de menos. Se puede reutilizar, pero obliga a limpiar antes.",
   },
 ];
-
-/**
- * La fórmula tal como se muestra, alineada por el signo igual.
- *
- * Se compone a partir de `DIMENSIONS` para que los pesos publicados sean
- * literalmente los que usa el cálculo.
- */
-const FORMULA_LABEL = "índice de calidad = ";
-const FORMULA_LINES = DIMENSIONS.map((dimension, i) => {
-  const term = `${dimension.weight}% · ${dimension.name.toLowerCase()}`;
-  return i === 0
-    ? `${FORMULA_LABEL}${term}`
-    : `${" ".repeat(FORMULA_LABEL.length - 2)}+ ${term}`;
-});
 
 /** Los cuatro factores del eje de metadatos. Los pesos, de `METADATA_WEIGHTS`. */
 const META_FACTORS = [
@@ -112,29 +110,36 @@ const META_FACTORS = [
 ];
 
 /**
- * Los ocho resultados posibles de una descarga. Salen de `fetch.status`.
+ * Lo que el análisis ve pero decide no achacar a quien publica.
  *
- * Eran seis, y los dos que faltaban —`no_url` y `error`— no eran un detalle: al no
- * estar documentados aquí tampoco se les puso etiqueta en la interfaz, y salían en
- * la tabla de archivos con su nombre en inglés. La lista completa vive en
- * `FETCH_STATUSES` (`src/analysis/downloader.py`) y hay un test que comprueba que
- * los ocho tienen traducción.
+ * Estaba en una tarjeta suelta al final de «Qué cuenta como fallo», con los tres
+ * puntos en columnas dentro de la misma caja. Se junta con `LIMITES` porque son
+ * la misma idea —dónde para la auditoría— vista por sus dos caras: aquí, lo que
+ * el portal no imputa; allí, lo que directamente no alcanza a saber.
  */
-const FETCH_STATES = [
-  { code: "downloaded", label: "El archivo llegó completo.", tone: "text-ok" },
-  { code: "truncated", label: "Llegó hasta el tope de descarga. Se analiza lo que hay y queda marcado como parcial.", tone: "text-body" },
-  { code: "http_error", label: "El servidor respondió con un error.", tone: "text-bad" },
-  { code: "unreachable", label: "No se pudo contactar con el servidor.", tone: "text-bad" },
-  { code: "service", label: "Es un WMS o un WFS: no hay archivo que descargar, se comprueba preguntándole por sus capas.", tone: "text-body" },
-  { code: "too_large", label: "Declara más del tope, así que no se intentó. No se sabe si abre.", tone: "text-faint" },
-  { code: "no_url", label: "El catálogo describe el recurso pero no publica ninguna URL de acceso.", tone: "text-faint" },
-  { code: "error", label: "El análisis de este portal se interrumpió. Es un problema nuestro, no del archivo.", tone: "text-faint" },
+const NO_IMPUTABLE = [
+  {
+    title: "Nuestras propias limitaciones",
+    text: "Si un archivo supera el tope de descarga, o si a este portal le falta con qué leer un formato, queda «sin analizar». No es un fallo del dato.",
+  },
+  {
+    title: "Los fallos de la plataforma",
+    text: "Cuando la dirección devuelve una página web en vez del archivo, se cuenta aparte: suele ser un problema del gestor de publicación, no del dato, y no penaliza la puntuación.",
+  },
+  {
+    title: "Lo que no se puede verificar",
+    text: "Un conjunto de datos sin fecha de actualización no está probado que esté obsoleto: está probado que no se puede comprobar. Son dos cosas distintas y se presentan por separado.",
+  },
 ];
 
 const LIMITES = [
   {
+    // Sin repetir la cifra: el tope se escribe una sola vez, en el `detail` del
+    // paso de descarga, que es la copia que `pipeline-limits.test.ts` contrasta
+    // contra el fuente de Python. Tenerlo también aquí a mano era la vía por la
+    // que ya envejeció una vez.
     title: "Archivos grandes, a medias",
-    text: "Por encima de 512 MB solo se analiza la parte descargada, y el archivo queda marcado como parcial. Las cifras de filas y columnas de esos archivos son del trozo leído, no del total. En la ficha de cada archivo, el explorador lo descarga entero en tu navegador y recalcula, así que ahí sí se ven las cifras reales.",
+    text: "Por encima del tope de descarga solo se analiza la parte que llegó, y el archivo queda marcado como parcial. Las cifras de filas y columnas de esos archivos son del trozo leído, no del total. En la ficha de cada archivo, el explorador lo descarga entero en tu navegador y recalcula, así que ahí sí se ven las cifras reales.",
   },
   {
     title: "Un tope por si un archivo se desborda",
@@ -168,6 +173,15 @@ export default async function MetodologiaPage() {
   const catalogDatasets = catalog.stats.totalDatasets;
   const analyzedDatasets = delivery.totalDatasets;
 
+  /* Cobertura, derivada del propio catálogo: es lo que respalda que el método
+     se aplique al catálogo entero y no a una muestra. */
+  const categoryCount = Object.keys(catalog.stats.byCategory).length;
+  const formatCount = Object.keys(catalog.stats.formatsBreakdown).length;
+  const analyzedAt = formatLongDate(report?.generated_at);
+  /* Lo publicado después de la foto. Es la diferencia que explica por qué el
+     universo y el análisis no dan la misma cifra. */
+  const newSinceAnalysis = report ? catalogDatasets - analyzedDatasets : 0;
+
   const withoutModified = catalog.datasets.filter((ds) =>
     ds.metadataGaps.includes("sin-fecha-actualizacion")
   ).length;
@@ -176,31 +190,35 @@ export default async function MetodologiaPage() {
 
   return (
     <div className="space-y-12">
-      {/* ── Nivel 1: lo que necesita cualquiera ─────────────────────────────
-          Antes había que leer siete secciones para saber qué hace el portal.
-          Esto responde a eso en un párrafo y una fórmula. */}
+      {/* ── Entrada ─────────────────────────────────────────────────────────
+          Sin repetir el gancho de la portada. Este párrafo decía otra vez
+          «descarga cada archivo publicado e intenta abrirlo, como haría quien
+          quiere reutilizarlo», que es literalmente la frase del hero: quien
+          llega aquí ya la ha leído y lo que viene a buscar es el método. */}
       <header>
         <h1 className="text-2xl font-bold tracking-tight text-strong">Metodología</h1>
-        <p className="mt-2 max-w-3xl text-base leading-relaxed text-body">
-          Casi todos los inventarios de calidad de datos abiertos revisan la ficha. Este{" "}
-          <strong className="text-strong">descarga cada archivo publicado e intenta abrirlo</strong>,
-          como haría quien quiere reutilizarlo, y publica el resultado archivo por archivo con el
-          motivo de cada fallo. Lo que sigue explica el recorrido completo: qué se comprueba, cómo se
-          convierte en una nota y dónde acaba el alcance.
+        <p className="mt-2 max-w-4xl text-base leading-relaxed text-body">
+          Qué se mide exactamente, con qué criterios y con qué límites. Todo lo que publica el
+          portal sale del procedimiento que se describe abajo, y todo él se puede volver a ejecutar:
+          el código es público y el último apartado dice cómo.
         </p>
 
-        <Card className="mt-6 border-ok-line bg-ok-surface">
+        {/* La fórmula, en tabla y no en un bloque de código monoespaciado.
+            Era un `<pre>` con la suma alineada a mano por el signo igual: un
+            formato de terminal para tres cifras que son, sencillamente, tres
+            pesos con su descripción. Se pinta con el mismo patrón que «Metadatos,
+            cuatro factores» más abajo, que es el que la página ya usa para
+            repartos que suman 100.
+
+            La tercera columna es la que antes iba en prosa debajo («tres
+            preguntas distintas: si la ficha…»), así que la tabla no añade texto:
+            lo reordena. */}
+        <Card className="mt-6">
           <CardContent>
-            <p className="eyebrow mb-2">La fórmula, de entrada</p>
-            {/* La fórmula se escribe desde los pesos que aplica el cálculo, no
-                a mano: así no puede desmentir al código. */}
-            <pre className="overflow-x-auto rounded-lg border border-border bg-card px-4 py-3 font-mono text-sm text-body">
-              {FORMULA_LINES.join("\n")}
-            </pre>
-            <p className="mt-3 max-w-3xl text-sm leading-relaxed text-body">
-              Tres preguntas distintas: si la ficha permite encontrar y entender el dato, si el
-              archivo se puede abrir, y si lo que hay dentro está limpio. Se miden por separado
-              porque se corrigen de forma distinta. Los términos están en el{" "}
+            <h2 className="text-base font-semibold text-strong">La fórmula, de entrada</h2>
+            <p className="mt-1 max-w-4xl text-sm text-faint">
+              Tres preguntas distintas, medidas por separado porque se corrigen de forma distinta.
+              Suman el 100%. Los términos están en el{" "}
               <Link
                 href="/glosario"
                 className="font-medium text-link underline-offset-2 hover:underline"
@@ -208,6 +226,47 @@ export default async function MetodologiaPage() {
                 glosario
               </Link>
               .
+            </p>
+            <div className="mt-3 overflow-x-auto">
+              <table className="w-full text-sm">
+                <caption className="sr-only">
+                  Ejes del índice de calidad y su peso
+                </caption>
+                <thead>
+                  <tr className="border-b border-border text-left text-[11px] uppercase tracking-wider text-faint">
+                    <th scope="col" className="py-2 pr-4 font-medium">Eje</th>
+                    <th scope="col" className="py-2 pr-4 text-right font-medium">Peso</th>
+                    <th scope="col" className="py-2 font-medium">Qué responde</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {DIMENSIONS.map((d) => (
+                    <tr key={d.name}>
+                      <th scope="row" className="py-3 pr-4 text-left align-top font-semibold text-strong">
+                        {d.name}
+                      </th>
+                      {/* Los pesos salen de `SCORE_WEIGHTS`, que es lo que aplica
+                          el cálculo: así la tabla no puede desmentir al código. */}
+                      <td className="py-3 pr-4 text-right align-top font-semibold tabular-nums text-ok">
+                        {d.weight}%
+                      </td>
+                      <td className="py-3 align-top leading-relaxed text-body">{d.measures}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* El aviso estaba al pie de la página, después de todo el detalle.
+                Quien lea los pesos tiene que saber en el mismo golpe de vista
+                que son criterio de esta plataforma y no una norma: leerlo seis
+                secciones más tarde llega tarde. */}
+            <p className="mt-4 max-w-4xl border-t border-border pt-3 text-sm leading-relaxed text-faint">
+              <strong className="font-semibold text-body">Estos pesos son criterio de esta
+              plataforma, no un estándar oficial.</strong>{" "}
+              Están elegidos y razonados aquí, y pueden revisarse a medida que evoluciona el
+              catálogo; cuando se toquen, se dirá en esta página. Lo mismo vale para los umbrales
+              de más abajo.
             </p>
           </CardContent>
         </Card>
@@ -225,6 +284,111 @@ export default async function MetodologiaPage() {
         </nav>
       </header>
 
+      {/* ── Alcance ──────────────────────────────────────────────────────────
+          Sobre qué se aplica el método, de dónde sale y con qué fecha. Faltaba,
+          y es lo primero que distingue una metodología de una explicación: sin
+          declarar el universo, «se analizan los archivos» no dice cuántos ni
+          cuáles. Las cifras se leen del catálogo y del informe, nunca a mano.
+
+          Recupera lo aprovechable del bloque de cobertura que se quitó de la
+          portada, donde estorbaba y aquí sí sostiene el argumento. */}
+      <section id="alcance" className="scroll-mt-24 space-y-4">
+        <div>
+          <h2 className="flex items-center gap-2 text-lg font-bold tracking-tight text-strong">
+            <Target className="h-5 w-5 text-faint" aria-hidden />
+            Alcance
+          </h2>
+          <p className="mt-1 max-w-4xl text-sm leading-relaxed text-body">
+            El método se aplica al catálogo completo, no a una muestra ni a una selección temática.
+          </p>
+        </div>
+
+        <Card>
+          <CardContent>
+            <dl className="grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2">
+              <div>
+                <dt className="eyebrow">Universo</dt>
+                <dd className="mt-1 text-sm leading-relaxed text-body">
+                  Los <strong className="text-strong">{catalogDatasets.toLocaleString("es-ES")}</strong>{" "}
+                  conjuntos de datos del catálogo y{" "}
+                  <strong className="text-strong">
+                    sus {catalog.stats.totalDistributions.toLocaleString("es-ES")}
+                  </strong>{" "}
+                  archivos y servicios, repartidos en {categoryCount} temáticas y {formatCount}{" "}
+                  formatos distintos.
+                </dd>
+              </div>
+              <div>
+                <dt className="eyebrow">Fuente</dt>
+                <dd className="mt-1 text-sm leading-relaxed text-body">
+                  El catálogo RDF que publica{" "}
+                  <a
+                    href="https://datosabiertos.jcyl.es"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-link underline-offset-2 hover:underline"
+                  >
+                    datosabiertos.jcyl.es
+                  </a>{" "}
+                  con el estándar europeo DCAT, leído en vivo.
+                </dd>
+              </div>
+              <div>
+                <dt className="eyebrow">Foto vigente</dt>
+                <dd className="mt-1 text-sm leading-relaxed text-body">
+                  {analyzedAt ? (
+                    <>
+                      Análisis del{" "}
+                      <time dateTime={report?.generated_at}>{analyzedAt}</time>, sobre{" "}
+                      {analyzedDatasets.toLocaleString("es-ES")} conjuntos y{" "}
+                      {analyzedFiles.toLocaleString("es-ES")} archivos.
+                    </>
+                  ) : (
+                    "Todavía no hay ningún análisis publicado."
+                  )}
+                </dd>
+              </div>
+              <div>
+                <dt className="eyebrow">Qué no entra</dt>
+                <dd className="mt-1 text-sm leading-relaxed text-body">
+                  Nada se excluye por temática, formato ni organismo. Las únicas ausencias son
+                  técnicas y están{" "}
+                  <a href="#limites" className="text-link underline-offset-2 hover:underline">
+                    declaradas más abajo
+                  </a>
+                  .
+                </dd>
+              </div>
+            </dl>
+
+            {/* Los dos ritmos, explicados donde se notan.
+                Esto vivía dos secciones más abajo en una tarjeta titulada «Dos
+                cosas que no hay que confundir», que anunciaba una confusión sin
+                decir cuál. El problema real es que «Universo» y «Foto vigente»
+                dan aquí mismo dos cifras distintas de lo mismo, y sin una línea
+                que lo explique parece un error de cuentas. */}
+            {analyzedAt && (
+              <p className="mt-5 max-w-4xl border-t border-border pt-4 text-sm leading-relaxed text-faint">
+                Las dos cifras no coinciden, y es lo esperable: el catálogo se lee{" "}
+                <strong className="font-semibold text-body">en vivo</strong> —un conjunto nuevo
+                aparece en cuanto la Junta lo publica— mientras que el análisis es{" "}
+                <strong className="font-semibold text-body">una foto fechada</strong>, porque
+                descargar y abrir {analyzedFiles.toLocaleString("es-ES")} archivos lleva horas.
+                {newSinceAnalysis > 0 ? (
+                  <>
+                    {" "}Ahora mismo hay {newSinceAnalysis.toLocaleString("es-ES")}{" "}
+                    {newSinceAnalysis === 1 ? "conjunto publicado" : "conjuntos publicados"} después
+                    de esa foto, que figuran como «sin analizar» hasta la siguiente.
+                  </>
+                ) : (
+                  <> Lo publicado después de esa foto figura como «sin analizar».</>
+                )}
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      </section>
+
       {/* ── Cómo se comprueba ────────────────────────────────────────────────
           Incorpora lo que era la sección «De dónde salen los datos»: decía en
           dos tarjetas lo mismo que el paso 1, y solo aportaba de nuevo la
@@ -235,9 +399,12 @@ export default async function MetodologiaPage() {
             <ScanSearch className="h-5 w-5 text-faint" aria-hidden />
             Cómo se comprueba cada archivo
           </h2>
-          <p className="mt-1 max-w-3xl text-sm leading-relaxed text-body">
-            Un catálogo puede tener fichas impecables y archivos que no abren. Lo que distingue a
-            este portal es el paso 2: no se queda en los metadatos.
+          <p className="mt-1 max-w-4xl text-sm leading-relaxed text-body">
+            {/* La frase de arranque era literalmente la misma que abre la
+                sección equivalente de la portada. Aquí se entra directo al
+                procedimiento, que es lo que esta página debe aportar. */}
+            Cuatro pasos, en este orden. El segundo es el que separa a este portal de un inventario
+            de metadatos: el archivo se descarga de verdad y se intenta abrir.
           </p>
         </div>
 
@@ -255,6 +422,12 @@ export default async function MetodologiaPage() {
                       <p className="eyebrow mb-1">Paso {i + 1}</p>
                       <h3 className="text-sm font-semibold text-strong">{step.title}</h3>
                       <p className="mt-1.5 text-sm leading-relaxed text-body">{step.long}</p>
+                      {/* Los topes, junto al paso que acotan. Estaban en un
+                          acordeón de «detalle técnico» al final de la página,
+                          lejos de lo que explican. */}
+                      <p className="mt-2 font-mono text-[11px] leading-relaxed text-faint">
+                        {step.detail}
+                      </p>
                     </div>
                   </CardContent>
                 </Card>
@@ -263,25 +436,11 @@ export default async function MetodologiaPage() {
           })}
         </ol>
 
-        <Card tone="muted">
-          <CardContent>
-            <h3 className="text-sm font-semibold text-strong">Dos cosas que no hay que confundir</h3>
-            <p className="mt-1.5 max-w-3xl text-sm leading-relaxed text-body">
-              El catálogo se lee <strong className="text-strong">en vivo</strong>: un conjunto de
-              datos nuevo aparece aquí en cuanto la Junta lo publica. El análisis, en cambio, es{" "}
-              <strong className="text-strong">una foto fechada</strong>: descargar y abrir los{" "}
-              {analyzedFiles.toLocaleString("es-ES")} archivos lleva horas, y lo publicado después de
-              esa foto figura como «sin analizar». La fecha del análisis vigente aparece en la
-              portada y en cada ficha.
-            </p>
-            <p className="mt-2 max-w-3xl text-sm leading-relaxed text-faint">
-              Por eso los totales no siempre cuadran al dígito: ahora mismo el catálogo tiene{" "}
-              {catalogDatasets.toLocaleString("es-ES")} conjuntos de datos y el análisis vio{" "}
-              {analyzedDatasets.toLocaleString("es-ES")}. No es un error de cuentas, y el portal lo
-              indica donde las dos cifras aparecen juntas.
-            </p>
-          </CardContent>
-        </Card>
+        {/* Aquí había una tarjeta «Dos cosas que no hay que confundir» con los
+            dos ritmos del portal —catálogo en vivo, análisis fechado—. El
+            contenido no se pierde: está en «Alcance», que es donde las dos
+            cifras aparecen juntas y donde, por tanto, hace falta la explicación.
+            El título además prometía una confusión sin decir cuál. */}
       </section>
 
       {/* ── Qué cuenta como fallo ── */}
@@ -291,11 +450,14 @@ export default async function MetodologiaPage() {
             <TriangleAlert className="h-5 w-5 text-faint" aria-hidden />
             Qué cuenta como fallo
           </h2>
-          <p className="mt-1 max-w-3xl text-sm leading-relaxed text-body">
+          {/* El ejemplo de las 9.000 celdas se cuenta una sola vez, en «Cómo se
+              puntúa», donde justifica la fórmula. Aquí bastaba con enunciar la
+              separación. */}
+          <p className="mt-1 max-w-4xl text-sm leading-relaxed text-body">
             «No se puede abrir» y «necesita limpieza» son problemas de naturaleza distinta y se miden
-            aparte. Mezclarlos engaña en las dos direcciones: por volumen, la inmensa mayoría de las
-            incidencias del catálogo son celdas opcionales vacías, así que un CSV correcto con 9.000
-            huecos salía peor que un archivo que no existe.
+            aparte. Mezclarlos engaña en las dos direcciones, porque por volumen la inmensa mayoría
+            de las incidencias del catálogo son celdas opcionales vacías: contadas junto a lo que
+            rompe la reutilización, la tapan.
           </p>
         </div>
 
@@ -316,32 +478,9 @@ export default async function MetodologiaPage() {
           ))}
         </div>
 
-        {/* Esto es lo que separa una auditoría de un señalamiento. */}
-        <Card tone="ok">
-          <CardContent>
-            <h3 className="flex items-center gap-2 text-sm font-semibold text-strong">
-              <Ban className="h-4 w-4 text-ok" aria-hidden />
-              Lo que no se le imputa a quien publica
-            </h3>
-            <ul className="mt-3 grid grid-cols-1 gap-2 text-sm leading-relaxed text-body md:grid-cols-3">
-              <li>
-                <strong className="text-strong">Nuestras propias limitaciones.</strong> Si un archivo
-                supera el tope de descarga, o si a este portal le falta con qué leer un formato, queda
-                «sin analizar». No es un fallo del dato.
-              </li>
-              <li>
-                <strong className="text-strong">Los fallos de la plataforma.</strong> Cuando la
-                dirección devuelve una página web en vez del archivo, se cuenta aparte: suele ser un
-                problema del gestor de publicación, no del dato, y no penaliza la puntuación.
-              </li>
-              <li>
-                <strong className="text-strong">Lo que no se puede verificar.</strong> Un conjunto de
-                datos sin fecha de actualización no está probado que esté obsoleto: está probado que no
-                se puede comprobar. Son dos cosas distintas y se presentan por separado.
-              </li>
-            </ul>
-          </CardContent>
-        </Card>
+        {/* «Lo que no se le imputa a quien publica» estaba aquí, en una tarjeta
+            con tres columnas dentro. Se ha llevado a «Qué no puede saber el
+            portal», que trata lo mismo desde el otro lado. */}
       </section>
 
       {/* ── Cálculos ── */}
@@ -351,7 +490,7 @@ export default async function MetodologiaPage() {
             <Gauge className="h-5 w-5 text-faint" aria-hidden />
             Cómo se calculan las puntuaciones
           </h2>
-          <p className="mt-1 max-w-3xl text-sm leading-relaxed text-body">
+          <p className="mt-1 max-w-4xl text-sm leading-relaxed text-body">
             La fórmula está arriba. Aquí está lo que hay detrás de cada uno de sus tres sumandos.
           </p>
         </div>
@@ -359,7 +498,7 @@ export default async function MetodologiaPage() {
         <Card>
           <CardContent>
             <h3 className="text-base font-semibold text-strong">Disponibilidad</h3>
-            <p className="mt-1.5 max-w-3xl text-sm leading-relaxed text-body">
+            <p className="mt-1.5 max-w-4xl text-sm leading-relaxed text-body">
               El porcentaje de archivos del conjunto de datos que se descargan y abren. Los que no se
               llegaron a comprobar quedan fuera del cálculo: no cuentan como fallo. Si no se comprobó
               ninguno, se muestra solo el índice de metadatos y se indica. Si se comprobaron y no
@@ -376,19 +515,50 @@ export default async function MetodologiaPage() {
               <FileSearch className="h-4 w-4 text-faint" aria-hidden />
               <h3 className="text-base font-semibold text-strong">Contenido, archivo por archivo</h3>
             </div>
-            <p className="mt-1.5 max-w-3xl text-sm leading-relaxed text-body">
-              Cada archivo legible parte de 100 y baja según los{" "}
+            <p className="mt-1.5 max-w-4xl text-sm leading-relaxed text-body">
+              Cada archivo legible parte de{" "}
+              <strong className="text-strong">{CONTENT_START}</strong> y baja según los{" "}
               <strong className="text-strong">tipos</strong> de problema encontrados, no según cuántas
-              veces aparece cada uno:
+              veces aparece cada uno.
             </p>
-            <pre className="mt-3 overflow-x-auto rounded-lg border border-border bg-fill px-4 py-3 font-mono text-xs leading-relaxed text-body">
-{`100
- − 15 por cada tipo de incidencia grave   (máximo −60)
- −  5 por cada tipo de incidencia leve
- − 10 si el total de casos graves pasa de 1.000
- → acotado entre 0 y 100`}
-            </pre>
-            <p className="mt-3 max-w-3xl text-sm leading-relaxed text-faint">
+            {/* En tabla, con el mismo formato que «Metadatos, cuatro factores».
+                Era un bloque de código monoespaciado con la resta alineada a
+                mano: un formato de terminal para tres descuentos con su tope.
+
+                Las cifras vienen de `@/data/content-scoring`, no escritas aquí:
+                son las que aplica `_score_from_issues` en el analizador y
+                `content-scoring.test.ts` comprueba que sigan coincidiendo. */}
+            <div className="mt-3 overflow-x-auto">
+              <table className="w-full text-sm">
+                <caption className="sr-only">
+                  Descuentos sobre la puntuación de contenido de un archivo
+                </caption>
+                <thead>
+                  <tr className="border-b border-border text-left text-[11px] uppercase tracking-wider text-faint">
+                    <th scope="col" className="py-2 pr-4 font-medium">Descuento</th>
+                    <th scope="col" className="py-2 pr-4 text-right font-medium">Resta</th>
+                    <th scope="col" className="py-2 font-medium">Tope</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {CONTENT_PENALTIES.map((p) => (
+                    <tr key={p.concept}>
+                      <th scope="row" className="py-3 pr-4 text-left align-top font-semibold text-strong">
+                        {p.concept}
+                      </th>
+                      <td className="py-3 pr-4 text-right align-top font-semibold tabular-nums text-bad">
+                        −{p.points}
+                      </td>
+                      <td className="py-3 align-top leading-relaxed text-body">{p.note}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="mt-3 text-xs text-faint">
+              El resultado se acota entre 0 y {CONTENT_START}.
+            </p>
+            <p className="mt-3 max-w-4xl text-sm leading-relaxed text-faint">
               Penalizar tipos y no casos es deliberado: un CSV con 9.000 celdas vacías del mismo tipo
               tiene un problema, no nueve mil. Si contáramos casos, ese archivo se hundiría por debajo
               de uno que no existe. La puntuación del conjunto de datos es la media de las de sus
@@ -403,7 +573,7 @@ export default async function MetodologiaPage() {
         <Card>
           <CardContent>
             <h3 className="text-base font-semibold text-strong">Metadatos, cuatro factores</h3>
-            <p className="mt-1 max-w-3xl text-sm text-faint">
+            <p className="mt-1 max-w-4xl text-sm text-faint">
               Se calculan solo con lo que declara la ficha del catálogo, sin descargar nada. Suman el
               100%.
             </p>
@@ -443,7 +613,7 @@ export default async function MetodologiaPage() {
             <h3 className="text-sm font-semibold text-strong">
               La actualidad tiene una trampa, y conviene conocerla
             </h3>
-            <p className="mt-1.5 max-w-3xl text-sm leading-relaxed text-body">
+            <p className="mt-1.5 max-w-4xl text-sm leading-relaxed text-body">
               Para medir si un conjunto de datos va al día hace falta saber cuándo se actualizó por
               última vez. Hoy {TENTHS[withoutModifiedTenths]} de cada diez
               conjuntos del catálogo no publican esa fecha (
@@ -452,7 +622,7 @@ export default async function MetodologiaPage() {
               conjunto que se refresca cada día pero se publicó en 2011 sale con años de retraso
               aparente.
             </p>
-            <p className="mt-2 max-w-3xl text-sm leading-relaxed text-body">
+            <p className="mt-2 max-w-4xl text-sm leading-relaxed text-body">
               La puntuación no distingue el retraso demostrado del no verificable —mide con la fecha
               que tiene—, pero el portal sí lo distingue al presentarlo, porque son dos correcciones
               distintas: publicar el metadato, o actualizar el dato. El desglose está en{" "}
@@ -460,7 +630,7 @@ export default async function MetodologiaPage() {
                 href="/calidad?vista=metadatos"
                 className="font-medium text-link underline-offset-2 hover:underline"
               >
-                Calidad › Metadatos
+                Calidad › Fichas incompletas
               </Link>
               .
             </p>
@@ -472,7 +642,7 @@ export default async function MetodologiaPage() {
             interfaz para colorear cualquier nota. */}
         <div>
           <h3 className="text-base font-semibold text-strong">Umbrales</h3>
-          <p className="mt-1 max-w-3xl text-sm text-faint">
+          <p className="mt-1 max-w-4xl text-sm text-faint">
             Los mismos en toda la interfaz, en la API y en el sello. Cada tramo se dibuja con la
             anchura del rango que cubre, no con un tercio de la barra.
           </p>
@@ -482,9 +652,15 @@ export default async function MetodologiaPage() {
                 <div key={band.level} className={band.fill} style={{ width: `${band.width}%` }} />
               ))}
             </div>
-            <div className="grid grid-cols-3 divide-x divide-border">
+            {/* Las etiquetas comparten el ancho de su tramo, no un tercio cada
+                una. Con `grid-cols-3` los separadores caían en el 33% y el 66%
+                mientras el color cambiaba en el 50% y el 80%: la barra decía una
+                cosa y las divisiones otra, que es justo lo que este bloque
+                pretende enseñar. `min-w-0` para que el texto pueda encogerse en
+                el tramo más estrecho en vez de desbordar. */}
+            <div className="flex divide-x divide-border">
               {SCORE_LEVELS.map((band) => (
-                <div key={band.level} className="p-3">
+                <div key={band.level} className="min-w-0 p-3" style={{ width: `${band.width}%` }}>
                   <p className={`text-sm font-semibold ${band.color}`}>
                     {band.min === 0
                       ? `< ${band.max + 1}%`
@@ -500,175 +676,114 @@ export default async function MetodologiaPage() {
         </div>
       </section>
 
-      {/* ── Límites ── */}
-      <section id="limites" className="scroll-mt-24 space-y-4">
+      {/* ── Límites, en dos grupos ───────────────────────────────────────────
+          Antes esto eran dos bloques separados y lejanos: aquí, lo que el
+          análisis no alcanza a saber; y al final de «Qué cuenta como fallo»,
+          una tarjeta con «Lo que no se le imputa a quien publica» apretada en
+          tres columnas. Son las dos caras de la misma pregunta —hasta dónde
+          llega esta auditoría— y separarlas obligaba a reconstruir la respuesta
+          leyendo dos sitios. Juntas, y las dos con el mismo formato de tarjeta.
+
+          El `id` se mantiene: `#limites` está enlazado desde la portada y desde
+          «Alcance». */}
+      <section id="limites" className="scroll-mt-24 space-y-6">
         <div>
           <h2 className="flex items-center gap-2 text-lg font-bold tracking-tight text-strong">
             <Layers className="h-5 w-5 text-faint" aria-hidden />
             Qué no puede saber el portal
           </h2>
-          <p className="mt-1 max-w-3xl text-sm leading-relaxed text-body">
+          <p className="mt-1 max-w-4xl text-sm leading-relaxed text-body">
             Una auditoría que no dice dónde acaba su alcance es una auditoría en la que no se puede
-            confiar. Estos son los límites conocidos.
+            confiar. Estos son los límites conocidos, y lo que el análisis ve pero decide no
+            achacar a quien publica.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          {LIMITES.map((l) => (
-            <Card key={l.title}>
-              <CardContent>
-                <h3 className="text-sm font-semibold text-strong">{l.title}</h3>
-                <p className="mt-1.5 text-sm leading-relaxed text-body">{l.text}</p>
-              </CardContent>
-            </Card>
-          ))}
+        <div>
+          <h3 className="text-base font-semibold text-strong">Lo que el análisis no alcanza</h3>
+          <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2">
+            {LIMITES.map((l) => (
+              <Card key={l.title}>
+                <CardContent>
+                  <h4 className="text-sm font-semibold text-strong">{l.title}</h4>
+                  <p className="mt-1.5 text-sm leading-relaxed text-body">{l.text}</p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+
+        {/* Esto es lo que separa una auditoría de un señalamiento. */}
+        <div>
+          <h3 className="flex items-center gap-2 text-base font-semibold text-strong">
+            <Ban className="h-4 w-4 text-faint" aria-hidden />
+            Lo que no se le imputa a quien publica
+          </h3>
+          <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2">
+            {NO_IMPUTABLE.map((n) => (
+              <Card key={n.title}>
+                <CardContent>
+                  <h4 className="text-sm font-semibold text-strong">{n.title}</h4>
+                  <p className="mt-1.5 text-sm leading-relaxed text-body">{n.text}</p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
         </div>
       </section>
 
 
-      {/* ── API ── */}
-      <section id="api" className="scroll-mt-24 space-y-4">
+      {/* ── Cómo reproducirlo ────────────────────────────────────────────────
+          La pieza que faltaba para que esto sea una metodología y no solo una
+          explicación: un método que no se puede volver a ejecutar hay que
+          creérselo. El repositorio es público, así que ya se puede ofrecer. */}
+      <section id="reproducir" className="scroll-mt-24 space-y-4">
         <div>
           <h2 className="flex items-center gap-2 text-lg font-bold tracking-tight text-strong">
-            <Code2 className="h-5 w-5 text-faint" aria-hidden />
-            API
+            <Terminal className="h-5 w-5 text-faint" aria-hidden />
+            Cómo reproducirlo
           </h2>
-          <p className="mt-1 max-w-3xl text-sm leading-relaxed text-body">
-            Un observatorio de datos abiertos debería publicar también los suyos. Todo lo que se ve en
-            el portal está disponible en JSON, sin registro ni clave. Además, las listas de trabajo de{" "}
-            <Link href="/calidad" className="font-medium text-link underline-offset-2 hover:underline">
-              Calidad
-            </Link>{" "}
-            se descargan en CSV respetando los filtros que tengas puestos.
-          </p>
-        </div>
-
-        <ApiReference />
-      </section>
-
-      {/* ── Sello ── */}
-      <section id="sello" className="scroll-mt-24 space-y-4">
-        <div>
-          <h2 className="flex items-center gap-2 text-lg font-bold tracking-tight text-strong">
-            <ShieldCheck className="h-5 w-5 text-faint" aria-hidden />
-            Sello de calidad
-          </h2>
-          <p className="mt-1 max-w-3xl text-sm leading-relaxed text-body">
-            Cualquiera puede incrustar la calidad de un conjunto de datos —o la del catálogo entero—
-            como una imagen, que refleja siempre el último análisis publicado sin tener que volver a
-            pegarla. El sello escribe siempre el nivel junto al
-            porcentaje, con los umbrales de más arriba: el color no puede ser lo único que informe, y
-            menos en una imagen pegada en otra web.
+          <p className="mt-1 max-w-4xl text-sm leading-relaxed text-body">
+            Nada de lo que hay aquí exige confiar en este portal. El código del análisis es público
+            y se ejecuta contra el mismo catálogo, así que cualquiera puede rehacer la foto y
+            comparar. Es un proceso largo —descargar y abrir todos los archivos lleva horas y
+            varias decenas de gigas— y corre en local, sin infraestructura propia.
           </p>
         </div>
 
         <Card>
-          <CardContent className="space-y-4">
-            <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-fill p-4">
-              {/* eslint-disable-next-line @next/next/no-img-element -- SVG de una ruta propia, sin optimización que aplicar */}
-              <img
-                src="/api/sello"
-                alt="Sello con el índice de calidad del catálogo de datos abiertos de Castilla y León"
-                width={174}
-                height={28}
-              />
-              <span className="text-xs text-faint">índice de calidad del catálogo completo</span>
-            </div>
+          <CardContent className="space-y-3">
+            <pre className="overflow-x-auto rounded-lg border border-border bg-fill px-4 py-3 font-mono text-xs leading-relaxed text-body">
+{`git clone ${REPO_URL}
+pip install -r requirements-analysis.txt
 
-            <EmbedBlock url="/api/sello?dataset=IDENTIFICADOR" label="Código para incrustarlo" />
+# Comprueba primero que están todos los lectores
+python -m src.analysis --limit 1 --strict-deps
 
-            <p className="text-xs leading-relaxed text-faint">
-              Sustituye <code className="font-mono text-body">IDENTIFICADOR</code> por el número que
-              aparece al final de la dirección de la ficha (por ejemplo{" "}
-              <code className="font-mono text-body">1285663381041</code>). Cada ficha trae el suyo ya
-              montado.
+# El análisis completo
+python -m src.analysis --limit 0`}
+            </pre>
+            <p className="max-w-4xl text-xs leading-relaxed text-faint">
+              El primer comando no descarga nada: solo verifica que el entorno sabe abrir todos los
+              formatos del catálogo. Sin él, un lector que falte se convierte en archivos «sin
+              analizar» a mitad de la ejecución.
             </p>
+            <a
+              href={REPO_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1.5 text-sm font-medium text-link underline-offset-2 hover:underline"
+            >
+              Ver el repositorio <ArrowRight className="h-4 w-4" aria-hidden />
+            </a>
           </CardContent>
         </Card>
       </section>
 
-      {/* ── Nivel 3: detalle técnico ─────────────────────────────────────────
-          Topes, tiempos de espera, códigos internos y la guardia contra
-          servidores lentos. Da confianza a quien la busca y estorba a quien no:
-          va plegado. */}
-      <section id="detalle" className="scroll-mt-24">
-        <details className="rounded-xl border border-border bg-card">
-          <summary className="flex cursor-pointer items-center gap-2 px-5 py-4 text-lg font-bold tracking-tight text-strong">
-            <Settings2 className="h-5 w-5 text-faint" aria-hidden />
-            Detalle técnico
-            <span className="text-xs font-normal text-faint">
-              topes, tiempos de espera y códigos internos
-            </span>
-          </summary>
-
-          <div className="space-y-5 border-t border-border p-5">
-            <div>
-              <h3 className="text-sm font-semibold text-strong">Límites de cada paso</h3>
-              <dl className="mt-2 space-y-1.5">
-                {PIPELINE.map((step, i) => (
-                  <div key={step.title} className="flex flex-wrap items-baseline gap-x-2 text-sm">
-                    <dt className="font-medium text-body">
-                      {i + 1}. {step.title}
-                    </dt>
-                    <dd className="font-mono text-xs text-faint">{step.detail}</dd>
-                  </div>
-                ))}
-              </dl>
-            </div>
-
-            <div>
-              <h3 className="text-sm font-semibold text-strong">Los ocho resultados de una descarga</h3>
-              <p className="mt-1 text-xs text-faint">
-                Estos códigos son los que devuelve la API en el campo{" "}
-                <code className="font-mono text-body">fetch.status</code>.
-              </p>
-              <dl className="mt-2 space-y-2">
-                {FETCH_STATES.map((s) => (
-                  <div key={s.code} className="flex flex-wrap items-baseline gap-x-2">
-                    <dt className={`font-mono text-xs font-semibold ${s.tone}`}>{s.code}</dt>
-                    <dd className="min-w-0 flex-1 text-xs leading-relaxed text-body">{s.label}</dd>
-                  </div>
-                ))}
-              </dl>
-            </div>
-
-            <div>
-              <h3 className="text-sm font-semibold text-strong">
-                Guardia contra servidores que gotean
-              </h3>
-              <p className="mt-1 max-w-3xl text-xs leading-relaxed text-body">
-                El tiempo de espera de lectura se mide por trozo recibido, así que un servidor que
-                devuelve unos pocos bytes cada pocos segundos nunca lo agota y podría bloquear el
-                análisis indefinidamente. Si en 30 segundos no han llegado 300 KB, la descarga se
-                aborta y se reintenta.
-              </p>
-            </div>
-          </div>
-        </details>
-      </section>
-
-      {/* ── Nota ── */}
-      <Card tone="muted">
-        <CardContent className="flex items-start gap-3 p-4">
-          <ScrollText className="mt-0.5 h-4 w-4 shrink-0 text-faint" aria-hidden />
-          <p className="max-w-3xl text-xs leading-relaxed text-faint">
-            Los pesos y los umbrales son criterios de evaluación de esta plataforma, no un estándar
-            oficial, y pueden revisarse a medida que evoluciona el catálogo. Cuando se toquen, se dirá
-            aquí. La fuente de los metadatos es el catálogo de{" "}
-            <a
-              href="https://datosabiertos.jcyl.es"
-              target="_blank"
-              rel="noreferrer"
-              className="text-link underline-offset-2 hover:underline"
-            >
-              datosabiertos.jcyl.es
-            </a>
-            .
-          </p>
-        </CardContent>
-      </Card>
-
-      <div className="flex flex-wrap gap-4">
+      {/* La nota del pie decía dos cosas y las dos están ya arriba: el aviso de
+          que los pesos no son un estándar subió junto a la fórmula, que es donde
+          se leen, y la fuente de los metadatos la declara «Alcance». */}
+      <div className="flex flex-wrap gap-4 border-t border-border pt-6">
         <Link
           href="/catalogo"
           className="inline-flex items-center gap-1.5 text-sm font-medium text-link underline-offset-2 hover:underline"
@@ -680,6 +795,14 @@ export default async function MetodologiaPage() {
           className="inline-flex items-center gap-1.5 text-sm font-medium text-link underline-offset-2 hover:underline"
         >
           Ver qué hay que corregir <ArrowRight className="h-4 w-4" aria-hidden />
+        </Link>
+        {/* La API tenía sección propia aquí y ahora vive en su página; sin este
+            enlace, quien viene a por la referencia se queda sin salida. */}
+        <Link
+          href="/api"
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-link underline-offset-2 hover:underline"
+        >
+          Consultar todo esto por API <ArrowRight className="h-4 w-4" aria-hidden />
         </Link>
         <Link
           href="/glosario"

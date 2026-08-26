@@ -12,7 +12,8 @@ import {
   Sheet, SheetBody, SheetContent, SheetDescription, SheetHeader, SheetTitle,
 } from '@/components/ui/sheet';
 import { FilterContent } from '@/components/layout/FilterContent';
-import { getScoreColor, getScoreBorderColor, getScoreLabel, compositeScore } from '@/lib/quality';
+import { compositeScore } from '@/lib/quality';
+import { ScoreCircle } from '@/components/ui/score-circle';
 import { datasetSlug, cn } from '@/lib/utils';
 import type { CatalogStats } from '@/lib/types';
 import type { QualityDatasetLite } from '@/lib/quality-report';
@@ -75,30 +76,6 @@ function FormatTag({ format, state = 'sin-datos' }: { format: string; state?: Fo
   );
 }
 
-function QualityScoreCircle({ score }: { score: number | null }) {
-  const colorClass = score != null ? getScoreColor(score) : 'text-faint';
-  const borderClass = score != null ? getScoreBorderColor(score) : 'border-border';
-  return (
-    <div
-      title="Índice de calidad: metadatos, disponibilidad de los archivos y calidad del contenido"
-      className={cn(
-        'flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 text-sm font-bold tabular-nums',
-        borderClass,
-        colorClass
-      )}
-    >
-      {score ?? '—'}
-      {/* El nivel también en texto: el color no puede ser lo único que lo diga
-          (WCAG 1.4.1). */}
-      <span className="sr-only">
-        {score != null
-          ? ` sobre 100 — índice de calidad ${getScoreLabel(score).toLowerCase()}`
-          : 'Sin puntuación'}
-      </span>
-    </div>
-  );
-}
-
 /**
  * Lo mínimo que necesita una tarjeta.
  *
@@ -137,7 +114,7 @@ function DatasetCard({
         <h3 className="line-clamp-2 text-sm font-semibold leading-snug text-strong transition-colors group-hover:text-ok">
           {dataset.title}
         </h3>
-        <QualityScoreCircle score={score} />
+        <ScoreCircle score={score} />
       </div>
 
       {dataset.description && (

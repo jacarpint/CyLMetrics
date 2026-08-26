@@ -139,6 +139,48 @@ export function filtersAreActive(f: ActiveFilters): boolean {
   );
 }
 
+/**
+ * Texto listo para buscar: sin acentos, en minúsculas y con los espacios
+ * colapsados.
+ *
+ * Los títulos del catálogo están llenos de tildes y de eñes —«Población»,
+ * «Señalización», «Áreas»—, y quien busca escribe casi siempre sin ellas. Con
+ * un `toLowerCase()` a secas, «poblacion» no encontraba «Población»: el
+ * buscador parecía roto cuando el dato estaba ahí.
+ *
+ * `NFD` separa cada letra de su diacrítico y el rango `̀-ͯ` los
+ * borra. Efecto colateral aceptado: «ñ» pasa a «n», así que «ano» encuentra
+ * «año». Es el precio normal de un buscador tolerante, y equivocarse de más es
+ * mejor que no encontrar nada.
+ */
+export function normalizeForSearch(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * ¿Contiene `haystack` todas las palabras de `query`?
+ *
+ * Por palabras y no como una sola cadena contigua: el título real es «Hospitales
+ * de la Comunidad de Castilla y León», y quien escribe «hospitales castilla»
+ * esperaba encontrarlo. Antes no salía, porque la búsqueda exigía la frase
+ * literal con sus preposiciones y en el mismo orden.
+ *
+ * Todas las palabras tienen que aparecer (AND) y en cualquier orden. Con OR,
+ * buscar dos palabras devolvía más resultados que buscar una, que es lo
+ * contrario de lo que espera quien está acotando.
+ */
+export function matchesQuery(haystack: string, query: string): boolean {
+  const needles = normalizeForSearch(query).split(' ').filter(Boolean);
+  if (needles.length === 0) return true;
+  const hay = normalizeForSearch(haystack);
+  return needles.every((needle) => hay.includes(needle));
+}
+
 /** Aplica los filtros sobre el catálogo completo (los valores no incluidos no filtran). */
 export function applyFilters(
   datasets: Dataset[],
@@ -154,11 +196,8 @@ export function applyFilters(
     if (f.desde && day < f.desde) return false;
     if (f.hasta && day > f.hasta) return false;
     if (f.q) {
-      const needle = f.q.toLowerCase();
-      const haystack = [ds.title, ds.description, ds.publisher, ...(ds.keywords ?? [])]
-        .join(' ')
-        .toLowerCase();
-      if (!haystack.includes(needle)) return false;
+      const haystack = [ds.title, ds.description, ds.publisher, ...(ds.keywords ?? [])].join(' ');
+      if (!matchesQuery(haystack, f.q)) return false;
     }
     if (f.analisis && analysisBySlug) {
       const lit = analysisBySlug[datasetSlug(ds.id)];

@@ -163,10 +163,22 @@
 }
 
 @layer base {
-  html {
-    scroll-padding-top: 4.5rem;
-  }
-
+  /*
+   * Aquí había `html { scroll-padding-top: 4.5rem }`, y hacía saltar el scroll.
+   *
+   * Al escribir, el navegador desplaza el cursor a la vista. Esa propiedad le
+   * declaraba vedados los 72 px superiores del área visible —justo la altura de
+   * la cabecera—, pero el buscador vive DENTRO de la cabecera, que es `sticky`.
+   * Así que el navegador subía el scroll intentando colocar el cursor por debajo
+   * de esa línea y, al moverse la cabecera con el viewport, la condición no se
+   * cumplía nunca: cada tecla empujaba la página un poco más hacia arriba.
+   *
+   * No hace falta reponerla: todos los destinos de ancla llevan ya su propio
+   * `scroll-mt-24` (96 px, más que la cabecera) —las seis secciones de
+   * Metodología y los bloques y términos del Glosario—. El único que no lo
+   * tenía era `main`, destino del enlace «Saltar al contenido principal», y
+   * ahora lo lleva escrito en el layout.
+   */
   * {
     border-color: var(--border);
   }
@@ -437,6 +449,17 @@
   --animate-accordion-down: accordion-down 0.2s ease-out;
   --animate-accordion-up: accordion-up 0.2s ease-out;
   --animate-fade-in-up: fade-in-up 0.24s ease-out;
+
+  /* Ancho de la columna de contenido, en `main` y en el pie. Genera `max-w-page`.
+     Se declara aquí y no como valor suelto en cada sitio porque lo usan dos
+     componentes distintos y tienen que ir siempre a la vez: si el pie se queda
+     con otro ancho, su texto deja de alinearse con el contenido de encima.
+
+     No lo fija la lectura —la prosa lleva su propio tope de `max-w-4xl`, más
+     estrecho— sino las tarjetas: por debajo de esto, las rejillas de dos
+     columnas quedan escuálidas y la fila de cuatro pasos, directamente
+     apretada. */
+  --container-page: 90rem;
 }
 
 @media (prefers-reduced-motion: reduce) {

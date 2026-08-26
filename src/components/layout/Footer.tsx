@@ -1,49 +1,66 @@
-import Link from "next/link";
-import { ArrowRight } from "lucide-react";
+import { Code2 } from "lucide-react";
 
 /**
  * Pie del portal, en el layout y no en la portada.
  *
  * Aquí vive el aviso de que esto es un proyecto independiente, y ese aviso hace
  * falta en cualquier página que enseñe una nota de calidad, no solo en Inicio.
+ *
+ * Se queda con lo que no puede vivir en otro sitio: de dónde salen los datos,
+ * que el portal no es de la Junta, dónde está el código y a qué convocatoria se
+ * presenta. Los enlaces al glosario y a la metodología estaban aquí duplicando
+ * la navegación de la cabecera, que ya los lleva.
  */
+const REPO_URL = "https://github.com/jacarpint/CyLMetrics";
+const CONCURSO_URL =
+  "https://datosabiertos.jcyl.es/web/es/concurso-datos-abiertos/concurso-datos-abiertos.html";
+
 export function Footer() {
   return (
-    <footer className="border-t border-border bg-fill px-4 py-6 sm:px-6">
-      <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
-        <p className="max-w-3xl text-xs leading-relaxed text-faint">
-          Metadatos del{" "}
+    <footer className="border-t border-border bg-fill px-6 py-6 sm:px-8 lg:px-12">
+      {/* Mismo contenedor que el contenido de `main`: el borde superior sigue
+          yendo a sangre, pero el texto arranca a la altura de lo que hay encima
+          en vez de pegado al margen izquierdo. */}
+      <div className="mx-auto w-full max-w-page">
+        <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
+          <p className="max-w-3xl text-xs leading-relaxed text-faint">
+            Este portal es un proyecto independiente basado en el{" "}
+            <a
+              href="https://datosabiertos.jcyl.es"
+              className="text-link underline-offset-2 hover:underline"
+              target="_blank"
+              rel="noreferrer"
+            >
+              catálogo de datos de la Junta de Castilla y León
+            </a>
+            .
+          </p>
           <a
-            href="https://datosabiertos.jcyl.es"
-            className="text-link underline-offset-2 hover:underline"
+            href={REPO_URL}
             target="_blank"
             rel="noreferrer"
+            className="flex shrink-0 items-center gap-1.5 text-xs text-faint transition-colors hover:text-body"
           >
-            catálogo de datos abiertos de la Junta de Castilla y León
+            <Code2 className="h-3.5 w-3.5" aria-hidden />
+            Código en GitHub
           </a>
-          . El análisis de los archivos es una foto fechada —su fecha aparece en cada ficha— y su
-          resultado se publica en{" "}
-          <a href="/api/quality" className="text-link underline-offset-2 hover:underline">
-            JSON
-          </a>{" "}
-          y en CSV, sin registro ni clave. Este portal es un proyecto independiente: no lo edita ni
-          lo revisa la Junta de Castilla y León.
+        </div>
+
+        {/* La mención a la convocatoria va aquí, en una línea aparte y en el tono
+            más bajo del pie: tiene que constar, pero no compite con la fuente de
+            los datos ni con el aviso de independencia. */}
+        <p className="mt-4 border-t border-border pt-3 text-[11px] leading-relaxed text-faint">
+          Propuesta presentada al{" "}
+          <a
+            href={CONCURSO_URL}
+            target="_blank"
+            rel="noreferrer"
+            className="underline-offset-2 hover:text-body hover:underline"
+          >
+            X Concurso de Datos Abiertos de Castilla y León
+          </a>
+          .
         </p>
-        <nav className="flex shrink-0 flex-wrap items-center gap-4" aria-label="Enlaces del pie">
-          {[
-            { href: "/glosario", label: "Glosario" },
-            { href: "/metodologia", label: "Metodología y API" },
-          ].map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              className="flex items-center gap-1 text-xs text-faint transition-colors hover:text-body"
-            >
-              {link.label}
-              <ArrowRight className="h-3 w-3" aria-hidden />
-            </Link>
-          ))}
-        </nav>
       </div>
     </footer>
   );

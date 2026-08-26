@@ -361,11 +361,26 @@ function DistributionRow({
             </p>
           ) : facts.length > 0 ? (
             <dl className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-sm">
+              {/* Mismo arreglo que la portada (`app/page.tsx`): `dt` va antes que
+                  `dd` en el marcado, como exige `dl`, y `order` se encarga de
+                  pintar el valor delante de su etiqueta. El punto separador pasa
+                  a ser un pseudoelemento porque dentro de un `dl` un `div` solo
+                  puede contener `dt` y `dd`, no un `span` suelto. */}
               {facts.map((f, i) => (
-                <div key={`${f.label}-${i}`} className="flex items-baseline gap-1.5">
-                  {i > 0 && <span className="text-border" aria-hidden>·</span>}
-                  <dd className={cn("font-semibold tabular-nums", f.tone)}>{f.value}</dd>
-                  {f.label && <dt className="text-xs text-faint">{f.label}</dt>}
+                <div
+                  key={`${f.label}-${i}`}
+                  className={cn(
+                    "flex items-baseline gap-1.5",
+                    i > 0 && "before:text-border before:content-['·']"
+                  )}
+                >
+                  {/* El tamaño se pinta sin etiqueta —«2,3 MB» se explica solo—,
+                      pero un `dd` huérfano deja a un lector de pantalla leyendo
+                      una cifra suelta, así que su `dt` existe y va oculto. */}
+                  <dt className={cn("order-2 text-xs text-faint", !f.label && "sr-only")}>
+                    {f.label || "tamaño"}
+                  </dt>
+                  <dd className={cn("order-1 font-semibold tabular-nums", f.tone)}>{f.value}</dd>
                 </div>
               ))}
             </dl>

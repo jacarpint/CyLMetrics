@@ -20,7 +20,10 @@ export default function Error({
       <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-bad-surface">
         <AlertTriangle className="h-7 w-7 text-bad" aria-hidden />
       </div>
-      <h2 className="text-lg font-semibold text-strong">Algo ha salido mal</h2>
+      {/* `h1` y no `h2`: este boundary sustituye al contenido de la página, así
+          que si aquí empezáramos en `h2` la vista se quedaría sin encabezado de
+          primer nivel. */}
+      <h1 className="text-lg font-semibold text-strong">Algo ha salido mal</h1>
       {/* Mensaje genérico, no `error.message`: en un fallo del lado del servidor
           ese texto puede ser una traza interna, y en el cliente no le dice nada
           útil a quien está leyendo. El detalle va a la consola y el digest queda

@@ -124,7 +124,7 @@ export function MetadatosSection({
 
   return (
     <div className="space-y-8">
-      <p className="max-w-3xl text-sm leading-relaxed text-faint">
+      <p className="max-w-4xl text-sm leading-relaxed text-faint">
         Lo que falta en la ficha de cada conjunto de datos. Son las correcciones más baratas del
         catálogo —se editan en el gestor de metadatos, sin tocar los datos— y las que más rinden: un
         campo bien puesto mejora a la vez la búsqueda, la puntuación y la recogida automática por
@@ -158,7 +158,7 @@ export function MetadatosSection({
           <CalendarClock className="h-4 w-4 text-faint" aria-hidden />
           Actualidad
         </h2>
-        <p className="mt-1 max-w-3xl text-sm text-faint">
+        <p className="mt-1 max-w-4xl text-sm text-faint">
           La actualidad pesa un 25% en la puntuación de metadatos. Hay dos situaciones distintas y
           se corrigen de forma distinta: una es un metadato que falta, la otra es un dato que no se
           ha actualizado.
@@ -224,7 +224,7 @@ export function MetadatosSection({
             <Tags className="h-4 w-4 text-faint" aria-hidden />
             Campos que faltan
           </h2>
-          <p className="mt-1 max-w-3xl text-sm text-faint">
+          <p className="mt-1 max-w-4xl text-sm text-faint">
             Entran en el 40% de completitud de la puntuación de metadatos.
           </p>
           <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -248,7 +248,7 @@ export function MetadatosSection({
             <Scale className="h-4 w-4 text-faint" aria-hidden />
             Apertura
           </h2>
-          <p className="mt-1 max-w-3xl text-sm text-faint">
+          <p className="mt-1 max-w-4xl text-sm text-faint">
             Condiciones que no impiden publicar el dato, pero sí que alguien lo reutilice.
           </p>
           <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -272,7 +272,7 @@ export function MetadatosSection({
             <Info className="h-4 w-4 text-faint" aria-hidden />
             Recomendaciones DCAT-AP
           </h2>
-          <p className="mt-1 max-w-3xl text-sm text-faint">
+          <p className="mt-1 max-w-4xl text-sm text-faint">
             No entran en la puntuación y no afectan a ninguna cifra del portal. Se listan porque
             DCAT-AP las recomienda y en el catálogo apenas se publican.{" "}
             {/* Derivado y no escrito a mano: en cuanto un solo conjunto declare

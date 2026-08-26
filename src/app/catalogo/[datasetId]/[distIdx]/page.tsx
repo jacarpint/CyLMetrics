@@ -106,7 +106,10 @@ export async function generateMetadata({
   const description = `Vista previa, esquema e incidencias del archivo ${format} de «${ds.title}» en el catálogo de datos abiertos de Castilla y León.`;
 
   return {
-    title: `${ds.title} · ${format} | Datos Abiertos de Castilla y León`,
+    // Sin sufijo a mano: el `template` del layout ya añade el nombre del sitio.
+    // Al llevarlo escrito, estas fichas —el grupo más numeroso del portal— lo
+    // publicaban dos veces en la misma pestaña.
+    title: `${ds.title} · ${format}`,
     description,
     openGraph: { title: `${ds.title} · ${format}`, description, type: "article", locale: "es_ES" },
   };

@@ -27,7 +27,7 @@ export default function GlosarioPage() {
           <BookOpen className="h-6 w-6 text-faint" aria-hidden />
           Glosario
         </h1>
-        <p className="mt-2 max-w-3xl text-base leading-relaxed text-body">
+        <p className="mt-2 max-w-4xl text-base leading-relaxed text-body">
           Hablar de calidad de datos obliga a usar unas cuantas palabras concretas. Aquí está lo que
           significa cada una en este portal, sin dar nada por sabido. Si has llegado desde un enlace,
           el término que buscabas está resaltado más abajo.
@@ -53,7 +53,7 @@ export default function GlosarioPage() {
           <section key={group.id} id={group.id} className="scroll-mt-24 space-y-4">
             <div>
               <h2 className="text-lg font-bold tracking-tight text-strong">{group.label}</h2>
-              <p className="mt-1 max-w-3xl text-sm text-faint">{group.intro}</p>
+              <p className="mt-1 max-w-4xl text-sm text-faint">{group.intro}</p>
             </div>
 
             <dl className="grid grid-cols-1 gap-4 lg:grid-cols-2">

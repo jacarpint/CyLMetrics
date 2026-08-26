@@ -45,11 +45,13 @@ export default function NotFound() {
         <h2 className="text-sm font-semibold text-strong">Puede que buscaras esto</h2>
         <ul className="mt-3 space-y-2 text-sm">
           {[
-            { href: "/catalogo", label: "Catálogo de datos", note: "explorar y filtrar los datasets publicados" },
+            { href: "/catalogo", label: "Catálogo de datos", note: "explorar y filtrar los conjuntos de datos publicados" },
             // Con `familia=entrega`, que es lo que promete la nota: sin el filtro
             // la tabla abre en «Todos» y también enseña los que abren con errores
             // de contenido, que sí se pueden abrir.
-            { href: buildQualityUrl({ vista: "ficheros", familia: "entrega" }), label: "Qué arreglar", note: "los archivos que no se pueden abrir" },
+            // El rótulo es el de la pestaña a la que lleva: «Qué arreglar» se
+            // confundía ahora con «Qué arreglar primero», que es otra vista.
+            { href: buildQualityUrl({ vista: "ficheros", familia: "entrega" }), label: "Archivo por archivo", note: "los archivos que no se pueden abrir" },
             { href: "/metodologia", label: "Metodología", note: "cómo se calcula la calidad y cómo consultar la API" },
           ].map((item) => (
             <li key={item.href}>
