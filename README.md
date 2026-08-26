@@ -1,12 +1,8 @@
 <div align="center">
 
-<img src="src/app/opengraph-image.png" alt="CyLMetrics — ¿Se pueden usar de verdad los datos abiertos de Castilla y León?" width="640">
-
 # CyLMetrics
 
 **Auditoría independiente de la calidad del catálogo de datos abiertos de Castilla y León.**
-
-[**→ cylmetrics.vercel.app**](https://cylmetrics.vercel.app)
 
 [![Portal en vivo](https://img.shields.io/badge/portal-cylmetrics.vercel.app-0b5cab?style=flat-square)](https://cylmetrics.vercel.app)
 [![Licencia EUPL 1.2](https://img.shields.io/badge/licencia-EUPL--1.2-1a9e5c?style=flat-square)](LICENSE)
