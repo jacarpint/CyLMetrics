@@ -96,6 +96,8 @@ npm run typecheck    # TypeScript sin emitir
 npm test             # Vitest — 496 tests: lógica en node, componentes en jsdom
 npm run check:contrast   # contraste WCAG AA de la paleta, en claro y en oscuro
 npm run verify:broken    # contrasta contra el origen los archivos que el portal da por rotos
+npm run check:simplify   # cuántos puntos ahorra la simplificación en las capas reales
+npm run check:wfs-view   # pedir por bbox contra el servicio: cuántas entidades caen en cada encuadre
 ```
 
 `verify:broken` existe porque el portal acusa públicamente a 227 archivos de no

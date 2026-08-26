@@ -1,12 +1,16 @@
 import { describe, it, expect } from 'vitest';
 import { PROXY_MAX_BYTES } from '../download-budget';
 import {
+  bboxParam,
   budgetExhausted,
   heaviestPerFeature,
   looksTruncatedByCap,
   nextPageSize,
+  padView,
   pageFingerprint,
+  shouldRefetchView,
   shrinkPageSize,
+  viewContains,
   WFS_MAX_PAGE_SIZE,
   WFS_MAX_TOTAL_BYTES,
   WFS_MIN_PAGE_SIZE,
@@ -139,5 +143,75 @@ describe('pageFingerprint', () => {
   it('una entidad sin geometría no revienta la huella', () => {
     expect(pageFingerprint({ geometry: null, properties: { id: 'a' } })).toContain('sin-geometria');
     expect(pageFingerprint(undefined)).toBe('');
+  });
+});
+
+/* ────────────────────────────────────────────────────────────────────────────
+   Pedir solo lo que se está mirando
+   ──────────────────────────────────────────────────────────────────────────── */
+
+describe('bbox por vista', () => {
+  const AVILA = { west: -4.75, south: 40.6, east: -4.6, north: 40.7 };
+
+  it('el parámetro declara CRS84, que fija el orden longitud-latitud', () => {
+    // No es cosmético: comprobado contra el GeoServer del IDECyL, la misma caja
+    // sin declarar CRS devuelve CERO entidades porque la lee como latitud-
+    // longitud. Con CRS84 devuelve las 15 que hay.
+    const p = bboxParam(AVILA);
+    expect(p).toBe('-4.75,40.6,-4.6,40.7,urn:ogc:def:crs:OGC:1.3:CRS84');
+    expect(p.split(',').slice(0, 4).map(Number)).toEqual([-4.75, 40.6, -4.6, 40.7]);
+  });
+
+  it('recorta los decimales que no significan nada', () => {
+    const p = bboxParam({ west: -4.123456789012, south: 40.1, east: -4.1, north: 40.2 });
+    expect(p.startsWith('-4.123457,')).toBe(true);
+  });
+
+  it('el margen ensancha la caja por los cuatro lados', () => {
+    const p = padView(AVILA, 0.5);
+    expect(p.west).toBeLessThan(AVILA.west);
+    expect(p.east).toBeGreaterThan(AVILA.east);
+    expect(p.south).toBeLessThan(AVILA.south);
+    expect(p.north).toBeGreaterThan(AVILA.north);
+    expect(viewContains(p, AVILA)).toBe(true);
+  });
+
+  it('el margen no se sale del mundo', () => {
+    const polar = padView({ west: -10, south: -89.9, east: 10, north: 89.9 }, 1);
+    expect(polar.south).toBeGreaterThanOrEqual(-90);
+    expect(polar.north).toBeLessThanOrEqual(90);
+  });
+
+  it('sin nada cargado, se pide', () => {
+    expect(shouldRefetchView(null, { box: AVILA, zoom: 10 })).toBe(true);
+  });
+
+  it('moverse dentro de lo ya traído no vuelve a pedir', () => {
+    // Es para lo que existe el margen: arrastrar un poco no dispara una recarga.
+    const cargado = { box: padView(AVILA), zoom: 10 };
+    const unPoco = { west: -4.74, south: 40.61, east: -4.59, north: 40.71 };
+    expect(viewContains(cargado.box, unPoco)).toBe(true);
+    expect(shouldRefetchView(cargado, { box: unPoco, zoom: 10 })).toBe(false);
+  });
+
+  it('salirse de lo traído vuelve a pedir', () => {
+    const cargado = { box: padView(AVILA), zoom: 10 };
+    const lejos = { west: -3.0, south: 41.6, east: -2.8, north: 41.8 };
+    expect(shouldRefetchView(cargado, { box: lejos, zoom: 10 })).toBe(true);
+  });
+
+  it('alejarse dentro de lo traído no pide nada', () => {
+    // Al alejarse sobra detalle, no falta: lo que hay ya sirve.
+    const cargado = { box: padView(AVILA), zoom: 12 };
+    expect(shouldRefetchView(cargado, { box: AVILA, zoom: 9 })).toBe(false);
+  });
+
+  it('acercarse dos niveles pide más detalle', () => {
+    // Las entidades se simplificaron con la tolerancia del zoom de entonces, así
+    // que al acercarse hay que volver a traerlas para no enseñar contornos más
+    // bastos de lo que ese zoom permite ver.
+    const cargado = { box: padView(AVILA), zoom: 10 };
+    expect(shouldRefetchView(cargado, { box: AVILA, zoom: 11 })).toBe(false);
+    expect(shouldRefetchView(cargado, { box: AVILA, zoom: 12 })).toBe(true);
   });
 });

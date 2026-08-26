@@ -18,10 +18,12 @@ import { formatBytes } from '@/lib/quality-labels';
 import { MAP_AUTOLOAD_CAP, needsRangeDownload, rangeChunkCount } from '@/lib/download-budget';
 import { DownloadError, downloadResource, type Progress } from '@/lib/progressive-fetch';
 import {
-  budgetExhausted, heaviestPerFeature, looksTruncatedByCap, nextPageSize, pageFingerprint, shrinkPageSize,
+  bboxParam, budgetExhausted, heaviestPerFeature, looksTruncatedByCap, nextPageSize, padView,
+  pageFingerprint, shouldRefetchView, shrinkPageSize, type ViewBox,
   WFS_MAX_PAGE_SIZE, WFS_MAX_PAGES, WFS_MAX_SHRINKS, WFS_MAX_TOTAL_BYTES,
   WFS_PROBE_SIZE, WFS_TARGET_PAGE_BYTES,
 } from '@/lib/wfs-paging';
+import { simplifyGeometry, toleranceForZoom } from '@/lib/geo-simplify';
 import { cn } from '@/lib/utils';
 import type { Bbox, GeoSpec, MapFeature } from '@/components/quality/geo-preview-map';
 
@@ -308,7 +310,9 @@ const WFS_STOP_NOTES: Record<WfsStop | 'cargando', string> = {
   cargando: 'todavía se están descargando',
   servicio: 'el servicio dejó de entregarlas',
   'sin-paginacion': 'el servicio es WFS 1.x y no admite pedir más páginas',
-  presupuesto: 'el visor paró al llegar al máximo que descarga de una capa',
+  // «de esta zona» y no «de una capa»: desde que se pide por `bbox`, el tope se
+  // agota sobre lo que hay en el encuadre, y acercarse lo resuelve.
+  presupuesto: 'el visor paró al llegar al máximo que descarga de una zona; acércate para verlas todas',
   paginas: 'el visor paró al llegar a su tope de páginas',
 };
 
@@ -562,7 +566,46 @@ export function DistributionMap({
     return () => { cancelled = true; controller.abort(); };
   }, [sourceKey, format, url, isService, sizeBytes, attempt]);
 
-  /* ── 2. Entidades del WFS: la capa entera siempre que el servicio pueda ── */
+  /* ── 2. Entidades del WFS: las de la vista, no «la capa entera» ────────────
+     Ver `shouldRefetchView` en `lib/wfs-paging.ts`. Traer una capa completa no
+     es alcanzable —763 MB en la peor del catálogo— y subir el tope solo cambia
+     cuánto se tarda en no conseguirlo. Lo que sí se puede es traer lo que se
+     está mirando, que es lo que se venía a ver. */
+
+  /**
+   * Lo que se está pidiendo ahora mismo: la caja (ya con su margen) y el zoom.
+   *
+   * Es el único estado de la vista, y cambia SOLO cuando hay que ir a buscar
+   * algo. Un arrastre que cae dentro de lo ya traído devuelve el mismo objeto,
+   * React no re-renderiza y el efecto ni se entera.
+   *
+   * La decisión se toma en el manejador y no al derivar durante el render: leer
+   * durante el render lo que se cargó la última vez obliga a guardarlo en una
+   * ref y consultarla ahí, que es justo lo que React no garantiza (y lo que
+   * `react-hooks/refs` señala).
+   */
+  const [viewRequest, setViewRequest] = useState<{ box: ViewBox; zoom: number } | null>(null);
+
+  const onViewportChange = useCallback((next: ViewBox & { zoom: number }) => {
+    setViewRequest((current) =>
+      shouldRefetchView(current, { box: next, zoom: next.zoom })
+        ? { box: padView(next), zoom: next.zoom }
+        : current
+    );
+  }, []);
+
+  /** Marca de lo pedido, para las dependencias del efecto. */
+  const viewKey = viewRequest ? `${bboxParam(viewRequest.box)}|${viewRequest.zoom}` : 'sin-vista';
+
+  /**
+   * La clave del resultado es la CAPA, no la vista.
+   *
+   * Tentador meter `viewKey` aquí, y está mal: `wfsFor` compara esta clave con la
+   * del último resultado, así que al mover el mapa dejaría de casar y las
+   * entidades desaparecerían de la pantalla hasta que llegara la primera página
+   * nueva. Lo que se está viendo tiene que seguir viéndose mientras se recarga.
+   * La vista entra solo en las dependencias del efecto, más abajo.
+   */
   const wfsKey = source?.kind === 'wfs' && selected ? `${sourceKey}|${selected}|${attempt}` : null;
   const [wfsResult, setWfsResult] = useState<
     | { key: string; layer: VectorLayer; matched: number | null; stop: WfsStop | null; bytes: number }
@@ -580,6 +623,17 @@ export function DistributionMap({
     const key = wfsKey;
     const isV2 = source.version.startsWith('2');
 
+    /**
+     * La caja que se pide, con su margen. `null` mientras el mapa no ha dicho
+     * qué se ve, y en WFS 1.x: allí no hay `startIndex`, así que solo se puede
+     * pedir una página y acotarla no ayuda a recorrer la capa.
+     */
+    const box = isV2 && viewRequest ? viewRequest.box : null;
+    /* La tolerancia sale del zoom al que se pidió: un píxel de pantalla. Ver
+       `geo-simplify`. Sin vista todavía, se asume la de la comunidad entera, que
+       es el encuadre de arranque. */
+    const tolerance = toleranceForZoom(viewRequest?.zoom ?? 7);
+
     const request = (extra: Record<string, string>) => {
       const gf = new URL(source.getFeatureUrl);
       gf.searchParams.set('service', 'WFS');
@@ -587,6 +641,7 @@ export function DistributionMap({
       gf.searchParams.set('request', 'GetFeature');
       gf.searchParams.set(isV2 ? 'typeNames' : 'typeName', selected);
       gf.searchParams.set('srsName', 'EPSG:4326');
+      if (box) gf.searchParams.set('bbox', bboxParam(box));
       for (const [k, v] of Object.entries(extra)) gf.searchParams.set(k, v);
       return `/api/proxy?url=${encodeURIComponent(gf.toString())}`;
     };
@@ -647,7 +702,15 @@ export function DistributionMap({
         const list: unknown[] = Array.isArray(data?.features) ? data.features : [];
         const features: MapFeature[] = list.map((f) => {
           const feature = f as { geometry?: GeoJSON.Geometry; properties?: unknown };
-          return { geometry: feature.geometry ?? null, properties: toProperties(feature.properties) };
+          return {
+            /* Se simplifica AQUÍ, antes de guardar nada: las geometrías del
+               IDECyL traen una mediana de 2.571 puntos por entidad y 20,3
+               millones en la capa completa, casi todos por debajo del tamaño de
+               un píxel. Quedarse con los que se ven quita el 94% a escala de
+               comunidad y no cambia el dibujo. Ver `geo-simplify`. */
+            geometry: simplifyGeometry(feature.geometry ?? null, tolerance),
+            properties: toProperties(feature.properties),
+          };
         });
         return { features, bytes };
       };
@@ -760,7 +823,10 @@ export function DistributionMap({
     })();
 
     return () => { cancelled = true; controller.abort(); };
-  }, [source, selected, wfsKey]);
+    // `viewKey` entra en las dependencias porque resume lo pedido en una cadena:
+    // mientras el mapa se mueva dentro de lo ya traído no cambia, y el efecto no
+    // vuelve a ejecutarse por muchos `moveend` que lleguen.
+  }, [source, selected, wfsKey, viewKey, viewRequest]);
 
   /* ── 3. Qué se pinta ── */
   const activeLayer: VectorLayer | null =
@@ -935,7 +1001,12 @@ export function DistributionMap({
           Descargando la capa completa del servicio…
         </div>
       ) : spec ? (
-        <GeoPreviewMap spec={spec} onTileError={onTileError} onSelectFeature={selectFeature} />
+        <GeoPreviewMap
+          spec={spec}
+          onTileError={onTileError}
+          onSelectFeature={selectFeature}
+          onViewportChange={onViewportChange}
+        />
       ) : source.kind === 'none' && source.diagnosis ? (
         // El diagnóstico de abajo ya dice qué llegó y de quién es el fallo:
         // repetirlo aquí arriba serían dos cajas diciendo lo mismo.
@@ -956,7 +1027,12 @@ export function DistributionMap({
           {shownFeatures.toLocaleString('es-ES')} entidades dibujadas
           {wfsLayer && wfsLayer.stop !== 'completa' ? (
             <>
-              {wfsLayer.matched ? <> de {wfsLayer.matched.toLocaleString('es-ES')} que tiene la capa</> : null}
+              {/* «en esta vista» y no «que tiene la capa»: el recuento sale de un
+                  `resultType=hits` con el MISMO `bbox` que las entidades, así que
+                  es lo que hay en lo que se está mirando, no en la capa entera.
+                  Decir «de 4.513» aquí daba a entender que faltan 4.381 cuando
+                  fuera del encuadre no falta ninguna. */}
+              {wfsLayer.matched ? <> de {wfsLayer.matched.toLocaleString('es-ES')} en esta vista</> : null}
               {' — '}{WFS_STOP_NOTES[wfsLayer.stop ?? 'cargando']}
               {wfsLayer.bytes ? <> ({formatBytes(wfsLayer.bytes)} descargados)</> : null}
             </>
@@ -1028,13 +1104,15 @@ export function DistributionMap({
           justo donde más falta hace: por WMS se ve la cartografía completa, que
           es lo que el usuario venía buscando. */}
       {wfsLayer && wfsLayer.stop === 'presupuesto' && (
-        <Banner tone="info" icon={Info} title="Se está viendo una parte de la capa">
+        <Banner tone="info" icon={Info} title="Se está viendo una parte de esta zona">
           <p className="mt-1">
             Las entidades de <strong className="text-body">{selectedTitle || selected}</strong> son
-            muy pesadas: con {formatBytes(wfsLayer.bytes)} descargados solo caben{' '}
+            muy pesadas: con {formatBytes(wfsLayer.bytes)} descargados caben{' '}
             {shownFeatures.toLocaleString('es-ES')}
-            {wfsLayer.matched ? <> de {wfsLayer.matched.toLocaleString('es-ES')}</> : null}. Traer la
-            capa entera dejaría el navegador inservible, así que el visor para aquí.
+            {wfsLayer.matched ? <> de las {wfsLayer.matched.toLocaleString('es-ES')}</> : null} que
+            hay en el encuadre actual. <strong className="text-body">Acércate</strong> y se traerán
+            todas las de la zona; para ver la capa completa de un vistazo, el WMS la dibuja en el
+            servidor.
           </p>
           <div className="mt-2 flex flex-wrap items-center gap-3">
             {serviceSiblings.filter((s) => s.format === 'WMS').map((s) => (

@@ -168,3 +168,91 @@ function firstCoordinate(coordinates: unknown): number[] {
   while (Array.isArray(node) && Array.isArray(node[0])) node = node[0];
   return Array.isArray(node) ? (node.slice(0, 2) as number[]).filter((n) => typeof n === 'number') : [];
 }
+
+/* ────────────────────────────────────────────────────────────────────────────
+   Pedir solo lo que se está mirando
+
+   Una capa como «Plan 2025 CyL. Áreas peligro inc.forestales» son 4.513
+   entidades y 763 MB en GeoJSON: no hay tope de descarga que la traiga entera, y
+   subirlo solo cambia cuánto se tarda en no conseguirlo. Pero de esas 4.513, en
+   un recuadro alrededor de Ávila hay 15. Medido contra el servicio.
+
+   Así que se pide por `bbox`. Deja de haber entidades que faltan en lo que se
+   está mirando, que es lo que se venía a ver; la comunidad entera sigue siendo
+   territorio del WMS, que la dibuja en el servidor.
+   ──────────────────────────────────────────────────────────────────────────── */
+
+export interface ViewBox {
+  west: number;
+  south: number;
+  east: number;
+  north: number;
+}
+
+/**
+ * Margen que se pide de más alrededor de lo visible.
+ *
+ * Sin él, arrastrar el mapa un centímetro deja fuera una franja y obliga a
+ * recargar. Con un 30% por cada lado, los desplazamientos pequeños caen dentro
+ * de lo ya traído y no piden nada.
+ */
+export const VIEW_PADDING = 0.3;
+
+export function padView(box: ViewBox, factor = VIEW_PADDING): ViewBox {
+  const dx = (box.east - box.west) * factor;
+  const dy = (box.north - box.south) * factor;
+  return {
+    west: box.west - dx,
+    south: Math.max(-90, box.south - dy),
+    east: box.east + dx,
+    north: Math.min(90, box.north + dy),
+  };
+}
+
+export function viewContains(outer: ViewBox, inner: ViewBox): boolean {
+  return (
+    outer.west <= inner.west &&
+    outer.south <= inner.south &&
+    outer.east >= inner.east &&
+    outer.north >= inner.north
+  );
+}
+
+/**
+ * Zoom que hay que acercarse para que merezca la pena volver a pedir.
+ *
+ * Las entidades se simplifican al llegar con la tolerancia del zoom de entonces,
+ * así que acercarse mucho sobre lo ya cargado enseñaría contornos más bastos de
+ * lo que ese zoom permite ver. Dos niveles es cuando la diferencia empieza a
+ * notarse: uno solo dispararía recargas por cada rueda del ratón.
+ */
+export const VIEW_ZOOM_STEP = 2;
+
+/**
+ * ¿Hay que volver a pedir la capa para esta vista?
+ *
+ * `loaded` es lo que se pidió la última vez, ya con su margen. Se recarga si la
+ * vista nueva se sale de ahí —hay territorio del que no se tienen entidades— o
+ * si se ha acercado lo bastante como para querer más detalle.
+ */
+export function shouldRefetchView(
+  loaded: { box: ViewBox; zoom: number } | null,
+  next: { box: ViewBox; zoom: number }
+): boolean {
+  if (!loaded) return true;
+  if (!viewContains(loaded.box, next.box)) return true;
+  return next.zoom - loaded.zoom >= VIEW_ZOOM_STEP;
+}
+
+/**
+ * El valor del parámetro `bbox` de GetFeature.
+ *
+ * Con `urn:ogc:def:crs:OGC:1.3:CRS84`, que define el orden longitud-latitud sin
+ * ambigüedad. No es un detalle: comprobado contra el GeoServer del IDECyL, la
+ * misma caja sin declarar CRS devuelve **cero** entidades, porque la interpreta
+ * como latitud-longitud. Con CRS84 devuelve las 15 que hay.
+ */
+export function bboxParam(box: ViewBox): string {
+  const n = (v: number) => Number(v.toFixed(6));
+  return [n(box.west), n(box.south), n(box.east), n(box.north), 'urn:ogc:def:crs:OGC:1.3:CRS84'].join(',');
+}

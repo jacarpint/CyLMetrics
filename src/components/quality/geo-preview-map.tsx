@@ -5,8 +5,16 @@ import 'leaflet/dist/leaflet.css';
 import { useEffect, useRef, useState } from 'react';
 import type * as Leaflet from 'leaflet';
 import { basemapFor, escapeHtml, isDarkTheme, themeToken, watchTheme } from '@/lib/map-theme';
+import type { ViewBox } from '@/lib/wfs-paging';
 
-export type Bbox = { west: number; south: number; east: number; north: number };
+/**
+ * La extensión de un mapa, en grados.
+ *
+ * Alias de `ViewBox` y no una segunda definición: era el mismo objeto declarado
+ * dos veces —aquí y en `wfs-paging`, que la usa para pedir por `bbox`— y dos
+ * tipos idénticos con distinto nombre acaban separándose.
+ */
+export type Bbox = ViewBox;
 
 /** Entidad lista para pintar: geometría en lon/lat y sus atributos. */
 export interface MapFeature {
@@ -128,10 +136,24 @@ interface GeoPreviewMapProps {
   onTileError?: () => void;
   /** Clic sobre una entidad del mapa; `null` al pulsar fuera. */
   onSelectFeature?: (index: number | null) => void;
+  /**
+   * Qué se está mirando, cada vez que cambia.
+   *
+   * Lo necesita quien carga las capas WFS: una capa de 4.513 polígonos no se
+   * puede traer entera, pero sí las que caen en la vista. Ver `shouldRefetchView`
+   * en `lib/wfs-paging.ts`.
+   */
+  onViewportChange?: (view: ViewBox & { zoom: number }) => void;
   className?: string;
 }
 
-export default function GeoPreviewMap({ spec, onTileError, onSelectFeature, className }: GeoPreviewMapProps) {
+export default function GeoPreviewMap({
+  spec,
+  onTileError,
+  onSelectFeature,
+  onViewportChange,
+  className,
+}: GeoPreviewMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<Leaflet.Map | null>(null);
   const leafletRef = useRef<typeof Leaflet | null>(null);
@@ -154,10 +176,12 @@ export default function GeoPreviewMap({ spec, onTileError, onSelectFeature, clas
   // capa; la asignación va en un efecto, no en el cuerpo del render.
   const onTileErrorRef = useRef(onTileError);
   const onSelectRef = useRef(onSelectFeature);
+  const onViewportRef = useRef(onViewportChange);
   useEffect(() => {
     onTileErrorRef.current = onTileError;
     onSelectRef.current = onSelectFeature;
-  }, [onTileError, onSelectFeature]);
+    onViewportRef.current = onViewportChange;
+  }, [onTileError, onSelectFeature, onViewportChange]);
 
   /* ── 1. Crear el mapa una sola vez ── */
   useEffect(() => {
@@ -183,6 +207,24 @@ export default function GeoPreviewMap({ spec, onTileError, onSelectFeature, clas
 
       // Pulsar fuera de cualquier entidad deshace la selección.
       map.on('click', () => onSelectRef.current?.(null));
+
+      /* Lo que se está mirando, cada vez que el mapa se queda quieto.
+         `moveend` cubre también el zoom, así que no hace falta escuchar
+         `zoomend` aparte: se dispararían los dos por el mismo gesto. */
+      const reportView = () => {
+        const b = map.getBounds();
+        onViewportRef.current?.({
+          west: b.getWest(),
+          south: b.getSouth(),
+          east: b.getEast(),
+          north: b.getNorth(),
+          zoom: map.getZoom(),
+        });
+      };
+      map.on('moveend', reportView);
+      // Y una vez al arrancar: quien carga la capa necesita saber la vista
+      // inicial sin esperar a que el usuario toque nada.
+      reportView();
 
       leafletRef.current = L;
       mapRef.current = map;
