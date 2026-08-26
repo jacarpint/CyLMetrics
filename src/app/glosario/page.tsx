@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { ArrowRight, BookOpen } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
 import { GLOSSARY, GLOSSARY_GROUPS } from "@/lib/glosario";
 
 export const revalidate = 3600;
@@ -56,33 +55,45 @@ export default function GlosarioPage() {
               <p className="mt-1 max-w-4xl text-sm text-faint">{group.intro}</p>
             </div>
 
+            {/* La tarjeta se pinta con clases y no con `<Card><CardContent>`.
+                No es capricho: dentro de un `<dl>` solo pueden ir `<dt>`, `<dd>`
+                y un `<div>` que los agrupe, y los dos componentes juntos metían
+                dos niveles de `div` —`dl > div > div > div > dt`—, así que el
+                `<dt>` dejaba de ser hijo de nadie que lo entendiera. Un lector de
+                pantalla no anunciaba los 23 términos como una lista de
+                definiciones, que es justo lo que un glosario tiene que ser.
+                Lo detectó Lighthouse: `definition-list` y `dlitem` suspendían y
+                dejaban la página en 92.
+
+                Las clases son las mismas que aplican `Card` (tono por defecto) y
+                `CardContent`. */}
             <dl className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               {terms.map((t) => (
-                <div key={t.id} id={t.id} className="scroll-mt-24">
-                  {/* `target:` resalta el término al llegar desde un enlace con
-                      ancla, para no dejar a nadie buscando cuál de los veinte
-                      era el suyo. */}
-                  <Card className="h-full target:border-ok-line target:bg-ok-surface">
-                    <CardContent>
-                      <dt className="flex flex-wrap items-baseline gap-2">
-                        <span className="text-base font-semibold text-strong">{t.term}</span>
-                        {t.aka && (
-                          <span className="text-xs text-faint">
-                            también «{t.aka}»
-                          </span>
-                        )}
-                      </dt>
-                      <dd className="mt-1.5 text-sm leading-relaxed text-body">
-                        {t.definition}
-                        {t.inPortal && (
-                          <span className="mt-2 block text-xs leading-relaxed text-faint">
-                            <strong className="font-semibold text-body">En este portal:</strong>{" "}
-                            {t.inPortal}
-                          </span>
-                        )}
-                      </dd>
-                    </CardContent>
-                  </Card>
+                // `target:` resalta el término al llegar desde un enlace con
+                // ancla, para no dejar a nadie buscando cuál de los veinte era
+                // el suyo.
+                <div
+                  key={t.id}
+                  id={t.id}
+                  className="h-full scroll-mt-24 rounded-xl border border-border bg-card p-5 shadow-sm transition-all duration-200 target:border-ok-line target:bg-ok-surface"
+                >
+                  <dt className="flex flex-wrap items-baseline gap-2">
+                    <span className="text-base font-semibold text-strong">{t.term}</span>
+                    {t.aka && (
+                      <span className="text-xs text-faint">
+                        también «{t.aka}»
+                      </span>
+                    )}
+                  </dt>
+                  <dd className="mt-1.5 text-sm leading-relaxed text-body">
+                    {t.definition}
+                    {t.inPortal && (
+                      <span className="mt-2 block text-xs leading-relaxed text-faint">
+                        <strong className="font-semibold text-body">En este portal:</strong>{" "}
+                        {t.inPortal}
+                      </span>
+                    )}
+                  </dd>
                 </div>
               ))}
             </dl>

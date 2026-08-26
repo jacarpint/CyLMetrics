@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useId, useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
   CheckCircle2, ChevronDown, ChevronRight, ExternalLink, FileWarning,
@@ -140,6 +140,8 @@ export function FicherosSection({
   const [query, setQuery] = useState(filters.q ?? '');
   const [limit, setLimit] = useState(PAGE);
   const [expanded, setExpanded] = useState<string | null>(null);
+  /** Para enlazar cada botón de familia con su pista sin colisionar de ids. */
+  const tabsId = useId();
 
   const counts = useMemo(() => {
     const c = { todas: rows.length, entrega: 0, contenido: 0 };
@@ -268,9 +270,19 @@ export function FicherosSection({
               type="button"
               onClick={() => selectFamily(tab.id)}
               aria-pressed={family === tab.id}
-              // La pista va en el nombre accesible y no en `title`: un tooltip
-              // nativo no existe en táctil y no se anuncia al tabular.
-              aria-label={`${tab.label}: ${tab.hint}`}
+              // La pista se DESCRIBE, no sustituye al nombre.
+              //
+              // Estaba como `aria-label={label: hint}`, y eso reemplaza el nombre
+              // accesible por un texto que no contiene lo que se lee en el botón
+              // —falta el recuento—, que es lo que prohíbe WCAG 2.5.3: quien
+              // maneja el portal por voz dice lo que ve, y el control tiene que
+              // responder a eso. Con `aria-describedby` el nombre sigue siendo el
+              // texto visible y la pista se anuncia detrás.
+              //
+              // El motivo original del `aria-label` era que un `title` no existe
+              // en táctil ni se anuncia al tabular. Sigue siendo cierto, y por eso
+              // no se vuelve a un tooltip.
+              aria-describedby={`${tabsId}-hint-${tab.id}`}
               className={cn(
                 'inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
                 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-canvas',
@@ -280,7 +292,14 @@ export function FicherosSection({
               {tab.id === 'entrega' && <FileWarning className="h-3.5 w-3.5" aria-hidden />}
               {tab.id === 'contenido' && <SearchCode className="h-3.5 w-3.5" aria-hidden />}
               {tab.label}
-              <span className="tabular-nums opacity-70">{counts[tab.id].toLocaleString('es-ES')}</span>
+              {/* `font-normal` y no `opacity-70` para restarle peso al recuento:
+                  con la opacidad, el número del botón activo quedaba en 4,31:1
+                  sobre el fondo primario y a 12 px hacen falta 4,5:1. Bajar el
+                  peso tipográfico distingue igual y no toca el color. */}
+              <span className="font-normal tabular-nums">{counts[tab.id].toLocaleString('es-ES')}</span>
+              <span id={`${tabsId}-hint-${tab.id}`} className="sr-only">
+                {tab.hint}
+              </span>
             </button>
           ))}
         </div>
@@ -349,12 +368,14 @@ export function FicherosSection({
                     setCauses(isActive ? causes.filter((x) => x !== c.code) : [...causes, c.code]);
                     resetView();
                   }}
+                  // Sin `aria-label`. Estaba reemplazando el nombre accesible por
+                  // un texto que no contiene lo que se lee en el botón —el
+                  // recuento salía en crudo (`1234`) frente al «1.234» de la
+                  // pantalla, y en estado activo directamente no aparecía—, y eso
+                  // es lo que prohíbe WCAG 2.5.3: quien maneja el portal por voz
+                  // dice lo que ve. Y era innecesario: «filtrar» o «quitar el
+                  // filtro» ya lo anuncia `aria-pressed`.
                   aria-pressed={isActive}
-                  aria-label={
-                    isActive
-                      ? `Quitar el filtro por causa: ${issueLabel(c.code)}`
-                      : `Filtrar por causa: ${issueLabel(c.code)}, ${c.affected} archivos afectados`
-                  }
                   className={cn(
                     'inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs transition-colors',
                     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-canvas',
@@ -367,6 +388,9 @@ export function FicherosSection({
                   <span className={cn('tabular-nums', isActive ? 'opacity-80' : 'text-faint')}>
                     {c.affected.toLocaleString('es-ES')}
                   </span>
+                  {/* Completa el nombre en lugar de sustituirlo: sin esto el
+                      botón se anuncia como «… 280» y no se sabe 280 de qué. */}
+                  <span className="sr-only">archivos afectados</span>
                 </button>
               );
             })}

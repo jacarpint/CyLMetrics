@@ -82,6 +82,36 @@ for (const [theme, tokens] of THEMES) {
   for (const [fg, bg] of PAIRS) check(theme, fg, bg, tokens, 4.5, 'par');
 }
 
+/*
+ * El enlace contra el TEXTO que lo rodea, que es otra pregunta.
+ *
+ * Todo lo de arriba mide texto contra superficie. Un enlace tiene además que
+ * poder distinguirse del párrafo en el que va, y ahí el fondo no interviene: si
+ * el color es lo único que lo señala, tiene que contrastar 3:1 con el texto
+ * vecino (WCAG 1.4.1). El nuestro se queda en 1,0–1,4:1 en los dos temas, así
+ * que este criterio se cumple por el subrayado y no por el color.
+ *
+ * Esta comprobación existía como hueco: los enlaces pasaban con 5,5:1 y 9,3:1
+ * contra el fondo mientras eran indistinguibles del texto de al lado, y el
+ * script decía que todo cumplía AA. Lo encontró Lighthouse, no nosotros.
+ */
+const UNDERLINE_RULE = /:is\([^)]*\bp\b[^)]*\)\s*a\[class\*=["']text-link["']\]\s*\{[^}]*text-decoration-line:\s*underline/;
+const subrayado = UNDERLINE_RULE.test(CSS);
+
+for (const [theme, tokens] of THEMES) {
+  for (const vecino of ['--body', '--faint', '--strong']) {
+    if (!tokens['--link'] || !tokens[vecino]) continue;
+    checks += 1;
+    const value = ratio(tokens['--link'], tokens[vecino]);
+    if (value >= 3) continue;
+    if (subrayado) continue; // el subrayado es el segundo indicador: basta
+    failures.push(
+      `${theme}: enlace --link junto a ${vecino} = ${value.toFixed(2)}:1 (mínimo 3:1 si el color ` +
+        `es el único indicador), y no hay regla de subrayado en globals.css que lo compense`
+    );
+  }
+}
+
 if (failures.length > 0) {
   console.error(`✗ ${failures.length} de ${checks} combinaciones no cumplen AA:\n`);
   for (const f of failures) console.error(`  ${f}`);

@@ -236,6 +236,32 @@
   * {
     scrollbar-color: var(--border-strong) transparent;
   }
+
+  /*
+   * Un enlace metido en un párrafo va subrayado siempre, no solo al pasar el ratón.
+   *
+   * Si el color es lo único que distingue un enlace del texto que lo rodea, ese
+   * color tiene que contrastar 3:1 con él (WCAG 1.4.1). El nuestro no se acerca:
+   *
+   *   claro   enlace #047857 vs cuerpo #475569 → 1,38:1   vs secundario → 1,02:1
+   *   oscuro  enlace #34d399 vs cuerpo #cbd5e1 → 1,29:1   vs secundario → 1,33:1
+   *
+   * Contra el FONDO cumplen de sobra (5,5:1 y 9,3:1), y por eso `check:contrast`
+   * los daba por buenos: mide texto contra superficie, que es otra pregunta. Este
+   * criterio se le escapaba entero, y lo destapó Lighthouse sobre el pie.
+   *
+   * Subrayar es el arreglo estándar y el que no obliga a retocar la paleta: con
+   * un segundo indicador visual, el 3:1 deja de exigirse. Se hace aquí y no clase
+   * por clase porque son 53 enlaces en 19 ficheros, y porque acertar uno a uno
+   * cuáles van dentro de prosa es justo la clasificación que se desincroniza.
+   *
+   * Los enlaces sueltos —los de tarjeta, los de navegación, los que ocupan su
+   * propia línea— no entran: no están dentro de un bloque de texto, así que no
+   * hay de qué distinguirlos y la regla no los alcanza.
+   */
+  :is(p, li, dd, dt, td, th, figcaption, blockquote) a[class*="text-link"] {
+    text-decoration-line: underline;
+  }
 }
 
 @layer components {

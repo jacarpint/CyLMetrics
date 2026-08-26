@@ -349,15 +349,25 @@ export function CatalogView({
 
       {/* Rejilla de datasets */}
       {datasets.length > 0 && (
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {datasets.map((dataset) => (
-            <DatasetCard
-              key={dataset.id}
-              dataset={dataset}
-              analysis={analysisBySlug?.[datasetSlug(dataset.id)]}
-            />
-          ))}
-        </div>
+        <section aria-labelledby="resultados-catalogo">
+          {/* El título de cada tarjeta es un `<h3>` y lo único que había encima
+              era el `<h1>` de la página: un nivel saltado, que a quien navega
+              por encabezados le hace creer que se ha perdido una sección. No se
+              pinta porque la barra de resultados de arriba ya dice en pantalla
+              cuántos hay; hace falta como escalón y como destino al que saltar. */}
+          <h2 id="resultados-catalogo" className="sr-only">
+            Conjuntos de datos encontrados
+          </h2>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {datasets.map((dataset) => (
+              <DatasetCard
+                key={dataset.id}
+                dataset={dataset}
+                analysis={analysisBySlug?.[datasetSlug(dataset.id)]}
+              />
+            ))}
+          </div>
+        </section>
       )}
 
       {/* Paginación */}
