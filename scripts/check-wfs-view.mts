@@ -4,12 +4,10 @@
  *   npm run check:wfs-view
  *
  * Comprueba lo que los tests unitarios no pueden: que pedir por `bbox` con la
- * sintaxis que genera `bboxParam` devuelve de verdad las entidades de esa zona, y
- * cuánto queda después de simplificar con la tolerancia de ese zoom. Usa las
- * mismas funciones que el componente, no una copia.
+ * sintaxis que genera `bboxParam` devuelve de verdad las entidades de esa zona.
+ * Usa las mismas funciones que el componente, no una copia.
  */
 import { bboxParam, padView, type ViewBox } from '../src/lib/wfs-paging';
-import { simplifyGeometry, countPositions, toleranceForZoom } from '../src/lib/geo-simplify';
 
 const BASE = 'https://idecyl.jcyl.es/geoserver/incendios/ows';
 const TYPE = 'incendios:plainc25_cyl_areas_peligro_if';
@@ -34,7 +32,7 @@ const pedir = async (extra: Record<string, string>) => {
 
 const total = /numberMatched="(\d+)"/.exec(await pedir({ resultType: 'hits' }))?.[1] ?? '?';
 console.log(`Capa: ${TYPE}\nEntidades en total: ${total}\n`);
-console.log('vista                 zoom   en la vista   traídas   puntos    tras simplificar');
+console.log('vista                 zoom   en la vista   traídas   puntos');
 
 for (const { nombre, zoom, box } of VISTAS) {
   const bbox = bboxParam(padView(box));
@@ -44,16 +42,22 @@ for (const { nombre, zoom, box } of VISTAS) {
   const body = await pedir({ bbox, outputFormat: 'application/json', count: '10' });
   const parsed = JSON.parse(body) as { features: { geometry: GeoJSON.Geometry }[] };
   const geoms = parsed.features.map((f) => f.geometry).filter(Boolean);
-  const antes = geoms.reduce((s, g) => s + countPositions(g), 0);
-  const tol = toleranceForZoom(zoom);
-  const despues = geoms.reduce((s, g) => s + countPositions(simplifyGeometry(g, tol)!), 0);
+  const puntos = geoms.reduce((sum, g) => {
+    let n = 0;
+    const walk = (node: unknown): void => {
+      if (!Array.isArray(node)) return;
+      if (typeof node[0] === 'number') { n += 1; return; }
+      for (const child of node) walk(child);
+    };
+    walk((g as { coordinates?: unknown }).coordinates);
+    return sum + n;
+  }, 0);
 
   console.log(
     nombre.padEnd(21),
     String(zoom).padStart(4),
     String(hits).padStart(13),
     String(geoms.length).padStart(9),
-    String(antes).padStart(8),
-    (String(despues) + '  (-' + Math.round((1 - despues / antes) * 100) + '%)').padStart(18)
+    String(puntos).padStart(8)
   );
 }

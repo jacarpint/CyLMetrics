@@ -16,7 +16,6 @@
     "brand:assets": "vite-node scripts/make-brand-assets.mts",
     "check:contrast": "node scripts/check-contrast.mjs",
     "verify:broken": "vite-node scripts/verify-broken.mts",
-    "check:simplify": "vite-node scripts/check-simplify.mts",
     "check:wfs-view": "vite-node scripts/check-wfs-view.mts",
     "check:xlsx": "vite-node scripts/check-xlsx-read.mts",
     "check:json": "vite-node scripts/check-json-records.mts",

@@ -23,7 +23,6 @@ import {
   WFS_MAX_PAGE_SIZE, WFS_MAX_PAGES, WFS_MAX_SHRINKS, WFS_MAX_TOTAL_BYTES,
   WFS_PROBE_SIZE, WFS_TARGET_PAGE_BYTES,
 } from '@/lib/wfs-paging';
-import { simplifyGeometry, toleranceForZoom } from '@/lib/geo-simplify';
 import { cn } from '@/lib/utils';
 import type { Bbox, GeoSpec, MapFeature } from '@/components/quality/geo-preview-map';
 
@@ -629,10 +628,6 @@ export function DistributionMap({
      * pedir una página y acotarla no ayuda a recorrer la capa.
      */
     const box = isV2 && viewRequest ? viewRequest.box : null;
-    /* La tolerancia sale del zoom al que se pidió: un píxel de pantalla. Ver
-       `geo-simplify`. Sin vista todavía, se asume la de la comunidad entera, que
-       es el encuadre de arranque. */
-    const tolerance = toleranceForZoom(viewRequest?.zoom ?? 7);
 
     const request = (extra: Record<string, string>) => {
       const gf = new URL(source.getFeatureUrl);
@@ -702,13 +697,20 @@ export function DistributionMap({
         const list: unknown[] = Array.isArray(data?.features) ? data.features : [];
         const features: MapFeature[] = list.map((f) => {
           const feature = f as { geometry?: GeoJSON.Geometry; properties?: unknown };
+          /* Las geometrías se guardan tal cual las entrega el servicio.
+             Hubo aquí una simplificación por zoom (Douglas-Peucker con
+             tolerancia de un píxel) para abaratar memoria y dibujado. Se
+             retiró: se notaba. El punto que más daño hacía era sustituir por
+             su rectángulo envolvente los anillos que la tolerancia dejaba en
+             menos de cuatro posiciones —a escala de comunidad eso convertía
+             muchos polígonos en cajas—, y ya sin eso el ahorro no compensaba
+             tocar lo que se dibuja.
+             Desde que se pide por `bbox`, además, el número de entidades
+             cargadas lo acota el propio encuadre, que era el problema de
+             fondo. Si algún día vuelve a hacer falta, en el historial está la
+             implementación; lo que no debe volver es el rectángulo. */
           return {
-            /* Se simplifica AQUÍ, antes de guardar nada: las geometrías del
-               IDECyL traen una mediana de 2.571 puntos por entidad y 20,3
-               millones en la capa completa, casi todos por debajo del tamaño de
-               un píxel. Quedarse con los que se ven quita el 94% a escala de
-               comunidad y no cambia el dibujo. Ver `geo-simplify`. */
-            geometry: simplifyGeometry(feature.geometry ?? null, tolerance),
+            geometry: feature.geometry ?? null,
             properties: toProperties(feature.properties),
           };
         });
