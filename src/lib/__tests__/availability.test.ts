@@ -64,7 +64,11 @@ describe('classifyDelivery', () => {
     expect(classifyDelivery(dist({ status: 'ok' }))).toBe('ok');
   });
   it('roto cuando la descarga no trae el fichero', () => {
-    for (const status of ['http_error', 'unreachable', 'error'] as const) {
+    // `error` NO está en esta lista, y antes sí. Los otros dos hablan del
+    // origen —contestó mal o no contestó—, pero `error` habla de nosotros: es el
+    // analizador el que se interrumpió, y eso no puede contarse como un archivo
+    // que no abre. Ver el caso de los diez CSV de Educación más abajo.
+    for (const status of ['http_error', 'unreachable'] as const) {
       expect(classifyDelivery(withIssues('error', ['descarga'], 'CSV', fetchInfo(status, 404))), status).toBe('roto');
     }
   });
@@ -150,6 +154,18 @@ describe('classifyDelivery', () => {
     // `no_url` no estaba en ninguno de los dos conjuntos de `fetch.status`, así
     // que caía al respaldo «fallido» y se contaba como un archivo que no abre.
     expect(classifyDelivery(dist({ status: 'skipped', fetch: fetchInfo('no_url', null) }))).toBe('omitida');
+  });
+  it('omitida cuando el fallo es del analizador, no del origen', () => {
+    // `fetch.status: 'error'` significa «el análisis de este portal se
+    // interrumpió», y así está documentado en `/api`. Caía al respaldo «fallido»
+    // y salía como archivo roto, o sea que un fallo de casa se publicaba como un
+    // fallo del organismo. Pasó con diez CSV de Educación: redirigen a una URL
+    // con la `ó` de «Educación» sin escapar, `requests` no supo leer la cabecera
+    // y el portal dijo «No se pudo descargar» de diez archivos que se descargan
+    // sin problema. Ver `_redirect_target` en `downloader.py`.
+    expect(classifyDelivery(dist({ status: 'error', fetch: fetchInfo('error', null) }))).toBe(
+      'omitida'
+    );
   });
   it('roto si no hay ni información de descarga', () => {
     expect(classifyDelivery(dist({ status: 'error', fetch: null }))).toBe('roto');

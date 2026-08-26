@@ -95,7 +95,14 @@ npm run lint         # ESLint
 npm run typecheck    # TypeScript sin emitir
 npm test             # Vitest — 36 ficheros, 469 tests
 npm run check:contrast   # contraste WCAG AA de la paleta, en claro y en oscuro
+npm run verify:broken    # contrasta contra el origen los archivos que el portal da por rotos
 ```
+
+`verify:broken` existe porque el portal acusa públicamente a 227 archivos de no
+poder abrirse, y esa afirmación solo vale si aguanta que alguien la compruebe:
+coge una muestra estratificada por causa, la descarga del origen y valida el
+contenido con el mismo criterio que el analizador. Con `--census` solo enumera
+las causas; con `--all`, comprueba los 227.
 
 Hay además comprobaciones de extremo a extremo para las piezas delicadas del visor: `check:xlsx`, `check:json`, `check:shp`, `check:geo`, `check:table` y `check:tabular`.
 

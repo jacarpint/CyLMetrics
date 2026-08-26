@@ -12,9 +12,12 @@ from __future__ import annotations
 import tempfile
 import time
 from pathlib import Path
-from urllib.parse import unquote, urlsplit
+from urllib.parse import quote, unquote, urljoin, urlsplit
 
 import requests
+
+#: Saltos máximos al seguir redirecciones a mano. El mismo tope que usa requests.
+MAX_REDIRECTS = 30
 
 USER_AGENT = "CyLDataQualityPortal/1.0 (data-analysis)"
 
@@ -51,6 +54,76 @@ def _suggest_extension(url: str) -> str:
 
 class FetchError(Exception):
     pass
+
+
+def _redirect_target(response: requests.Response) -> str | None:
+    """
+    La URL de un `Location`, aunque venga con bytes crudos sin escapar.
+
+    `requests` hace `location.encode('latin1').decode('utf8')` en
+    `get_redirect_target`, así que un `Location` con un byte no-UTF8 suelto lo
+    revienta con `UnicodeDecodeError` antes de llegar a descargar nada.
+
+    No es hipotético: diez CSV del catálogo redirigen a
+    `transparencia.jcyl.es/educacion/JCYLEducación_Estudios_2022.csv` con la `ó`
+    en un solo byte `0xf3` en vez de percent-encoded. Los diez se archivaban como
+    «No se pudo descargar», que en el portal se lee como un fallo del organismo,
+    cuando el archivo se descarga perfectamente: son 817 KB que llegan con
+    HTTP 200. Es justo lo que la metodología promete NO imputar a quien publica.
+
+    Aquí se recuperan los bytes originales (el módulo `http` decodifica las
+    cabeceras como latin-1, así que el viaje de ida y vuelta es exacto) y se
+    escapan los no-ASCII, que es lo que el servidor debería haber enviado.
+    """
+    location = response.headers.get("location")
+    if not location:
+        return None
+    raw = location.encode("latin-1", errors="replace")
+    try:
+        target = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        # `safe` conserva la puntuación de una URL —incluido `%`, para no volver
+        # a escapar lo que ya venía escapado— y deja fuera solo los bytes altos.
+        #
+        # Se escapa el byte tal cual (`%F3`) y no su equivalente en UTF-8
+        # (`%C3%B3`): sin saber el juego de caracteres del servidor, respetar los
+        # bytes que envió es lo fiel. Comprobado contra el origen: acepta las dos
+        # formas y devuelve el archivo con cualquiera de ellas.
+        target = quote(raw, safe="/:?#[]@!$&'()*+,;=%~")
+    # Un `Location` relativo es legal y hay que resolverlo contra la petición.
+    return urljoin(response.url, target)
+
+
+def _get_streaming(session: requests.Session, url: str, timeout: int) -> requests.Response:
+    """
+    GET en streaming siguiendo redirecciones, tolerante a `Location` mal escapado.
+
+    Primero se intenta por la vía normal de `requests`, que es la probada y la
+    que siguen las 1.652 distribuciones que no dan problema. El seguimiento a
+    mano es solo el plan B cuando esa vía se ahoga decodificando la cabecera, así
+    que no puede alterar lo que hoy ya funciona.
+    """
+    common = {
+        "stream": True,
+        "timeout": (TIMEOUT_CONNECT, timeout),
+        "headers": {"User-Agent": USER_AGENT},
+    }
+    try:
+        return session.get(url, allow_redirects=True, **common)
+    except UnicodeDecodeError:
+        pass
+
+    current = url
+    for _ in range(MAX_REDIRECTS):
+        response = session.get(current, allow_redirects=False, **common)
+        if not response.is_redirect:
+            return response
+        target = _redirect_target(response)
+        response.close()
+        if not target:
+            return response
+        current = target
+    raise FetchError(f"Más de {MAX_REDIRECTS} redirecciones desde {url}")
 
 
 #: Los OCHO valores que puede tomar `fetch.status`, y quién los pone.
@@ -132,11 +205,7 @@ def fetch(url: str, dest_dir: Path, cap_bytes: int, timeout: int = TIMEOUT_READ,
     tmp: Path | None = None
     for attempt in range(retries + 1):
         try:
-            resp = session.get(
-                url, stream=True, allow_redirects=True,
-                timeout=(TIMEOUT_CONNECT, timeout),
-                headers={"User-Agent": USER_AGENT},
-            )
+            resp = _get_streaming(session, url, timeout)
             if resp.status_code >= 400:
                 resp.close()
                 return FetchResult(
@@ -222,6 +291,18 @@ def fetch(url: str, dest_dir: Path, cap_bytes: int, timeout: int = TIMEOUT_READ,
                     pass
             if attempt < retries:
                 time.sleep(1.5 * (attempt + 1))
+    # Un fallo de decodificación es NUESTRO, no del origen: el servidor contestó,
+    # y quien no supo leer su respuesta fue este analizador. `unreachable` se lee
+    # en el portal como «no se puede descargar», que señala al organismo por un
+    # problema de casa. `error` significa exactamente «el análisis se interrumpió,
+    # es un problema nuestro» —así está documentado en `/api`— y `classifyDelivery`
+    # lo deja fuera del recuento en vez de contarlo como archivo roto.
+    if isinstance(last_err, UnicodeDecodeError):
+        return FetchResult(
+            status="error", duration_ms=int((time.monotonic() - start) * 1000),
+            note=f"El analizador no pudo leer la respuesta del servidor: {last_err}",
+            final_url=final_url,
+        )
     return FetchResult(
         status="unreachable", duration_ms=int((time.monotonic() - start) * 1000),
         note=f"No se pudo descargar: {last_err and type(last_err).__name__}: {last_err}",

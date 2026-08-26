@@ -61,8 +61,17 @@ const FETCH_DELIVERED = new Set(['downloaded', 'truncated']);
  * dos conjuntos caía al respaldo `'fallido'` y `classifyDelivery` lo devolvía
  * como `roto`: una distribución que nunca tuvo URL se contaba como «no se puede
  * descargar ni abrir», que afirma más de lo que sabemos.
+ *
+ * `error` está por lo mismo, y es el caso que lo destapó. Significa «el análisis
+ * de este portal se interrumpió» —así lo documenta `/api`—, o sea un problema de
+ * casa, y sin embargo caía al respaldo `'fallido'` y salía como archivo roto. En
+ * el informe del 14 de agosto eran diez CSV de Educación cuya única falta era
+ * redirigir a una URL con la `ó` de «Educación» sin escapar: `requests` no supo
+ * leer la cabecera `Location` y el portal publicó «No se pudo descargar» sobre
+ * diez archivos que se descargan sin ningún problema. Ver `_redirect_target` en
+ * `downloader.py`, que además evita que vuelva a pasar.
  */
-const FETCH_NOT_EVALUATED = new Set(['too_large', 'no_url']);
+const FETCH_NOT_EVALUATED = new Set(['too_large', 'no_url', 'error']);
 
 /**
  * WMS y WFS no descargan ningún archivo, y eso NO es un fallo de entrega.

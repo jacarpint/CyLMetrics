@@ -15,6 +15,7 @@
     "reports:seed": "vite-node scripts/seed-checkpoint.ts",
     "brand:assets": "vite-node scripts/make-brand-assets.mts",
     "check:contrast": "node scripts/check-contrast.mjs",
+    "verify:broken": "vite-node scripts/verify-broken.mts",
     "check:xlsx": "vite-node scripts/check-xlsx-read.mts",
     "check:json": "vite-node scripts/check-json-records.mts",
     "check:shp": "vite-node scripts/check-shapefile.mts",
