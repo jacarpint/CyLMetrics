@@ -434,11 +434,24 @@
   padding: 0.25rem;
 }
 
-/* Si en modo oscuro acabamos sirviendo el mapa base claro (porque el proveedor
-   oscuro no responde), se atenúa para que no deslumbre. Solo entonces: el
-   componente marca el contenedor con data-basemap. */
-.dark .leaflet-container[data-basemap="light"] .leaflet-tile-pane {
-  filter: brightness(0.78) saturate(0.85) contrast(1.05);
+/* Mapa base oscuro, invirtiendo OpenStreetMap.
+ *
+ * El oscuro lo servía `dark_all` de CARTO, y CARTO ha pasado sus mapas base a
+ * exigir clave: las teselas siguen llegando, pero con una marca de agua «API Key
+ * Required» encima. Invertir OSM es la solución clásica y aquí además es la
+ * barata: mismo origen para los dos temas, ningún tercero al que registrarse y
+ * un host menos en la CSP.
+ *
+ * `invert` sola deja los verdes en magenta; `hue-rotate(180deg)` los devuelve a
+ * su sitio. El resto es afinado para que no deslumbre sobre el lienzo del portal.
+ *
+ * Va sobre el contenedor de la capa base —Leaflet le pone la clase que se le pasa
+ * en `className`— y NO sobre `.leaflet-tile-pane`. En ese panel conviven el mapa
+ * base y las capas WMS del servicio, así que filtrarlo entero invertía también la
+ * cartografía que se ha ido a ver: la regla anterior lo hacía, aunque solo se
+ * activara en el caso de reserva. */
+.dark .leaflet-container .basemap-oscuro {
+  filter: invert(1) hue-rotate(180deg) brightness(0.92) contrast(0.95) saturate(0.65);
 }
 
 /* Accordion animations */

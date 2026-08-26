@@ -10,12 +10,38 @@ export const OSM_TILES = {
   attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
 };
 
-/** Mapa base oscuro: el claro deslumbra sobre el lienzo oscuro del portal. */
-export const DARK_TILES = {
-  url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-  attribution:
-    '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
-};
+/**
+ * Clase que marca el mapa base cuando toca pintarlo oscuro.
+ *
+ * El filtro vive en `globals.css` y se aplica al contenedor de ESTA capa, no a
+ * `.leaflet-tile-pane`: en esa capa comparten sitio el mapa base y las capas WMS
+ * de datos, así que filtrar el panel entero invertía también la cartografía del
+ * servicio, que es justo lo que se ha ido a ver.
+ */
+export const DARK_BASEMAP_CLASS = 'basemap-oscuro';
+
+/**
+ * El mapa base según el tema.
+ *
+ * Los dos salen de OpenStreetMap. El oscuro era `dark_all` de CARTO, y CARTO ha
+ * pasado sus mapas base a exigir clave: las teselas siguen llegando, pero con una
+ * marca de agua «API Key Required» encima. No se cambia por otro proveedor porque
+ * los que dan un tema oscuro gratis lo hacen a cambio de registrarse, y una clave
+ * en un portal público es una cuenta que mantener y una dependencia que puede
+ * volver a caducar.
+ *
+ * En su lugar se invierte OSM por CSS, que es la solución clásica: mismo origen
+ * para los dos temas, ningún tercero, nada que renovar, y un host menos en la
+ * CSP. La contrapartida es que un mapa invertido no está tan cuidado como uno
+ * diseñado en oscuro; a cambio no puede dejar de funcionar por decisión ajena.
+ */
+export function basemapFor(dark: boolean): {
+  url: string;
+  attribution: string;
+  className?: string;
+} {
+  return dark ? { ...OSM_TILES, className: DARK_BASEMAP_CLASS } : OSM_TILES;
+}
 
 export function isDarkTheme(): boolean {
   return typeof document !== 'undefined' && document.documentElement.classList.contains('dark');

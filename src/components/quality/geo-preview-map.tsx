@@ -4,7 +4,7 @@ import 'leaflet/dist/leaflet.css';
 
 import { useEffect, useRef, useState } from 'react';
 import type * as Leaflet from 'leaflet';
-import { DARK_TILES, OSM_TILES, escapeHtml, isDarkTheme, themeToken, watchTheme } from '@/lib/map-theme';
+import { basemapFor, escapeHtml, isDarkTheme, themeToken, watchTheme } from '@/lib/map-theme';
 
 export type Bbox = { west: number; south: number; east: number; north: number };
 
@@ -214,24 +214,20 @@ export default function GeoPreviewMap({ spec, onTileError, onSelectFeature, clas
     const container = containerRef.current;
     if (!ready || !L || !map || !container) return;
 
-    const source = dark ? DARK_TILES : OSM_TILES;
-    container.dataset.basemap = dark ? 'dark' : 'light';
-
-    const layer = L.tileLayer(source.url, { attribution: source.attribution, maxZoom: 19 });
-    let fallback: Leaflet.TileLayer | null = null;
-
-    if (dark) {
-      // Si el proveedor oscuro no responde, se vuelve a OSM y se marca el
-      // contenedor para que el CSS lo atenúe en lugar de deslumbrar.
-      layer.once('tileerror', () => {
-        if (fallback || !mapRef.current) return;
-        map.removeLayer(layer);
-        fallback = L.tileLayer(OSM_TILES.url, { attribution: OSM_TILES.attribution, maxZoom: 19 });
-        fallback.addTo(map);
-        fallback.bringToBack();
-        container.dataset.basemap = 'light';
-      });
-    }
+    // Aquí había un plan B: si el proveedor oscuro no respondía, se retiraba la
+    // capa y se volvía a OSM atenuado por CSS. Ya no hace falta ni tiene sentido
+    // —los dos temas salen del mismo servidor, así que no hay un segundo origen
+    // que pueda caerse por su cuenta—, y con él se va el baile de
+    // `data-basemap` sobre el contenedor.
+    const source = basemapFor(dark);
+    const layer = L.tileLayer(source.url, {
+      attribution: source.attribution,
+      maxZoom: 19,
+      // Leaflet la pone en el contenedor de ESTA capa. Es lo que permite
+      // invertir solo el mapa base y no las capas WMS, que viven en el mismo
+      // panel de teselas.
+      className: source.className,
+    });
 
     layer.addTo(map);
     layer.bringToBack();
@@ -239,7 +235,6 @@ export default function GeoPreviewMap({ spec, onTileError, onSelectFeature, clas
 
     return () => {
       map.removeLayer(layer);
-      if (fallback) map.removeLayer(fallback);
     };
   }, [ready, dark]);
 

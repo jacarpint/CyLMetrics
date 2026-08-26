@@ -6,7 +6,7 @@ import { ALLOWED_DOMAINS } from "./src/lib/proxy-allow";
  *
  * Los datos tabulares y las capacidades OGC pasan por `/api/proxy` y `/api/ogc`,
  * así que `connect-src 'self'` basta para eso. Las IMÁGENES, en cambio, sí van
- * directas: las teselas del mapa base vienen de OpenStreetMap y CARTO, y las
+ * directas: las teselas del mapa base vienen de OpenStreetMap, y las
  * capas WMS y sus leyendas se piden a los servidores de la Junta con la URL que
  * declara el propio servicio. Los dominios de la Junta se reutilizan de la
  * allowlist del proxy para no mantener dos listas que se desincronizan.
@@ -18,8 +18,15 @@ import { ALLOWED_DOMAINS } from "./src/lib/proxy-allow";
  */
 const isDev = process.env.NODE_ENV === "development";
 
-/** Mapas base del visor: ver `src/lib/map-theme.ts`. */
-const TILE_HOSTS = ["https://*.tile.openstreetmap.org", "https://*.basemaps.cartocdn.com"];
+/**
+ * Mapas base del visor: ver `src/lib/map-theme.ts`.
+ *
+ * Un solo origen para los dos temas. Estaba también `basemaps.cartocdn.com`, que
+ * servía el mapa oscuro hasta que CARTO pasó a exigir clave; el oscuro se hace
+ * ahora invirtiendo OSM por CSS, así que ese host sobra. Un tercero menos con
+ * permiso para cargar imágenes en el portal.
+ */
+const TILE_HOSTS = ["https://*.tile.openstreetmap.org"];
 
 /** Servidores cartográficos de la Junta (WMS y GetLegendGraphic). */
 const OGC_IMAGE_HOSTS = ALLOWED_DOMAINS.flatMap((domain) => [`https://${domain}`, `https://*.${domain}`]);
