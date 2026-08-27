@@ -559,3 +559,55 @@ def test_una_distribucion_sin_ninguna_url_sigue_sin_tenerla():
     </rdf:RDF>"""
 
     assert [d["url"] for d in iter_distributions(xml.encode("utf-8"))] == [""]
+
+
+def test_un_archivo_con_solo_un_salto_de_linea_esta_vacio():
+    """
+    El servidor del catálogo sirve archivos de 2 bytes: un CRLF y nada más.
+
+    «Vacío» exigía cero bytes exactos, así que esos dos llegaban al analizador de
+    formato y salía «el archivo no es un ZIP válido» para un .shp y «XML no bien
+    formado» para un .kml. Ciertas las dos, y las dos mandan a quien las lee a
+    buscar un ZIP corrupto donde no hay nada que corromper.
+    """
+    import tempfile
+    from pathlib import Path
+
+    from src.analysis.engine import _effectively_empty
+
+    with tempfile.TemporaryDirectory() as tmp:
+        f = Path(tmp) / "x.bin"
+        for contenido in (b"", b"\r\n", b"\n", b"   \n\t "):
+            f.write_bytes(contenido)
+            assert _effectively_empty(f, len(contenido)) is True, contenido
+
+
+def test_un_archivo_pequeno_con_contenido_no_esta_vacio():
+    """El respaldo no puede tragarse un archivo diminuto pero legítimo."""
+    import tempfile
+    from pathlib import Path
+
+    from src.analysis.engine import _effectively_empty
+
+    with tempfile.TemporaryDirectory() as tmp:
+        f = Path(tmp) / "x.bin"
+        for contenido in (b"id;v\n1;2\n", b"PK\x03\x04" + b"\x00" * 60):
+            f.write_bytes(contenido)
+            assert _effectively_empty(f, len(contenido)) is False, contenido
+
+
+def test_por_encima_del_umbral_no_se_mira_el_contenido():
+    """
+    Un archivo grande lleno de espacios no se considera vacío: leerlo entero para
+    comprobarlo costaría más que analizarlo, y a partir de cierto tamaño «está en
+    blanco» ya es un problema de contenido, no de entrega.
+    """
+    import tempfile
+    from pathlib import Path
+
+    from src.analysis.engine import _effectively_empty
+
+    with tempfile.TemporaryDirectory() as tmp:
+        f = Path(tmp) / "x.bin"
+        f.write_bytes(b" " * 5000)
+        assert _effectively_empty(f, 5000) is False

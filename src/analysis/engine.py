@@ -172,6 +172,33 @@ def _append_checkpoint(path: Path, url: str, result: dict) -> None:
             )
 
 
+#: Por debajo de esto se mira el contenido antes de mandarlo al analizador.
+#:
+#: Un archivo de cero bytes ya se detectaba, pero el servidor del catálogo sirve
+#: también archivos con SOLO un salto de línea: 2 bytes, un CRLF. Con la regla
+#: anterior —«vacío» exigía cero exactos— esos dos bytes llegaban al analizador de
+#: formato, que decía lo suyo: «el archivo no es un ZIP válido» para un .shp y
+#: «XML no bien formado» para un .kml. Las dos frases son ciertas y las dos
+#: mandan a quien las lee al sitio equivocado, a buscar un ZIP corrupto donde no
+#: hay nada que corromper.
+#:
+#: 64 bytes es de sobra para distinguir «no hay nada» de «hay poco»: ningún
+#: formato del catálogo cabe en menos.
+EMPTY_SAMPLE_BYTES = 64
+
+
+def _effectively_empty(path, size: int) -> bool:
+    """¿Este archivo está vacío en todo lo que importa?"""
+    if size == 0:
+        return True
+    if size > EMPTY_SAMPLE_BYTES or path is None:
+        return False
+    try:
+        return path.read_bytes().strip() == b""
+    except OSError:
+        return False
+
+
 def run_item(item: dict, ctx: dict) -> dict:
     """Analiza una distribución y devuelve su resultado normalizado."""
     start = time.monotonic()
@@ -262,11 +289,14 @@ def run_item(item: dict, ctx: dict) -> dict:
         result["duration_ms"] = int((time.monotonic() - start) * 1000)
         return result
 
-    if fetch_res.path is None or fetch_res.size == 0:
+    if fetch_res.path is None or _effectively_empty(fetch_res.path, fetch_res.size):
+        cuantos = f"{fetch_res.size} bytes" if fetch_res.size else "0 bytes"
+        detalle = " (solo espacios o saltos de línea)" if fetch_res.size else ""
         result["status"] = "error"
         result["analysis"] = {
-            "ok": False, "score": None, "summary": "Archivo vacío (0 bytes)",
-            "metrics": {}, "issues": [{"code": "archivo-vacio", "label": "El archivo descargado está vacío",
+            "ok": False, "score": None, "summary": f"Archivo vacío ({cuantos}){detalle}",
+            "metrics": {}, "issues": [{"code": "archivo-vacio",
+                                       "label": f"El archivo descargado está vacío ({cuantos})",
                                        "severity": "error", "count": 1}],
         }
         result["duration_ms"] = int((time.monotonic() - start) * 1000)
