@@ -492,3 +492,70 @@ def test_un_fallo_del_analizador_no_penaliza_al_dataset():
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+def test_la_url_puede_venir_en_el_rdf_about_de_la_distribucion():
+    """
+    Tres formas de declarar la URL, y el catálogo usa las tres.
+
+    Doce distribuciones —presas con plan de emergencia, establecimientos Seveso,
+    riesgo de inundaciones— no traen `dcat:accessURL` y ponen la dirección en el
+    `rdf:about` del propio nodo `Distribution`. Se archivaban como «no publica
+    ninguna URL de acceso», que era falso, y no se llegaban a comprobar. El
+    parser del portal ya hacía este respaldo, así que las dos mitades del
+    proyecto contaban cosas distintas.
+    """
+    from src.analysis.catalog import iter_distributions
+
+    xml = """<?xml version="1.0"?>
+    <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+             xmlns:dcat="http://www.w3.org/ns/dcat#"
+             xmlns:dct="http://purl.org/dc/terms/">
+      <dcat:Catalog>
+        <dcat:dataset>
+          <dcat:Dataset rdf:about="https://ejemplo.es/ds/1">
+            <dct:title>Conjunto</dct:title>
+            <dcat:distribution>
+              <dcat:Distribution rdf:about="https://ejemplo.es/solo-about.shp"/>
+            </dcat:distribution>
+            <dcat:distribution>
+              <dcat:Distribution rdf:about="https://ejemplo.es/otro">
+                <dcat:accessURL rdf:resource="https://ejemplo.es/con-resource.csv"/>
+              </dcat:Distribution>
+            </dcat:distribution>
+            <dcat:distribution>
+              <dcat:Distribution>
+                <dcat:accessURL>https://ejemplo.es/como-texto.json</dcat:accessURL>
+              </dcat:Distribution>
+            </dcat:distribution>
+          </dcat:Dataset>
+        </dcat:dataset>
+      </dcat:Catalog>
+    </rdf:RDF>"""
+
+    urls = [d["url"] for d in iter_distributions(xml.encode("utf-8"))]
+    assert urls == [
+        "https://ejemplo.es/solo-about.shp",
+        # `accessURL` manda sobre `rdf:about` cuando están los dos.
+        "https://ejemplo.es/con-resource.csv",
+        "https://ejemplo.es/como-texto.json",
+    ], urls
+
+
+def test_una_distribucion_sin_ninguna_url_sigue_sin_tenerla():
+    """El respaldo no puede inventarse una URL donde de verdad no hay."""
+    from src.analysis.catalog import iter_distributions
+
+    xml = """<?xml version="1.0"?>
+    <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+             xmlns:dcat="http://www.w3.org/ns/dcat#"
+             xmlns:dct="http://purl.org/dc/terms/">
+      <dcat:Catalog><dcat:dataset>
+        <dcat:Dataset rdf:about="https://ejemplo.es/ds/2">
+          <dct:title>Sin nada</dct:title>
+          <dcat:distribution><dcat:Distribution/></dcat:distribution>
+        </dcat:Dataset>
+      </dcat:dataset></dcat:Catalog>
+    </rdf:RDF>"""
+
+    assert [d["url"] for d in iter_distributions(xml.encode("utf-8"))] == [""]

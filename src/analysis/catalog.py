@@ -64,6 +64,19 @@ def iter_distributions(xml_bytes: bytes) -> list[dict]:
             if url_el is not None:
                 # Soporta ambas formas: rdf:resource="URL" y >URL</dcat:accessURL>
                 url = (url_el.get(f"{RDF}resource") or url_el.text or "").strip()
+            if not url:
+                # Y una tercera: la URL en el `rdf:about` del propio nodo
+                # `Distribution`, sin `dcat:accessURL` ninguno.
+                #
+                # Son 12 distribuciones del catálogo —presas con plan de
+                # emergencia, establecimientos Seveso, riesgo de inundaciones— y
+                # se archivaban como «el catálogo describe el recurso pero no
+                # publica ninguna URL de acceso», que era falso: la URL está, en
+                # otro sitio. El parser del portal (`rdf-catalog.ts`) ya hacía
+                # este mismo respaldo, así que las dos mitades del proyecto
+                # discrepaban: la web las contaba y las enlazaba mientras el
+                # análisis ni las intentaba.
+                url = (dist.get(f"{RDF}about") or "").strip()
             items.append(
                 {
                     "dataset_index": ds_index,
