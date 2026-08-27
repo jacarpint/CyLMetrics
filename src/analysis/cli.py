@@ -156,9 +156,25 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Limitado a las primeras {len(items)} distribuciones", flush=True)
 
     if checkpoint_path.exists():
-        lines = sum(1 for _ in open(checkpoint_path, encoding="utf-8") if _.strip())
-        print(f"Reanudando desde checkpoint: {checkpoint_path} ({lines} resultados previos, "
-              f"{len(items) - lines} pendientes)", flush=True)
+        # Se cuentan URL distintas, no líneas.
+        #
+        # El checkpoint se escribe en modo `append` y acumula entradas repetidas
+        # entre ejecuciones, así que restar líneas da cifras que no significan
+        # nada: llegó a anunciar «18 pendientes» cuando eran 20, y «-12» cuando
+        # eran 2. La reutilización sí va por URL —`run_analysis` indexa así—, de
+        # modo que lo que de verdad queda es cuántas URL del catálogo no están.
+        vistas: set[str] = set()
+        with open(checkpoint_path, encoding="utf-8") as fh:
+            for linea in fh:
+                if not linea.strip():
+                    continue
+                try:
+                    vistas.add(json.loads(linea).get("url", ""))
+                except json.JSONDecodeError:
+                    continue
+        pendientes = sum(1 for item in items if item["url"] not in vistas)
+        print(f"Reanudando desde checkpoint: {checkpoint_path} ({len(vistas)} URL ya analizadas, "
+              f"{pendientes} pendientes)", flush=True)
 
     results = run_analysis(
         items,

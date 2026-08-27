@@ -156,20 +156,19 @@ describe.skipIf(!report)('sobre el informe real que hay en el repositorio', () =
    * fuerte: dos implementaciones del mismo criterio, una en Python y otra en
    * TypeScript, contrastadas sobre el catálogo entero.
    *
-   * Se admite un punto de diferencia porque los dos lenguajes redondean distinto:
-   * `round()` de Python va al par (`round(92.5) == 92`) y `Math.round` sube
-   * siempre (`93`). Son 22 conjuntos de 831 y no se ve en ninguna parte, porque
-   * el portal deriva la nota en TypeScript; documentarlo vale más que forzar a
-   * uno de los dos a imitar al otro.
+   * La coincidencia es EXACTA, sin margen. Hubo un punto de diferencia en 22
+   * conjuntos de 831 porque los dos lenguajes redondean distinto —`round()` de
+   * Python va al par y `Math.round` sube siempre—, y se resolvió ajustando
+   * Python al navegador (`round_half_up` en `report.py`), que es quien pinta la
+   * cifra. Admitir el margen habría dejado pasar cualquier discrepancia de un
+   * punto, que es justo la magnitud de los errores de redondeo que interesa
+   * cazar.
    */
   it('coincide con la nota que escribe el analizador', () => {
     const discrepan: string[] = [];
     for (const ds of report!.datasets) {
       const derivada = datasetContentScore(ds);
-      if (derivada == null && ds.score == null) continue;
-      if (derivada == null || ds.score == null) {
-        discrepan.push(`${ds.dataset_id}: python=${ds.score} ts=${derivada}`);
-      } else if (Math.abs(derivada - ds.score) > 1) {
+      if (derivada !== ds.score) {
         discrepan.push(`${ds.dataset_id}: python=${ds.score} ts=${derivada}`);
       }
     }

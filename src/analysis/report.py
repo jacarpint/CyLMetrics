@@ -1,6 +1,7 @@
 """Agregación de resultados: informe por dataset + estadísticas globales."""
 from __future__ import annotations
 
+import math
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
 
@@ -20,6 +21,27 @@ _DELIVERED_FETCH = frozenset({"downloaded", "truncated", "service"})
 
 #: Todo lo que impide que haya contenido legible que medir.
 _UNREADABLE_CODES = BLOCKING_ISSUE_CODES | PORTAL_LIMITATION_CODES | PUBLICATION_DEFECT_CODES
+
+
+def round_half_up(value: float, decimals: int = 0) -> float:
+    """
+    Redondear como lo hace el navegador, no como lo hace Python.
+
+    `round()` de Python redondea al par: `round(92.5)` da 92, y `round(0.5)` da 0.
+    `Math.round` de JavaScript sube siempre: 93 y 1. El portal deriva la nota que
+    se ve en TypeScript, así que era el informe el que se separaba de lo
+    publicado —22 conjuntos de 831 con un punto de diferencia—, y una paridad que
+    falla en el 3% de los casos no se puede afirmar en un test.
+
+    Se ajusta Python al navegador y no al revés, porque el navegador es quien
+    pinta la cifra.
+    """
+    factor = 10 ** decimals
+    escalado = value * factor
+    # `floor(x + 0.5)` es exactamente «medio hacia arriba». Para negativos habría
+    # que reflejarlo, pero aquí no hay notas ni porcentajes por debajo de cero.
+    redondeado = math.floor(escalado + 0.5) if escalado >= 0 else -math.floor(-escalado + 0.5)
+    return redondeado / factor if decimals else int(redondeado)
 
 
 def content_score(result: dict) -> float | None:
@@ -124,8 +146,8 @@ def aggregate(results: list[dict]) -> dict:
     datasets = []
     for key in datasets_order:
         ds = by_dataset[key]
-        ds["score"] = round(sum(ds["scores"]) / len(ds["scores"])) if ds["scores"] else None
-        ds["coverage_pct"] = round(ds["analyzed"] / ds["distributions"] * 100) if ds["distributions"] else 0
+        ds["score"] = round_half_up(sum(ds["scores"]) / len(ds["scores"])) if ds["scores"] else None
+        ds["coverage_pct"] = round_half_up(ds["analyzed"] / ds["distributions"] * 100) if ds["distributions"] else 0
         ds["issues_by_code"] = dict(ds["issues_by_code"].most_common())
         datasets.append(ds)
 
@@ -169,7 +191,7 @@ def aggregate(results: list[dict]) -> dict:
             "error": stat["error"],
             "skipped": stat["skipped"],
             "downloaded": stat["downloaded"],
-            "avg_score": round(sum(stat["scores"]) / len(stat["scores"]), 1) if stat["scores"] else None,
+            "avg_score": round_half_up(sum(stat["scores"]) / len(stat["scores"]), 1) if stat["scores"] else None,
             "bytes": stat["bytes"],
             # Todos los códigos, no los 8 más frecuentes: el recorte dejaba
             # fuera del resumen por formato incidencias que sí existían y solo
@@ -185,7 +207,7 @@ def aggregate(results: list[dict]) -> dict:
             "error": totals["error"],
             "skipped": totals["skipped"],
             "downloaded": totals["downloaded"],
-            "avg_score": round(sum(totals["scores"]) / len(totals["scores"]), 1) if totals["scores"] else None,
+            "avg_score": round_half_up(sum(totals["scores"]) / len(totals["scores"]), 1) if totals["scores"] else None,
             "bytes": totals["bytes"],
         },
         "by_format": by_format_summary,

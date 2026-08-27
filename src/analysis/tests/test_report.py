@@ -172,3 +172,45 @@ def test_los_conjuntos_se_agrupan_por_id_y_no_por_posicion():
     report = aggregate([viejo, nuevo])
     assert len(report["datasets"]) == 1, [d["dataset_id"] for d in report["datasets"]]
     assert report["datasets"][0]["distributions"] == 2
+
+
+# ---------------------------------------------------------------------------
+# Redondeo: Python y el navegador tienen que dar la misma cifra
+# ---------------------------------------------------------------------------
+
+def test_redondea_como_el_navegador_y_no_como_python():
+    """
+    `round()` de Python va al par —`round(92.5)` da 92— y `Math.round` sube
+    siempre —da 93—. El portal deriva en TypeScript la nota que se ve, así que
+    era el informe el que se separaba de lo publicado: 22 conjuntos de 831 con un
+    punto de diferencia. Se ajusta Python al navegador porque el navegador es
+    quien pinta la cifra.
+    """
+    from src.analysis.report import round_half_up
+
+    # Los casos en los que los dos lenguajes discrepan.
+    assert round_half_up(92.5) == 93
+    assert round_half_up(0.5) == 1
+    assert round_half_up(2.5) == 3
+    # Y los que ya coincidían, que no deben cambiar.
+    assert round_half_up(1.5) == 2
+    assert round_half_up(92.4) == 92
+    assert round_half_up(92.6) == 93
+    assert round_half_up(0) == 0
+
+
+def test_redondea_igual_con_decimales():
+    from src.analysis.report import round_half_up
+
+    assert round_half_up(90.35, 1) == 90.4  # Python daría 90.3
+    assert round_half_up(90.34, 1) == 90.3
+    assert round_half_up(90.0, 1) == 90.0
+
+
+def test_la_nota_del_conjunto_usa_ese_redondeo():
+    """No basta con tener el helper: la agregación tiene que llamarlo."""
+    from src.analysis.report import aggregate
+
+    # Media de 85 y 100 = 92,5. Al par daría 92; hacia arriba, 93.
+    report = aggregate([_dist("ok", 85), _dist("ok", 100)])
+    assert report["datasets"][0]["score"] == 93
