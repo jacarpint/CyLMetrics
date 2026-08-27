@@ -144,10 +144,36 @@ describe.skipIf(!report)('sobre el informe real que hay en el repositorio', () =
     expect(niveles.bad).toBeGreaterThan(0);
   });
 
-  it('mide más conjuntos de los que el informe daba por no medibles', () => {
-    const sinNotaEnElInforme = report!.datasets.filter((ds) => ds.score == null).length;
-    const sinNotaAhora = report!.datasets.length - puntuados.length;
-    expect(sinNotaAhora).toBeLessThan(sinNotaEnElInforme);
+  /**
+   * Paridad con la nota que escribe `report.py`.
+   *
+   * Aquí se exigía que la nota derivada midiera MÁS conjuntos que la del
+   * informe. Era cierto mientras `aggregate()` descartaba de la media toda
+   * distribución que no tuviera `status == 'ok'`; corregido eso, las dos
+   * coinciden y el test fallaba precisamente porque el fallo ya no estaba.
+   *
+   * Lo que se fija ahora es la coincidencia, que es un invariante mucho más
+   * fuerte: dos implementaciones del mismo criterio, una en Python y otra en
+   * TypeScript, contrastadas sobre el catálogo entero.
+   *
+   * Se admite un punto de diferencia porque los dos lenguajes redondean distinto:
+   * `round()` de Python va al par (`round(92.5) == 92`) y `Math.round` sube
+   * siempre (`93`). Son 22 conjuntos de 831 y no se ve en ninguna parte, porque
+   * el portal deriva la nota en TypeScript; documentarlo vale más que forzar a
+   * uno de los dos a imitar al otro.
+   */
+  it('coincide con la nota que escribe el analizador', () => {
+    const discrepan: string[] = [];
+    for (const ds of report!.datasets) {
+      const derivada = datasetContentScore(ds);
+      if (derivada == null && ds.score == null) continue;
+      if (derivada == null || ds.score == null) {
+        discrepan.push(`${ds.dataset_id}: python=${ds.score} ts=${derivada}`);
+      } else if (Math.abs(derivada - ds.score) > 1) {
+        discrepan.push(`${ds.dataset_id}: python=${ds.score} ts=${derivada}`);
+      }
+    }
+    expect(discrepan, discrepan.slice(0, 5).join('\n')).toEqual([]);
   });
 
   /**

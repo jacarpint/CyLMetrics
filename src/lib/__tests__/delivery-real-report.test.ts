@@ -79,7 +79,25 @@ describe.skipIf(!report)('estado de entrega sobre el informe real', () => {
    */
   it('lo no analizado por falta de lector no se cuenta como roto', () => {
     const s = summarizeDelivery(report);
-    expect(s.noAnalizado).toBeGreaterThan(0);
+
+    /*
+     * Aquí se exigía `noAnalizado > 0`, y ese test acabó afirmando lo contrario
+     * de lo que se persigue: había distribuciones sin analizar porque el informe
+     * se generó en un entorno al que le faltaban lectores. Con los siete
+     * instalados el recuento es CERO, que es el estado bueno, y el test fallaba
+     * justo cuando el problema estaba resuelto.
+     *
+     * El invariante que sí vale a cualquier número: `no-analizado` recoge
+     * exactamente las distribuciones que llevan un código de limitación nuestra,
+     * ni una más ni una menos.
+     */
+    let conLimitacion = 0;
+    for (const ds of report!.datasets) {
+      for (const dist of ds.distribution_results) {
+        if ((dist.analysis?.issues ?? []).some((i) => isPortalLimitation(i.code))) conLimitacion++;
+      }
+    }
+    expect(s.noAnalizado).toBe(conLimitacion);
 
     const culpaAjena: string[] = [];
     for (const ds of report!.datasets) {
