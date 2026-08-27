@@ -480,7 +480,13 @@ export function FicherosSection({
             </CardContent>
           </Card>
         ) : (
-          <div className="overflow-hidden rounded-xl border border-border">
+          // `overflow-x-auto` y no `overflow-hidden`: con `hidden`, en una
+          // pantalla estrecha las columnas de la derecha se recortaban y no
+          // había forma de llegar a ellas. Medido a 390 px, la tabla se salía
+          // 106 px. La esquina redondeada se sigue respetando porque fijar
+          // `overflow-x` a algo distinto de `visible` obliga a `overflow-y` a
+          // valer `auto`, así que el recorte vertical no se pierde.
+          <div className="overflow-x-auto rounded-xl border border-border">
             <table className="w-full text-xs">
               <caption className="sr-only">Archivos con problemas de disponibilidad o de contenido</caption>
               <thead>

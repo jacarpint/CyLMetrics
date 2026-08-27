@@ -221,7 +221,13 @@ export default async function CalidadPage({
       </div>
 
       {/* Tabs */}
-      <div className="flex w-fit items-center gap-1 overflow-x-auto rounded-lg border border-border p-1">
+      {/* `max-w-full` junto a `w-fit`, o el desplazamiento no sirve de nada.
+          `w-fit` hace que la caja crezca hasta caber su contenido, así que en
+          una pantalla estrecha se hacía más ancha que la ventana y arrastraba la
+          página entera con ella: `overflow-x-auto` no llegaba a activarse nunca
+          porque no había nada que desbordar DENTRO. Medido a 390 px, las tres
+          pestañas empujaban 126 px fuera del viewport. */}
+      <div className="flex w-fit max-w-full items-center gap-1 overflow-x-auto rounded-lg border border-border p-1">
         {VISTAS.map((tab) => (
           <Link
             key={tab.id}
