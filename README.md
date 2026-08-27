@@ -93,7 +93,7 @@ El portal arranca con el informe ya versionado en `reports/current/`, así que n
 npm run build        # build de producción (~2.500 páginas estáticas)
 npm run lint         # ESLint
 npm run typecheck    # TypeScript sin emitir
-npm test             # Vitest — 496 tests: lógica en node, componentes en jsdom
+npm test             # Vitest — 523 tests: lógica en node, componentes en jsdom
 npm run check:contrast   # contraste WCAG AA de la paleta, en claro y en oscuro
 npm run verify:broken    # contrasta contra el origen los archivos que el portal da por rotos
 npm run check:wfs-view   # pedir por bbox contra el servicio: cuántas entidades caen en cada encuadre
@@ -117,7 +117,7 @@ pip install -r requirements-analysis.txt
 python -m src.analysis --check-deps               # ¿está el entorno listo? No descarga ni escribe nada
 python -m src.analysis --limit 0                  # análisis completo
 
-python -m pytest src/analysis/tests -q            # 48 tests del analizador
+python -m pytest src/analysis/tests -q            # 55 tests del analizador
 ```
 
 > [!IMPORTANT]

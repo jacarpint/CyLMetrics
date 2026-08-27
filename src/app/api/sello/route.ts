@@ -19,8 +19,23 @@ const LEVEL_STYLE: Record<ScoreLevel | "unknown", { color: string; label: string
   unknown: { color: "#5b6979", label: "Sin datos" },
 };
 
+/**
+ * Escapa para XML, comillas incluidas.
+ *
+ * Faltaban `"` y `'`, y el texto se interpola dentro de `aria-label="…"`. Hoy no
+ * es explotable —lo único que entra es un número y una etiqueta de una tabla
+ * fija—, o sea que está a salvo por accidente y no por diseño: el día que
+ * alguien meta aquí el título del conjunto de datos, una comilla se sale del
+ * atributo. El sello se incrusta en webs de terceros, así que es el peor sitio
+ * del portal para dejar un escapado a medias.
+ */
 function esc(text: string): string {
-  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
 }
 
 /**

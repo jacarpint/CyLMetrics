@@ -33,9 +33,59 @@ function findEocd(view: DataView): number {
   throw new ZipError('No parece un archivo ZIP: falta el directorio central.');
 }
 
-async function inflateRaw(data: Uint8Array): Promise<Uint8Array> {
+/**
+ * Cuánto se permite que ocupe UNA entrada ya descomprimida.
+ *
+ * `deflate` comprime muy bien lo repetitivo: un mega de ceros ocupa unos pocos
+ * kilobytes, así que un ZIP dentro del tope del proxy (48 MB) puede expandirse a
+ * decenas de gigas. Sin tope, `new Response(stream).arrayBuffer()` se lo traía
+ * todo a memoria y la pestaña se iba con él.
+ *
+ * No hace falta malicia para llegar aquí: en este catálogo hay shapefiles de
+ * 618 MB, y abrir uno comprimido dentro de una pestaña acaba igual de mal que
+ * una bomba de descompresión hecha a propósito.
+ *
+ * 256 MB deja pasar cualquier hoja de cálculo y cualquier shapefile razonable, y
+ * corta antes de que el navegador empiece a sufrir.
+ */
+const MAX_INFLATED = 256 * 1024 * 1024;
+
+/**
+ * Descomprime contando lo que sale y cortando si se pasa.
+ *
+ * Se lee por trozos en vez de con `arrayBuffer()` precisamente para poder
+ * pararlo: con `arrayBuffer()` el tope solo se podría comprobar cuando ya está
+ * todo en memoria, que es justo lo que hay que evitar.
+ */
+async function inflateRaw(data: Uint8Array, name: string): Promise<Uint8Array> {
   const stream = new Blob([data as BlobPart]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
-  return new Uint8Array(await new Response(stream).arrayBuffer());
+  const reader = stream.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > MAX_INFLATED) {
+        throw new ZipError(
+          `«${name}» supera los ${Math.round(MAX_INFLATED / 1048576)} MB al descomprimirse; ` +
+            'el visor no lo abre para no bloquear el navegador.'
+        );
+      }
+      chunks.push(value);
+    }
+  } finally {
+    void reader.cancel().catch(() => {});
+  }
+
+  const out = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    out.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return out;
 }
 
 /**
@@ -78,7 +128,7 @@ export async function unzip(buffer: ArrayBuffer): Promise<Map<string, Uint8Array
     const raw = bytes.subarray(dataStart, dataStart + compressedSize);
 
     if (method === 0) out.set(name, raw);
-    else if (method === 8) out.set(name, await inflateRaw(raw));
+    else if (method === 8) out.set(name, await inflateRaw(raw, name));
     else throw new ZipError(`Compresión no soportada (método ${method}).`);
   }
 

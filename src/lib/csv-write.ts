@@ -26,11 +26,46 @@ const NEEDS_QUOTING = /[";\r\n]/;
 export type CsvValue = string | number | null | undefined;
 
 /**
- * Escapa un valor según RFC 4180: se entrecomilla si hace falta y las comillas
- * internas se duplican.
+ * Caracteres con los que Excel y LibreOffice interpretan la celda como fórmula.
+ *
+ * `=SUMA(...)` es lo esperable, pero también `+`, `@` y el tabulador, y con
+ * `=cmd|'/c calc'!A1` se llega a ejecutar un programa. Entrecomillar NO lo evita:
+ * la hoja de cálculo mira el primer carácter del valor, no del campo.
+ */
+const FORMULA_START = /^[=+@\t\r\n]/;
+
+/** Un número negativo de verdad, que no hay que tocar. */
+const PLAIN_NEGATIVE = /^-\d+(?:[.,]\d+)?$/;
+
+/**
+ * Desactiva la celda como fórmula anteponiendo un apóstrofo.
+ *
+ * Estos CSV los rellena el catálogo de la Junta —títulos de conjunto, temáticas,
+ * URL—, o sea contenido de terceros que el portal no escribe ni valida, y se
+ * ofrecen para abrirlos en Excel. Es el escenario exacto de la inyección de
+ * fórmulas en CSV, y aquí el escapado RFC 4180 no protege de nada porque resuelve
+ * otro problema.
+ *
+ * El guion se trata aparte: `-5` es un número legítimo y anteponerle el apóstrofo
+ * lo convertiría en texto, así que solo se neutraliza cuando lo que sigue no es
+ * un número.
+ */
+function neutralizeFormula(text: string): string {
+  if (FORMULA_START.test(text)) return `'${text}`;
+  if (text.startsWith('-') && !PLAIN_NEGATIVE.test(text)) return `'${text}`;
+  return text;
+}
+
+/**
+ * Escapa un valor según RFC 4180 —se entrecomilla si hace falta y las comillas
+ * internas se duplican— y lo desactiva como fórmula si empieza por algo que la
+ * hoja de cálculo interpretaría.
+ *
+ * El orden importa: primero el apóstrofo, después las comillas. Al revés, el
+ * apóstrofo quedaría fuera del campo y rompería el CSV.
  */
 export function escapeCsvValue(value: CsvValue): string {
-  const text = String(value ?? '');
+  const text = neutralizeFormula(String(value ?? ''));
   return NEEDS_QUOTING.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }
 
