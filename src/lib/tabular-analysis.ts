@@ -32,7 +32,29 @@ const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
  * era un `error-tipo` que salía en una pantalla y no en la otra sobre el mismo
  * fichero, que es justo lo que hacía dudar de las dos cifras.
  */
-const NUMBER_LITERAL = /^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$/;
+export const NUMBER_LITERAL = /^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$/;
+
+/**
+ * Decimal con coma, la forma española de escribir un número, y el MISMO patrón
+ * que `_DECIMAL_COMMA` en `src/analysis/formats/tabular.py`.
+ *
+ * Sin esto, una columna de cifras como «3632981672,59» se tipaba entera como
+ * texto: 32 columnas del informe repartidas en 11 distribuciones, casi todas
+ * presupuestarias, publicadas como cadenas y sin mínimo ni máximo.
+ *
+ * Se exige que la COMA esté presente, y ahí está toda la lógica. En castellano
+ * el punto separa los miles, así que `1.234` a secas puede ser mil doscientos
+ * treinta y cuatro o uno coma doscientos treinta y cuatro y no hay manera de
+ * decidirlo mirando la celda: esa forma se queda fuera. Pero `210.826.129,02` no
+ * tiene ninguna ambigüedad —la coma dice dónde empiezan los decimales y obliga a
+ * leer los puntos como miles—, así que sí entra, con grupos de tres dígitos.
+ *
+ * Sin la forma con separador de miles el cambio hacía daño: la columna
+ * «Incorporaciones» del presupuesto mezcla `0` con `210.826.129,02`, y con el
+ * patrón corto solo los ceros contaban como números, ganaban por 27 a 26 y las
+ * 26 cifras de verdad quedaban marcadas como valores de tipo incorrecto.
+ */
+export const DECIMAL_COMMA = /^[+-]?(\d+|\d{1,3}(\.\d{3})+),\d+$/;
 
 /** Tipo estricto de una celda. En CSV todo llega como texto. */
 export function valueType(value: string | null | undefined): ValueType {
@@ -41,9 +63,34 @@ export function valueType(value: string | null | undefined): ValueType {
   if (!v) return 'empty';
   const lower = v.toLowerCase();
   if (lower === 'true' || lower === 'false') return 'bool';
-  if (NUMBER_LITERAL.test(v)) return 'number';
+  if (NUMBER_LITERAL.test(v) || DECIMAL_COMMA.test(v)) return 'number';
   if (ISO_DATE.test(v) && !Number.isNaN(Date.parse(v))) return 'date';
   return 'str';
+}
+
+/**
+ * La celda como número, entendiendo lo mismo que `valueType`.
+ *
+ * Va aparte de `Number()` porque `Number('1234,56')` es `NaN`: sin esto una
+ * columna de decimales con coma se reconocería como numérica y luego se
+ * quedaría sin rango, que es lo peor de las dos opciones. Es el equivalente de
+ * `_to_number` en `tabular.py`.
+ */
+export function toNumber(value: string | null | undefined): number | null {
+  if (value == null) return null;
+  const v = value.trim();
+  // Se exige uno de los dos patrones en vez de fiarlo a `Number()`, que es
+  // generoso de un modo que aquí importa: `Number('')` vale 0 —una celda vacía
+  // entrando en el mínimo como un cero que nadie escribió— y `Number('0x1A')`
+  // vale 26, mientras que el `float('0x1A')` del analizador falla. Atarlo a los
+  // mismos patrones que `valueType` es lo que garantiza que los dos lados midan
+  // el mismo rango sobre el mismo fichero.
+  // Puntos fuera (son los miles) y luego la coma pasa a punto. En ese orden, o
+  // `210.826.129,02` acabaría en algo que `Number` no sabe leer.
+  if (DECIMAL_COMMA.test(v)) return Number(v.replace(/\./g, '').replace(',', '.'));
+  if (!NUMBER_LITERAL.test(v)) return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
 }
 
 export interface ColumnProfile {
@@ -125,8 +172,11 @@ export function columnProfiles(header: string[], rows: string[][]): ColumnProfil
       let max = -Infinity;
       let seen = 0;
       for (const value of values) {
-        const n = Number(value);
-        if (!Number.isFinite(n)) continue;
+        // `toNumber` y no `Number`: este último devuelve `NaN` con la coma
+        // decimal, así que una columna reconocida como numérica se quedaba sin
+        // rango justo en las columnas por las que se añadió el patrón.
+        const n = toNumber(value);
+        if (n == null) continue;
         if (n < min) min = n;
         if (n > max) max = n;
         seen++;

@@ -152,6 +152,58 @@ _TYPE_PRIORITY = {"number": 0, "date": 1, "bool": 2, "str": 3, "any": 4}
 #: `error-tipo` que aparecía en una pantalla y no en la otra.
 _NUMBER_LITERAL = re.compile(r"^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$")
 
+#: Decimal con coma, la forma española de escribir un número.
+#:
+#: Sin esto, una columna de cifras como «3632981672,59» se tipaba entera como
+#: texto: 32 columnas del informe, repartidas en 11 distribuciones, casi todas
+#: presupuestarias. No era una acusación falsa —nadie salía señalado— pero sí una
+#: detección perdida, y de las que más duelen en un portal cuyo oficio es decir
+#: qué tipo tiene cada columna: al quedar como texto tampoco se publicaba su
+#: mínimo ni su máximo.
+#:
+#: Se exige que la COMA esté presente, y ahí está toda la lógica del patrón.
+#:
+#: En castellano el punto separa los miles, así que `1.234` a secas puede ser mil
+#: doscientos treinta y cuatro o uno coma doscientos treinta y cuatro y no hay
+#: manera de decidirlo mirando la celda: esa forma se queda fuera. Pero
+#: `210.826.129,02` no tiene ninguna ambigüedad —la coma dice dónde empiezan los
+#: decimales y obliga a leer los puntos como miles—, así que sí entra, con los
+#: grupos de tres dígitos exactos que la hacen reconocible.
+#:
+#: Admitir la forma con separador de miles no es un extra: sin ella el cambio
+#: causaba daño. La columna «Incorporaciones» del presupuesto mezcla `0` con
+#: `210.826.129,02`; con el patrón corto solo los ceros contaban como números,
+#: ganaban por 27 a 26 y las 26 cifras de verdad se publicaban como
+#: «valor con un tipo distinto al mayoritario de su columna». Es decir, se
+#: acusaba al organismo de un defecto que era del patrón.
+#:
+#: Tiene que decir lo mismo que `DECIMAL_COMMA` en `src/lib/tabular-analysis.ts`.
+#: Los dos lados analizan el mismo fichero —el analizador para el informe, el
+#: visor para lo que se ve en pantalla— y cada discrepancia entre sus patrones es
+#: un `error-tipo` que aparece en una pantalla y no en la otra.
+_DECIMAL_COMMA = re.compile(r"^[+-]?(\d+|\d{1,3}(\.\d{3})+),\d+$")
+
+
+def _to_number(value) -> float | None:
+    """El valor como número, aceptando también la coma decimal. None si no lo es."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        candidato = value.strip()
+        if _DECIMAL_COMMA.match(candidato):
+            # Los puntos son separadores de miles y sobran; la coma es el punto
+            # decimal. El orden importa: quitar primero los puntos y luego
+            # cambiar la coma, o `210.826.129,02` se convertiría en algo que
+            # `float` no entiende.
+            candidato = candidato.replace(".", "").replace(",", ".")
+        try:
+            return float(candidato)
+        except ValueError:
+            return None
+    return None
+
 #: Fecha ISO de calendario. `datetime.date.fromisoformat` acepta desde Python
 #: 3.11 formatos que el visor no reconoce ("20260813", "2026-W32-1", fechas con
 #: hora), así que aquí se exige la forma estricta, igual que `ISO_DATE` en TS.
@@ -183,7 +235,7 @@ def _value_type(value) -> str:
             return "empty"
         if v.lower() in ("true", "false"):
             return "bool"
-        if _NUMBER_LITERAL.match(v):
+        if _NUMBER_LITERAL.match(v) or _DECIMAL_COMMA.match(v):
             return "number"
         if _ISO_DATE.match(v):
             try:
@@ -402,14 +454,12 @@ def _build_schema_and_sample(header: list[str] | None, data_rows: list[list]) ->
             "distinct": distinct,
         }
         if winner == "number":
-            nums: list[float] = []
-            for v in col:
-                if isinstance(v, bool):
-                    continue
-                try:
-                    nums.append(float(v))
-                except (TypeError, ValueError):
-                    continue
+            # Por `_to_number` y no por `float(v)` a secas: `float("1234,56")`
+            # falla, así que una columna de decimales con coma se tipaba como
+            # número y luego se publicaba SIN rango, que es lo peor de las dos
+            # opciones. La conversión tiene que entender lo mismo que la
+            # detección.
+            nums = [n for n in (_to_number(v) for v in col) if n is not None]
             if nums:
                 entry["min"] = min(nums)
                 entry["max"] = max(nums)
