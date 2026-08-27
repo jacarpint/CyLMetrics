@@ -62,6 +62,13 @@ REGISTRY = {
 READER_REQUIREMENTS: dict[str, tuple[str, ...]] = {
     "frictionless": ("CSV", "TXT", "JSON"),
     "openpyxl": ("XLSX",),
+    # El otro lector de Excel, y por la misma razón que `openpyxl` está aquí y
+    # explícito en `requirements-analysis.txt`: llega solo por vía transitiva de
+    # `frictionless[excel]`, y depender de eso es exactamente cómo se perdió
+    # openpyxl dos veces. `excel.py` decide por magic bytes, así que un archivo
+    # declarado XLSX que resulte ser un OLE2 de Excel 97-2003 acaba en `xlrd`
+    # aunque el catálogo no tenga ninguno hoy.
+    "xlrd": ("XLSX",),
     "shapefile": ("SHP",),
     "icalendar": ("iCal",),
     "geojson": ("GeoJSON",),

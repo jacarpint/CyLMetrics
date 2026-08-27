@@ -178,7 +178,12 @@ describe('los analizadores no puntúan lo que no han medido', () => {
   it('la comprobación previa cubre el lector de CSV y JSON', () => {
     const formats = fs.readFileSync(path.join(ANALYSIS_DIR, 'formats', '__init__.py'), 'utf-8');
     const tabla = /READER_REQUIREMENTS[\s\S]*?\n}/.exec(formats)?.[0] ?? '';
-    for (const modulo of ['frictionless', 'openpyxl', 'shapefile', 'icalendar', 'geojson', 'PIL']) {
+    // `xlrd` está en la lista por el mismo motivo que openpyxl: llega solo por
+    // vía transitiva de `frictionless[excel]`, y `excel.py` decide por magic
+    // bytes, así que un archivo declarado XLSX que sea un OLE2 de Excel 97-2003
+    // acaba en él. El catálogo no tiene ninguno hoy, y por eso su ausencia no se
+    // notaría hasta el día que lo tenga.
+    for (const modulo of ['frictionless', 'openpyxl', 'xlrd', 'shapefile', 'icalendar', 'geojson', 'PIL']) {
       expect(tabla, modulo).toContain(`"${modulo}"`);
     }
   });

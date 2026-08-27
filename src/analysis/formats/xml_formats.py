@@ -63,19 +63,42 @@ def _count_by_local(root: ET.Element, local: str) -> int:
 
 
 def _basic(path: Path, ctx: dict, kind: str, count_label: str, count: int,
-           extra_metrics: dict | None = None, recovered: str | None = None) -> dict:
-    root, err, recovered = _parse(path)
-    if err:
-        return _normalize(path, ctx, False, 0, f"{kind}: {err}", {}, [
-            {"code": "xml-no-bien-formado", "label": err, "severity": "error", "count": 1},
-        ])
+           extra_metrics: dict | None = None, recovered: str | None = None,
+           root: ET.Element | None = None) -> dict:
+    """
+    Resultado común de los formatos XML, a partir de un documento YA parseado.
+
+    `root` llega de fuera a propósito. Antes esta función hacía su propio
+    `_parse(path)`, y todos los que la llaman ya habían parseado el fichero para
+    poder contar sus entidades: cada XML, RSS, KML, RDF y GML del catálogo se
+    parseaba DOS VECES, con el doble de tiempo y de memoria y sin que la segunda
+    pasada aportara nada. De paso, ese `_parse` interno reasignaba `recovered` y
+    dejaba muerto el parámetro del mismo nombre que le pasaban.
+    """
+    if root is None:
+        root, err, recovered = _parse(path)
+        if err:
+            return _normalize(path, ctx, False, 0, f"{kind}: {err}", {}, [
+                {"code": "xml-no-bien-formado", "label": err, "severity": "error", "count": 1},
+            ])
     issues = _encoding_issue(recovered)
     total_elements = sum(1 for _ in root.iter())
     metrics = {"root": root.tag, "total_elements": total_elements, count_label: count}
     if extra_metrics:
         metrics.update(extra_metrics)
     if count == 0:
-        issues.append({"code": "sin-entidades", "label": f"No se detectaron {count_label}", "severity": "warning", "count": 1})
+        # Severidad `error`, no `warning`, para que la etiqueta case con lo que se
+        # hace después: puntuación 0.
+        #
+        # `sin-entidades` no está en `BLOCKING_ISSUE_CODES`, así que el archivo
+        # cuenta como entregado y ese 0 SÍ entra en la media de calidad de
+        # contenido del conjunto. Pero la tabla de archivos corregibles de
+        # `/calidad` se construye filtrando `severity === 'error'`, de modo que
+        # con `warning` el archivo quedaba penalizado en la media y a la vez
+        # invisible en la lista de lo que hay que arreglar. Sus dos equivalentes
+        # exactos —`sin-datos` en Excel y `sin-features` en shapefile, ambos con
+        # puntuación 0— ya son `error`.
+        issues.append({"code": "sin-entidades", "label": f"No se detectaron {count_label}", "severity": "error", "count": 1})
         return _normalize(path, ctx, False, 0,
                           f"{kind} válido pero sin {count_label} detectados", metrics, issues)
     return _normalize(path, ctx, True, 100, f"{kind} válido: {count:,} {count_label}", metrics, issues)
@@ -101,7 +124,8 @@ def analyze_rss(path: Path, ctx: dict) -> dict:
             {"code": "xml-no-bien-formado", "label": err, "severity": "error", "count": 1},
         ])
     items = _count_by_local(root, "item")
-    return _basic(path, ctx, "RSS", "items", items, {"channel": bool(_count_by_local(root, "channel"))}, recovered=recovered)
+    return _basic(path, ctx, "RSS", "items", items, {"channel": bool(_count_by_local(root, "channel"))},
+                  recovered=recovered, root=root)
 
 
 def analyze_kml(path: Path, ctx: dict) -> dict:
@@ -117,7 +141,7 @@ def analyze_kml(path: Path, ctx: dict) -> dict:
                           f"KML: la raíz no es <kml> (es '{root.tag.split('}')[-1]}')", {},
                           [{"code": "raiz-invalida", "label": "La raíz del documento no es <kml>", "severity": "error", "count": 1}])
     return _basic(path, ctx, "KML", "placemarks", placemarks,
-                  {"points": points, "root_local": "kml"}, recovered=recovered)
+                  {"points": points, "root_local": "kml"}, recovered=recovered, root=root)
 
 
 def analyze_rdf(path: Path, ctx: dict) -> dict:
@@ -136,7 +160,7 @@ def analyze_rdf(path: Path, ctx: dict) -> dict:
     return _basic(path, ctx, "RDF", "entidades", entities,
                   {"descripciones": descriptions, "dcat_datasets": dcat_datasets,
                    "dcat_distributions": distributions, "dcat_catalogs": catalogs},
-                  recovered=recovered)
+                  recovered=recovered, root=root)
 
 
 def analyze_gml(path: Path, ctx: dict) -> dict:
@@ -152,4 +176,18 @@ def analyze_gml(path: Path, ctx: dict) -> dict:
                                      "MultiLineString", "MultiPolygon", "MultiGeometry")
     )
     members = _count_by_local(root, "featureMember") + _count_by_local(root, "featureMembers")
-    return _basic(path, ctx, "GML", "features", members, {"geometries": geometries}, recovered=recovered)
+    if members == 0:
+        # `wfs:member`, el nombre que usan GML 3.2 y WFS 2.0.
+        #
+        # `featureMember`/`featureMembers` son de GML 3.1 y WFS 1.1, así que un
+        # GML exportado por un servicio moderno contaba CERO miembros y `_basic`
+        # lo publicaba con puntuación 0 y «sin features detectados» — un archivo
+        # correcto acusado de venir vacío. No hay ningún caso hoy porque las 30
+        # distribuciones GML del catálogo fallan antes, en la descarga, pero es
+        # la versión del estándar hacia la que van los servicios.
+        #
+        # Solo si las otras dos dan cero, para no alterar los recuentos de los
+        # documentos que sí usan la forma antigua.
+        members = _count_by_local(root, "member")
+    return _basic(path, ctx, "GML", "features", members, {"geometries": geometries},
+                  recovered=recovered, root=root)

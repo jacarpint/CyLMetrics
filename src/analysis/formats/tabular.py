@@ -536,16 +536,44 @@ def analyze_txt(path: Path, ctx: dict) -> dict:
         res["metrics"]["kind"] = "tabular"
         return res
 
-    lines = [ln for ln in text_sample.splitlines() if ln.strip()]
+    # Las líneas se cuentan sobre el ARCHIVO ENTERO, no sobre la muestra.
+    #
+    # `sample` son los primeros 2 MB, que están bien para adivinar codificación y
+    # delimitador pero no para dar una cifra: `metrics.lines` y el resumen decían
+    # «N líneas no vacías» a secas, y en cualquier TXT de más de 2 MB esa N era la
+    # de su principio presentada como el total del archivo. Es el mismo defecto
+    # que ya se corrigió en `excel.py` y en `shapefile.py`, donde el recuento
+    # global convivía con incidencias medidas sobre una muestra.
+    #
+    # Se recorre en streaming en lugar de cargarlo: contar no necesita el archivo
+    # en memoria, y estos ficheros llegan a los cientos de megas.
+    lines = 0
+    try:
+        with open(path, "r", encoding=encoding, errors="replace", newline="") as fh:
+            for linea in fh:
+                if linea.strip():
+                    lines += 1
+    except Exception:
+        # Si la lectura completa falla, la muestra es mejor que nada, pero la
+        # cifra tiene que decir de dónde sale.
+        lines = len([ln for ln in text_sample.splitlines() if ln.strip()])
+        return _normalize(
+            path, ctx, True, 100,
+            f"TXT de texto libre: al menos {lines:,} líneas no vacías en los primeros "
+            f"{len(sample) // 1024} KB ({encoding})",
+            {"lines": lines, "lines_partial": True, "encoding": encoding, "kind": "text"},
+            [],
+        )
+
     issues = []
     score, ok = 100, True
-    if not lines:
+    if lines == 0:
         issues.append({"code": "sin-contenido", "label": "El archivo de texto está vacío", "severity": "error", "count": 1})
         score, ok = 0, False
     return _normalize(
         path, ctx, ok, score,
-        f"TXT de texto libre: {len(lines):,} líneas no vacías ({encoding})",
-        {"lines": len(lines), "encoding": encoding, "kind": "text"},
+        f"TXT de texto libre: {lines:,} líneas no vacías ({encoding})",
+        {"lines": lines, "encoding": encoding, "kind": "text"},
         issues,
     )
 

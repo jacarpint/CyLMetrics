@@ -8,7 +8,6 @@ manualmente y re-aplicar los parámetros a la URL final.
 """
 from __future__ import annotations
 
-import time
 import xml.etree.ElementTree as ET
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
@@ -111,7 +110,18 @@ def analyze_ogc(url: str, ctx: dict) -> dict:
                 score, ok = (100, True) if layers > 0 else (50, False)
                 if layers == 0:
                     issues.append({"code": "sin-capas", "label": "GetCapabilities sin capas", "severity": "warning", "count": 1})
-                summary = f"WMS operativo: {layers} capas detectadas (v{version})"
+                # «Responde pero sin capas» no es «operativo».
+                #
+                # El resumen decía «WMS operativo: 0 capas detectadas» con
+                # puntuación 50 y `ok=False`: un servicio que contesta un
+                # GetCapabilities vacío no sirve para nada, y describirlo como
+                # operativo contradice a su propia nota. Los 18 servicios del
+                # catálogo declaran capas, así que no hay ningún caso publicado.
+                summary = (
+                    f"WMS operativo: {layers} capas detectadas (v{version})"
+                    if layers > 0
+                    else f"WMS responde pero no declara ninguna capa (v{version})"
+                )
                 metrics = {"service": "WMS", "version": version, "layers": layers, "titles": titles,
                            "http_status": 200, "duration_ms": elapsed_ms}
                 return _normalize(None, ctx, ok, score, summary, metrics, issues)
@@ -121,7 +131,11 @@ def analyze_ogc(url: str, ctx: dict) -> dict:
             score, ok = (100, True) if fts > 0 else (50, False)
             if fts == 0:
                 issues.append({"code": "sin-feature-types", "label": "GetCapabilities sin FeatureTypes", "severity": "warning", "count": 1})
-            summary = f"WFS operativo: {fts} feature types (v{version})"
+            summary = (
+                f"WFS operativo: {fts} feature types (v{version})"
+                if fts > 0
+                else f"WFS responde pero no declara ningún feature type (v{version})"
+            )
             metrics = {"service": "WFS", "version": version, "feature_types": fts,
                        "http_status": 200, "duration_ms": elapsed_ms}
             return _normalize(None, ctx, ok, score, summary, metrics, issues)

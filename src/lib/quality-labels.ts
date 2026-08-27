@@ -188,6 +188,9 @@ export const PORTAL_LIMITATION_CODES: ReadonlySet<string> = new Set([
   'error-validacion',
   'descarga-truncada',
   'too_large',
+  // Nuestro tope de descompresión, no un defecto del paquete: puede estar
+  // perfecto y lo único que sabemos es que no lo hemos abierto.
+  'paquete-desproporcionado',
 ]);
 
 /** Se lee igual que `isBlockingCode` de `alerts.ts`, y por eso está aquí. */
@@ -319,6 +322,7 @@ export const ISSUE_LABELS: Record<string, string> = {
   'zip-invalido': 'El archivo comprimido (ZIP) está dañado',
   'servicio-error': 'El servicio de origen rechaza la descarga del archivo',
   'descarga-truncada': 'Comprobado solo en parte: la descarga se cortó por tamaño',
+  'paquete-desproporcionado': 'No comprobado: el comprimido se expande muy por encima del tope',
   'json-invalido': 'El archivo JSON no se puede leer',
   'xlsx-invalido': 'El archivo Excel no se puede abrir',
   'formato-no-esperado': 'El contenido no coincide con el formato declarado',
@@ -434,6 +438,8 @@ const ISSUE_EXPLANATIONS: Record<string, string> = {
     'La descarga se cortó al llegar al tope de este portal, así que todo lo analizado cubre solo el principio del archivo. Las cifras son de esa parte, no del total.',
   'fallo-analizador':
     'El análisis de este portal falló al procesar el archivo. Es un problema nuestro, no del dato: el archivo puede estar perfectamente.',
+  'paquete-desproporcionado':
+    'El archivo comprimido ocupa descomprimido muchísimo más de lo que declara, y este portal deja de extraerlo al pasar de su tope. Es un límite nuestro, no un defecto del dato: el paquete puede estar perfectamente.',
 
   // Formato: lo que llega no es lo que dice ser, o no se puede abrir.
   'zip-invalido':

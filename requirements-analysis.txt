@@ -16,6 +16,12 @@ frictionless[excel]>=5.19,<6
 # transitiva es exactamente cómo se perdió. Es el lector de XLSX, el formato con
 # más distribuciones del catálogo después de CSV.
 openpyxl>=3.1
+# El otro lector de Excel, explícito por el mismo motivo. `excel.py` decide el
+# formato por magic bytes, no por la extensión: un archivo declarado XLSX cuyo
+# contenido sea un OLE2 de Excel 97-2003 se lee con xlrd. El catálogo no tiene
+# ninguno ahora mismo, y precisamente por eso su ausencia no se notaría hasta el
+# día que lo tenga.
+xlrd>=2.0
 pyshp>=2.3
 Pillow>=10.0
 icalendar>=5.0

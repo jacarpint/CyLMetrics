@@ -45,7 +45,14 @@ def _analyze_with(load_fn, path: Path, ctx: dict) -> dict:
         sheets = []
         total_rows = 0
 
-        # Validación tabular de las primeras hojas con Frictionless
+        # Validación tabular de las primeras hojas con Frictionless.
+        #
+        # `sheets_validated` se cuenta, no se estima. Publicaba
+        # `min(hojas, MAX_SHEETS_FRICTIONLESS)`, que da por hecho que las tres
+        # pasadas salen bien; cuando una hoja revienta las dos veces el `continue`
+        # la deja sin validar y la cifra seguía diciendo tres. La métrica está
+        # justamente para que la ficha pueda decir sobre qué se ha comprobado.
+        sheets_validated = 0
         for name in sheet_names[:MAX_SHEETS_FRICTIONLESS]:
             try:
                 from frictionless import Dialect, Resource
@@ -58,6 +65,7 @@ def _analyze_with(load_fn, path: Path, ctx: dict) -> dict:
                     report = Resource(path=str(path), format="excel").validate()
                 except Exception:
                     continue
+            sheets_validated += 1
             sheet_issues = _collect_frictionless(report)
             issues.extend(sheet_issues)
             issues_sum += sum(i["count"] for i in sheet_issues)
@@ -117,7 +125,7 @@ def _analyze_with(load_fn, path: Path, ctx: dict) -> dict:
         metrics: dict = {
             "sheets": sheets, "sheet_count": len(sheet_names), "total_rows": total_rows,
             "error_cells": issues_sum + type_errors + missing_cells,
-            "sheets_validated": min(len(sheet_names), MAX_SHEETS_FRICTIONLESS),
+            "sheets_validated": sheets_validated,
         }
         if header:
             metrics["header"] = header
@@ -167,7 +175,21 @@ def analyze_xlsx(path: Path, ctx: dict) -> dict:
 
 def analyze_xlsx_legacy(path: Path, ctx: dict) -> dict:
     """XLS legado (OLE2) leído con xlrd."""
-    import xlrd
+    # Con el mismo trato que el resto de lectores, y no `import xlrd` a pelo.
+    #
+    # Sin esto, un entorno sin xlrd lanzaba `ImportError` desde aquí hasta
+    # `engine.py`, que lo archiva como `fallo-analizador`: cierto —algo nuestro se
+    # rompió— pero inútil para arreglarlo, porque no dice qué falta. Que sea un
+    # `dependencia-faltante` explícito es lo que hace que la ficha nombre la
+    # librería y que `--check-deps` pueda abortar antes de descargar nada.
+    try:
+        import xlrd
+    except ImportError:
+        return _normalize(
+            path, ctx, False, None,
+            "No analizado: falta xlrd en el entorno de análisis (Excel 97-2003)",
+            {}, [missing_dependency_issue("xlrd")],
+        )
 
     try:
         book = xlrd.open_workbook(filename=str(path))
@@ -185,18 +207,27 @@ def analyze_xlsx_legacy(path: Path, ctx: dict) -> dict:
     issues: list[dict] = []
     issues_sum = 0
 
-    # Validación estructural con Frictionless (formato xls)
-    for sh in book.sheets()[:MAX_SHEETS_FRICTIONLESS]:
-        try:
-            from frictionless import Resource
+    # Validación estructural con Frictionless (formato xls).
+    #
+    # UNA sola pasada, y se cuenta como tal. El bucle recorría hasta tres hojas
+    # pero validaba `Resource(path, format="xls")` sin decirle cuál —o sea, la
+    # primera— y salía con `break` en el primer acierto: siempre una hoja. Aun
+    # así `metrics.sheets_validated` publicaba `min(hojas, 3)`, de modo que un
+    # libro de diez hojas afirmaba haber validado tres cuando había mirado una.
+    # No hay ningún XLS 97-2003 en el catálogo, así que la cifra nunca llegó a
+    # publicarse; se corrige porque la métrica existe para que la ficha pueda
+    # decir sobre qué se ha comprobado, y para eso tiene que ser verdad.
+    sheets_validated = 0
+    try:
+        from frictionless import Resource
 
-            report = Resource(path=str(path), format="xls").validate()
-            sheet_issues = _collect_frictionless(report)
-            issues.extend(sheet_issues)
-            issues_sum += sum(i["count"] for i in sheet_issues)
-            break
-        except Exception:
-            continue
+        report = Resource(path=str(path), format="xls").validate()
+        sheet_issues = _collect_frictionless(report)
+        issues.extend(sheet_issues)
+        issues_sum += sum(i["count"] for i in sheet_issues)
+        sheets_validated = 1 if book.sheets() else 0
+    except Exception:
+        pass
 
     # Comprobaciones propias de calidad de columnas (valores tipados de xlrd)
     type_errors, missing_cells = 0, 0
@@ -243,7 +274,7 @@ def analyze_xlsx_legacy(path: Path, ctx: dict) -> dict:
     metrics: dict = {
         "sheets": sheets, "sheet_count": len(sheets), "total_rows": total_rows,
         "error_cells": issues_sum + type_errors + missing_cells,
-        "sheets_validated": min(len(sheets), MAX_SHEETS_FRICTIONLESS),
+        "sheets_validated": sheets_validated,
     }
     if header:
         metrics["header"] = header

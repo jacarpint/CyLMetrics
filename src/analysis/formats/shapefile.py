@@ -11,6 +11,41 @@ from ..occurrences import add_row, new_issue
 
 REQUIRED_EXTS = (".shp", ".dbf", ".shx")
 
+#: Tope de lo que se escribe al descomprimir, por PROPORCIÓN y no por tamaño.
+#:
+#: Un ZIP declara lo que ocupa comprimido, no lo que ocupará descomprimido, y la
+#: proporción no tiene techo: `zip-read.ts` documenta un caso comprobado de 299 KB
+#: que se convierten en 300 MB, 1.029×. Aquí se extraía con `dst.write(src.read())`,
+#: es decir el componente entero en memoria y en disco sin mirar cuánto era. El
+#: lado TypeScript ya tenía tope y este no, así que media aplicación estaba
+#: protegida y la otra mitad no.
+#:
+#: Se mide la proporción porque es lo que de verdad separa una bomba de un dato
+#: grande. Un tope absoluto no sirve: los shapefiles del catálogo llegan a 648 MB
+#: COMPRIMIDOS, y descomprimidos son varios gigas de `.dbf` legítimo. Con un tope
+#: de 512 MB —el primero que puse— se habrían dejado de analizar los paquetes más
+#: grandes de la comunidad, cambiando una vulnerabilidad teórica por la pérdida
+#: real de datos que sí importan. Un factor de 50 deja holgura de sobra sobre lo
+#: que comprime la geodata (2-15×) y queda veinte veces por debajo de la bomba
+#: documentada.
+INFLATE_RATIO = 50
+
+#: Suelo, para que un ZIP diminuto no pueda inflarse «proporcionalmente».
+#: Sin él, 10 KB × 50 daría 500 KB y ningún shapefile pequeño cabría.
+MIN_INFLATED = 64 * 1024 * 1024  # 64 MB
+
+#: Techo absoluto, por el disco. Ninguna capa de la comunidad se acerca.
+MAX_INFLATED = 8 * 1024 * 1024 * 1024  # 8 GB
+
+#: Trozo de lectura al descomprimir. Que no se lea el miembro de golpe es justo
+#: lo que permite parar a tiempo.
+CHUNK = 1024 * 1024
+
+
+def _inflate_cap(zip_size: int) -> int:
+    """Cuánto se permite escribir al descomprimir un paquete de `zip_size` bytes."""
+    return min(MAX_INFLATED, max(MIN_INFLATED, zip_size * INFLATE_RATIO))
+
 
 def analyze_zip_shapefile(path: Path, ctx: dict) -> dict:
     from ..checks import looks_like_html, read_ogc_exception
@@ -67,8 +102,10 @@ def analyze_zip_shapefile(path: Path, ctx: dict) -> dict:
                 {"code": "shp-faltante", "label": "El ZIP no contiene un shapefile (.shp)", "severity": "error", "count": 1},
             ])
 
-        # Extracción segura (evita zip-slip)
+        # Extracción segura: sin zip-slip y con tope de tamaño descomprimido.
         tmp = Path(tempfile.mkdtemp(prefix="clyl-shp-"))
+        escrito = 0
+        tope = _inflate_cap(path.stat().st_size)
         try:
             for member in names:
                 clean = Path(member)
@@ -76,7 +113,27 @@ def analyze_zip_shapefile(path: Path, ctx: dict) -> dict:
                     continue
                 target = tmp / clean.name
                 with zf.open(member) as src, open(target, "wb") as dst:
-                    dst.write(src.read())
+                    # A trozos, contando. `src.read()` a secas no puede pararse:
+                    # cuando devuelve, el daño ya está hecho.
+                    while True:
+                        trozo = src.read(CHUNK)
+                        if not trozo:
+                            break
+                        escrito += len(trozo)
+                        if escrito > tope:
+                            raise ValueError(
+                                f"se descomprime por encima de {tope // (1024 * 1024)} MB, "
+                                f"más de {INFLATE_RATIO} veces su tamaño comprimido"
+                            )
+                        dst.write(trozo)
+        except ValueError as exc:
+            # Se separa del resto: que un ZIP se infle sin medida no es un error
+            # de lectura, y llamarlo así lo publicaría como archivo roto.
+            return _normalize(path, ctx, False, None,
+                              f"SHP: no se comprobó el paquete porque {exc}", {},
+                              [{"code": "paquete-desproporcionado",
+                                "label": "El paquete se descomprime muy por encima del tope y no se analiza",
+                                "severity": "warning", "count": 1}])
         except Exception as exc:
             return _normalize(path, ctx, False, 0, f"SHP: error al extraer el ZIP: {exc}", {}, [
                 {"code": "zip-extraccion", "label": "No se pudo extraer el shapefile", "severity": "error", "count": 1},
@@ -112,7 +169,7 @@ def analyze_zip_shapefile(path: Path, ctx: dict) -> dict:
             ])
 
     issues: list[dict] = []
-    score, ok = 100, True
+    score = 100
     for ext in missing:
         issues.append({
             "code": f"componente-faltante-{ext[1:]}",
@@ -132,11 +189,22 @@ def analyze_zip_shapefile(path: Path, ctx: dict) -> dict:
         issues.append({"code": "sin-features", "label": "El shapefile no contiene features", "severity": "error", "count": 1})
         score = 0
 
-    summary = (
-        f"SHP válido: {feature_count:,} features, {len(fields)} campos, proyección {'sí' if has_prj else 'no'}"
-        if ok
-        else f"SHP con problemas: {feature_count:,} features, {len(missing)} componentes ausentes"
-    )
+    # `ok` se deduce de las incidencias, que es lo único que puede decidirlo.
+    #
+    # Antes se fijaba a `True` doce líneas más arriba y no se volvía a tocar, así
+    # que la rama `else` del resumen era inalcanzable: un shapefile sin features
+    # se publicaba como «SHP válido: 0 features» con puntuación 0, diciendo dos
+    # cosas contrarias en la misma ficha. No hay ningún caso en el informe actual
+    # —de los 187 SHP del catálogo, 24 salen impecables y los otros 163 fallan en
+    # ramas anteriores— pero solo porque ninguno llega aquí con defectos.
+    ok = not any(issue["severity"] == "error" for issue in issues)
+    features = f"{feature_count:,}" if feature_count >= 0 else "un número ilegible de"
+    if ok:
+        aviso = f", {len(issues)} aviso(s)" if issues else ""
+        summary = (f"SHP válido: {features} features, {len(fields)} campos, "
+                   f"proyección {'sí' if has_prj else 'no'}{aviso}")
+    else:
+        summary = f"SHP con problemas: {features} features, {len(missing)} componentes ausentes"
     return _normalize(path, ctx, ok, max(0, score), summary,
                       {"features": feature_count, "fields": len(fields), "field_names": fields,
                        "has_projection": has_prj, "missing_components": missing,
