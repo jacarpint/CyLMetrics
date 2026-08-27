@@ -3,18 +3,18 @@
  *
  *   npx vite-node scripts/verify-broken.mts -- [--census] [--sample N] [--all]
  *
- * El portal acusa públicamente a 227 archivos de no poder abrirse. Esa
- * afirmación solo vale si sigue siendo cierta cuando alguien la comprueba, así
- * que esto la comprueba: coge una muestra estratificada por causa, la descarga
- * ahora mismo y contrasta lo que pasa con lo que el informe dice que pasa.
+ * El portal acusa públicamente a un par de centenares de archivos de no poder
+ * abrirse. Esa afirmación solo vale si sigue siendo cierta cuando alguien la
+ * comprueba, así que esto la comprueba: descarga cada uno ENTERO, lo abre cuando
+ * la causa es de contenido, y contrasta lo que pasa con lo que el informe dice.
  *
  * No usa `/api/proxy` a propósito: el proxy es del portal, y aquí se trata de
  * salir a por el archivo como haría cualquiera desde fuera.
  *
  * Un desacuerdo no significa necesariamente que el portal se equivocara: el
- * informe es una foto del 14 de agosto y el catálogo está vivo, así que un
- * archivo puede haberse arreglado desde entonces. Lo que no puede haber es un
- * archivo que nunca estuvo roto.
+ * informe es una foto fechada y el catálogo está vivo, así que un archivo puede
+ * haberse arreglado desde entonces. Lo que no puede haber es un archivo que
+ * nunca estuvo roto.
  */
 import fs from 'node:fs';
 import { XMLValidator } from 'fast-xml-parser';
@@ -22,9 +22,25 @@ import { classifyDelivery, deliveryCause } from '../src/lib/availability';
 import type { QualityReport } from '../src/lib/quality-report';
 
 const REPORT_PATH = 'reports/current/index.json';
-const TIMEOUT_MS = 45_000;
+
+/**
+ * Plazo por archivo. El mismo que usa el analizador (`DEFAULT_TIMEOUT` en
+ * `cli.py`), y por el mismo motivo: buena parte de los recursos pesados se
+ * generan al vuelo y tardan más de dos minutos en empezar a llegar. Con los 45 s
+ * de antes, esta herramienta habría «confirmado» como rotos archivos que solo
+ * necesitaban esperar.
+ */
+const TIMEOUT_MS = 300_000;
+
 /** Peticiones a la vez. Bajo a propósito: es un servidor público ajeno. */
 const CONCURRENCY = 4;
+
+/**
+ * Tope de descarga al comprobar. Por encima de esto se para y se da por
+ * alcanzable: si han llegado 700 MB, lo que el portal dice —que no se puede
+ * descargar— ya está desmentido.
+ */
+const MAX_DOWNLOAD = 700 * 1024 * 1024;
 
 const args = process.argv.slice(2);
 const census = args.includes('--census');
@@ -110,12 +126,15 @@ interface Check {
 }
 
 /**
- * Causas en las que basta con saber si el archivo llega: lo que el portal
- * afirma es que la descarga falla, así que una descarga correcta ya lo desmiente.
+ * Causas en las que el veredicto lo da la descarga misma.
+ *
+ * El portal afirma que el archivo no se puede descargar, así que descargarlo lo
+ * desmiente y no hay nada más que mirar. En las demás causas el archivo SÍ llega
+ * y lo que se discute es si se puede interpretar, que exige abrirlo.
  */
 const CAUSAS_DE_DESCARGA = ['descarga', 'archivo-vacio'];
 
-/** Tope al bajarse un archivo entero para validarlo. */
+/** Cuánto se guarda en memoria para poder abrir el archivo y validarlo. */
 const MAX_BYTES = 32 * 1024 * 1024;
 
 /**
@@ -142,8 +161,23 @@ function validarContenido(item: Broken, buf: Uint8Array, ctype: string): Check {
 
     case 'xml-no-bien-formado': {
       const res = XMLValidator.validate(text);
-      if (res === true) return no(`el XML sí está bien formado (${buf.byteLength.toLocaleString('es-ES')} B)`);
-      return ok(`XML mal formado: ${res.err.msg.slice(0, 60)}`);
+      if (res !== true) return ok(`XML mal formado: ${res.err.msg.slice(0, 60)}`);
+
+      /*
+       * `XMLValidator` no mira dentro del DTD interno, y ahí hay documentos
+       * rotos que él da por buenos.
+       *
+       * El registro de desfibriladores empieza con `<!DOCTYPE DATOS [
+       * <!ELEMENTDATOS (DATA_RECORD*)> …`: falta el espacio entre `<!ELEMENT` y
+       * `DATOS`. El analizador de Python lo señala en la línea 3, columna 2, y
+       * tiene razón; esta comprobación lo desmentía en cada ejecución y el
+       * desmentido era falso. Un verificador que grita en falso acaba ignorándose.
+       */
+      const declaracionRota = /<!(ELEMENT|ATTLIST|ENTITY|NOTATION)(?![\s>])/.exec(text.slice(0, 65536));
+      if (declaracionRota) {
+        return ok(`DTD interno mal formado: «${declaracionRota[0]}» sin separar del nombre`);
+      }
+      return no(`el XML sí está bien formado (${buf.byteLength.toLocaleString('es-ES')} B)`);
     }
 
     case 'formato-no-esperado':
@@ -168,60 +202,123 @@ function validarContenido(item: Broken, buf: Uint8Array, ctype: string): Check {
   }
 }
 
+/**
+ * Lee el cuerpo contando bytes, con tope y sin acumular más de lo necesario.
+ *
+ * Para las causas de contenido hay que quedarse con los bytes y abrirlos; para
+ * las de descarga basta con saber cuántos llegaron, así que por encima de
+ * `MAX_BYTES` se sigue contando pero se deja de guardar. Sin eso, comprobar un
+ * shapefile de 618 MB se lo traía entero a memoria para nada.
+ */
+async function leer(
+  body: ReadableStream<Uint8Array>,
+  guardarHasta: number
+): Promise<{ bytes: number; muestra: Uint8Array; cortado: boolean }> {
+  const reader = body.getReader();
+  const trozos: Uint8Array[] = [];
+  let bytes = 0;
+  let guardados = 0;
+  let cortado = false;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      bytes += value.byteLength;
+      if (guardados < guardarHasta) {
+        trozos.push(value);
+        guardados += value.byteLength;
+      }
+      if (bytes >= MAX_DOWNLOAD) {
+        cortado = true;
+        break;
+      }
+    }
+  } finally {
+    void reader.cancel().catch(() => {});
+  }
+  const muestra = new Uint8Array(guardados);
+  let pos = 0;
+  for (const t of trozos) {
+    muestra.set(t, pos);
+    pos += t.byteLength;
+  }
+  return { bytes, muestra, cortado };
+}
+
 /** Descarga y cuenta qué pasó de verdad. */
 async function probe(item: Broken): Promise<Check> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
-  // Para las causas de descarga basta con los primeros bytes; para las de
-  // contenido hace falta el archivo entero, o el veredicto no valdría nada.
-  const soloCabeza = CAUSAS_DE_DESCARGA.includes(item.cause);
+  const arranque = Date.now();
+  /*
+   * Se descarga ENTERO, también para las causas de descarga.
+   *
+   * Antes se pedían 64 KB con `Range` para esos casos, con el argumento de no
+   * bajarse un raster de 400 MB solo para saber si responde. El argumento era
+   * malo: el portal no afirma «el servidor responde», afirma «este archivo no se
+   * puede descargar», y eso solo se desmiente descargándolo.
+   *
+   * No es teórico. Dos shapefiles de incendios de 563 y 618 MB contestaban 206 a
+   * la petición de 64 KB —así que esta herramienta los daba por buenos— y
+   * tardaban 130 y 157 s en entregarse enteros, por encima del plazo que tenía
+   * entonces el analizador. Estuvieron publicados como rotos sin estarlo, y esta
+   * comprobación, que existe justo para cazar eso, miró para otro lado.
+   */
   try {
     const res = await fetch(item.url, {
-      headers: {
-        'user-agent': 'CyLMetrics-verificacion/1.0',
-        // `Range` para no bajarse un ECW de 400 MB solo para saber si responde.
-        ...(soloCabeza ? { range: 'bytes=0-65535' } : {}),
-      },
+      headers: { 'user-agent': 'CyLMetrics-verificacion/1.0' },
       redirect: 'follow',
       signal: controller.signal,
     });
     const ctype = (res.headers.get('content-type') ?? '').split(';')[0].trim();
-    const declared = Number(res.headers.get('content-length') ?? '');
-    if (!soloCabeza && Number.isFinite(declared) && declared > MAX_BYTES) {
-      return { item, verdict: 'inconcluso', detail: `pesa ${(declared / 1e6).toFixed(0)} MB, por encima del tope` };
-    }
-    const buf = new Uint8Array(await res.arrayBuffer());
-    const head = new TextDecoder('utf-8', { fatal: false }).decode(buf.slice(0, 512)).trimStart();
-    const looksHtml = /^<!doctype html|^<html/i.test(head);
 
-    // El origen falla: el portal tenía razón, sin más que mirar.
+    // El origen falla antes de entregar nada: el portal tenía razón.
     if (!res.ok && res.status !== 206) {
       return { item, verdict: 'confirmado', detail: `HTTP ${res.status}` };
     }
-    // Responde 200 pero con una página web: sigue sin entregar el archivo.
-    if (looksHtml && item.format !== 'HTML') {
+    if (!res.body) {
+      return { item, verdict: 'confirmado', detail: `HTTP ${res.status} sin cuerpo` };
+    }
+
+    const { bytes, muestra, cortado } = await leer(res.body, MAX_BYTES);
+    const segundos = (Date.now() - arranque) / 1000;
+    const cuanto = `${(bytes / 1048576).toFixed(1)} MB en ${segundos.toFixed(0)} s`;
+
+    const head = new TextDecoder('utf-8', { fatal: false }).decode(muestra.slice(0, 512)).trimStart();
+    if (/^<!doctype html|^<html/i.test(head) && item.format !== 'HTML') {
       return { item, verdict: 'confirmado', detail: `HTTP ${res.status} pero devuelve HTML` };
     }
-    if (buf.byteLength === 0) {
+    if (bytes === 0) {
       return { item, verdict: 'confirmado', detail: `HTTP ${res.status} con cuerpo vacío` };
     }
-    // Llega y no es una página. Si el portal dijo «no se descarga», eso ya lo
-    // desmiente; si dijo «no se puede interpretar», hay que interpretarlo.
-    if (soloCabeza) {
+
+    // Llegó, y entero. Si el portal dijo «no se descarga», queda desmentido; el
+    // tiempo se publica porque es la mitad del diagnóstico: un archivo que tarda
+    // 157 s explica por qué el analizador lo daba por perdido.
+    if (CAUSAS_DE_DESCARGA.includes(item.cause)) {
       return {
         item,
         verdict: 'discrepa',
-        detail: `HTTP ${res.status} · ${ctype || 'sin content-type'} · ${buf.byteLength.toLocaleString('es-ES')} B`,
+        detail: `HTTP ${res.status} · ${ctype || 'sin tipo'} · ${cuanto}${cortado ? ' (tope)' : ''}`,
       };
     }
-    return validarContenido(item, buf, ctype);
+
+    // Causa de contenido: hay que abrirlo, y para eso hace falta el archivo.
+    if (cortado || bytes > MAX_BYTES) {
+      return { item, verdict: 'inconcluso', detail: `${cuanto}, por encima del tope para validarlo` };
+    }
+    return validarContenido(item, muestra, ctype);
   } catch (err) {
     const name = err instanceof Error ? err.name : 'Error';
     const msg = err instanceof Error ? err.message : String(err);
+    const segundos = ((Date.now() - arranque) / 1000).toFixed(0);
     return {
       item,
       verdict: 'confirmado',
-      detail: name === 'AbortError' ? `sin respuesta en ${TIMEOUT_MS / 1000} s` : `${name}: ${msg.slice(0, 80)}`,
+      detail:
+        name === 'AbortError'
+          ? `sin entregar el archivo en ${TIMEOUT_MS / 1000} s`
+          : `${name} a los ${segundos} s: ${msg.slice(0, 70)}`,
     };
   } finally {
     clearTimeout(timer);
