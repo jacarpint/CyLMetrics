@@ -62,10 +62,22 @@ export function SchemaTable({ schema, unit = "table" }: { schema: SchemaField[];
             </tr>
           </thead>
           <tbody>
-            {schema.map((field) => {
+            {schema.map((field, idx) => {
               const pct = Math.round((field.null_pct || 0) * 100);
               return (
-                <tr key={field.name} className="border-b border-border last:border-0 hover:bg-fill">
+                // La clave lleva la POSICIÓN, no solo el nombre.
+                //
+                // Los nombres de columna repetidos no son una rareza teórica en
+                // este catálogo: son un defecto que este mismo portal detecta y
+                // publica (`encabezado-duplicado`). Hay 29 distribuciones con
+                // columnas homónimas —una con 28 repeticiones, y otra con
+                // «Localidad» tres veces—, y con `key={field.name}` React recibe
+                // claves duplicadas justo en las fichas de esos archivos, que son
+                // las que más falta hace leer bien.
+                <tr
+                  key={`${idx}-${field.name}`}
+                  className="border-b border-border last:border-0 hover:bg-fill"
+                >
                   <th
                     scope="row"
                     className="max-w-[16rem] truncate px-3 py-2 text-left font-mono font-normal text-strong"

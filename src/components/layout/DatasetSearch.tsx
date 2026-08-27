@@ -216,7 +216,13 @@ export function DatasetSearch({
           // al teclear han aparecido sugerencias.
           role="combobox"
           aria-expanded={showList}
-          aria-controls={showList ? listId : undefined}
+          // Solo cuando la lista existe DE VERDAD. `aria-controls` apuntaba a
+          // `listId` en cuanto se abría el desplegable, pero el `<ul id={listId}>`
+          // no se pinta si no hay sugerencias: en su lugar va un párrafo con
+          // «Ningún conjunto de datos coincide». O sea que en el caso más
+          // frecuente de una búsqueda sin resultados la referencia quedaba
+          // colgando de un id inexistente, que es una relación ARIA inválida.
+          aria-controls={showList && items.length > 0 ? listId : undefined}
           aria-activedescendant={activeId}
           aria-autocomplete="list"
           autoComplete="off"
@@ -249,7 +255,16 @@ export function DatasetSearch({
           ) : (
             <ul id={listId} role="listbox" aria-label="Conjuntos de datos sugeridos">
               {items.map((item, index) => (
-                <li key={item.slug}>
+                // `role="presentation"` en el `<li>`.
+                //
+                // ARIA exige que los hijos de un `listbox` sean `option`, y aquí
+                // había un `listitem` por medio: el `<li>` que envuelve al botón.
+                // Con esa capa intermedia la relación se rompe y un lector de
+                // pantalla puede no exponer las sugerencias como opciones
+                // elegibles, que es justo lo que el patrón combobox promete.
+                // Neutralizar el `<li>` deja al botón como hijo efectivo de la
+                // lista sin tocar el marcado que necesita el navegador.
+                <li key={item.slug} role="presentation">
                   <button
                     id={`${listId}-opt-${index}`}
                     type="button"

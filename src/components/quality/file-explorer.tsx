@@ -220,7 +220,19 @@ export function FileExplorer({ url, kind, sizeBytes, reportedRows, reportTruncat
     const total = progress?.total ?? actualSize ?? sizeBytes ?? null;
     const pct = progress && total ? Math.min(100, Math.round((progress.loaded / total) * 100)) : null;
     return (
-      <div className="rounded-xl border border-border bg-fill p-4">
+      // `role="status"` para que la descarga se anuncie.
+      //
+      // Todo el estado de esta pantalla es visual: un icono que gira, una barra
+      // y un texto que cambia. Con un lector de pantalla no ocurría nada —ni al
+      // empezar, ni al avanzar, ni al terminar—, y en un archivo de 300 MB eso es
+      // quedarse sin saber si el visor está trabajando o se ha rendido. Es el
+      // criterio 4.1.3 de la WCAG, nivel AA.
+      //
+      // `aria-live` va aquí y no en el texto suelto porque el nodo tiene que
+      // existir ya en el DOM cuando cambia su contenido; también por eso el
+      // porcentaje no se anuncia byte a byte: `polite` sobre este contenedor
+      // agrupa los cambios en vez de interrumpir a cada tramo.
+      <div className="rounded-xl border border-border bg-fill p-4" role="status" aria-live="polite">
         <div className="flex items-center gap-2 text-sm text-faint">
           <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
           <span className="flex-1">
@@ -267,7 +279,11 @@ export function FileExplorer({ url, kind, sizeBytes, reportedRows, reportTruncat
     const esLimiteNuestro = failure?.kind === 'no-cabe' || failure?.kind === 'cancelado';
     return (
       <Card tone={esLimiteNuestro ? 'warn' : 'bad'}>
-        <CardContent className="flex items-start gap-3 p-4">
+        {/* Y el fallo también se anuncia. El contenedor con `aria-live` de la
+            pantalla de descarga desaparece al sustituirse por este, así que sin
+            un rol propio aquí el resultado de la espera —justo lo que hacía
+            falta saber— se quedaba sin decir. */}
+        <CardContent className="flex items-start gap-3 p-4" role="alert">
           <AlertTriangle
             className={`mt-0.5 h-4 w-4 shrink-0 ${esLimiteNuestro ? 'text-warn' : 'text-bad'}`}
             aria-hidden
