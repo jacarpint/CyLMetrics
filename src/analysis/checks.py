@@ -1,6 +1,7 @@
 """Utilidades de bajo nivel compartidas por los analizadores."""
 from __future__ import annotations
 
+import codecs
 import re
 from pathlib import Path
 
@@ -27,6 +28,9 @@ PORTAL_LIMITATION_CODES = frozenset({
     "error-validacion",
     "descarga-truncada",
     "too_large",
+    # Nuestro tope de descompresión, no un defecto del paquete: puede estar
+    # perfecto y lo único que sabemos es que no lo hemos abierto.
+    "paquete-desproporcionado",
 })
 
 #: Códigos en los que la URL publicada no devuelve el archivo que promete.
@@ -143,19 +147,117 @@ def read_ogc_exception(path: Path) -> str | None:
     return " ".join(match.group(1).split())
 
 
+#: Codificaciones que puede tener de verdad un archivo de este catálogo.
+#:
+#: La lista no es una preferencia de estilo: sin ella el analizador publicaba
+#: texto corrompido. `charset-normalizer` elige entre las ~90 codificaciones que
+#: conoce Python, y para un CSV castellano típico —«Peñafiel», «León»— prefería
+#: **cp1250**, la centroeuropea. cp1250 y cp1252 coinciden en ó, á, í, ú… y solo
+#: discrepan en unos pocos bytes, entre ellos el 0xF1: en cp1252 es «ñ» y en
+#: cp1250 es «ń». Como las dos lecturas son válidas, la puntuación heurística
+#: las ve casi igual de bien y desempata mal.
+#:
+#: El daño no se veía porque no produce U+FFFD sino un carácter legítimo. En el
+#: informe publicado con la detección abierta: 259 distribuciones leídas como
+#: cp1250 y 156 fragmentos con caracteres imposibles en castellano (ń, ż, ř),
+#: además de detecciones sin sentido para el catálogo de una comunidad autónoma
+#: —shift_jis_2004, cp932, mac_iceland, cp775—. O sea, el portal que audita la
+#: calidad de los datos publicaba «Peńafiel» en sus propias filas de muestra.
+#:
+#: Se acota por eso a lo que un organismo de Castilla y León puede llegar a
+#: exportar: UTF-8 (con y sin BOM), Windows-1252 y sus dos ISO equivalentes,
+#: UTF-16 —lo que suelta Excel al «guardar como texto Unicode»— y cp850, la del
+#: `chcp` por defecto de una consola de Windows en español.
+PLAUSIBLE_ENCODINGS = [
+    "utf_8",
+    "utf_8_sig",
+    "cp1252",
+    "iso8859_1",
+    "iso8859_15",
+    "ascii",
+    "utf_16",
+    "utf_16_le",
+    "utf_16_be",
+    "cp850",
+]
+
+
+def _es_utf8(data: bytes) -> bool:
+    """
+    ¿Es UTF-8 con al menos un carácter multibyte?
+
+    Se pide el carácter multibyte porque un archivo solo-ASCII decodifica bien en
+    todas las candidatas: ahí no hay nada que decidir y contestar «utf-8» sería
+    correcto pero inútil, así que se deja pasar a la heurística.
+
+    Tolera que el último carácter esté partido —de ahí el decodificador
+    incremental con `final=False`, que se guarda los bytes sueltos del final en
+    vez de protestar—. El analizador trabaja con descargas que `--size-cap`
+    recorta, y el corte cae donde cae: sin esta holgura, un archivo cuya trama
+    terminase en mitad de una «ñ» se descartaría como «no es UTF-8» por culpa de
+    un byte que ni siquiera es suyo. La holgura llega hasta tres bytes al final y
+    no debilita nada: todo lo anterior tiene que ser UTF-8 impecable.
+    """
+    muestra = data[:1_000_000]
+    if muestra.isascii():
+        return False
+    try:
+        codecs.getincrementaldecoder("utf-8")().decode(muestra, final=False)
+    except UnicodeDecodeError:
+        return False
+    return True
+
+
 def detect_encoding(data: bytes, default: str = "utf-8") -> str:
-    """Detección de encoding con charset-normalizer (fallback a latin-1)."""
+    """Detección de encoding acotada a las codificaciones plausibles del catálogo."""
+    # El BOM es una declaración explícita del que escribió el archivo: si está,
+    # no hay nada que adivinar. Va antes que la heurística porque `utf_8` a secas
+    # deja el BOM dentro del texto y se cuela como parte del primer nombre de
+    # columna («﻿municipio»).
+    for bom, enc in (
+        (b"\xef\xbb\xbf", "utf_8_sig"),
+        (b"\xff\xfe\x00\x00", "utf_32_le"),
+        (b"\x00\x00\xfe\xff", "utf_32_be"),
+        (b"\xff\xfe", "utf_16_le"),
+        (b"\xfe\xff", "utf_16_be"),
+    ):
+        if data.startswith(bom):
+            return enc
+
+    # UTF-8 antes que cualquier heurística, porque no es una heurística.
+    #
+    # UTF-8 se autovalida por diseño: sus secuencias multibyte siguen un patrón
+    # que una tira de bytes en otra codificación no cumple por casualidad más que
+    # con probabilidad ínfima. Si el archivo entero decodifica limpio y contiene
+    # al menos una de esas secuencias, no hay nada que sopesar.
+    #
+    # Y hace falta ponerlo por delante: con 164 bytes casi todos ASCII y una sola
+    # «ñ», `charset-normalizer` devolvía cp1252 —una lectura también válida, byte
+    # a byte— y publicaba «Ã±». La detección estadística necesita volumen para
+    # desempatar, y un archivo con dos acentos no se lo da.
+    if _es_utf8(data):
+        return "utf-8"
+
     try:
         from charset_normalizer import from_bytes
 
-        best = from_bytes(data[:1_000_000]).best()
+        best = from_bytes(data[:1_000_000], cp_isolation=PLAUSIBLE_ENCODINGS).best()
         if best is not None and best.encoding:
             return best.encoding
     except Exception:
         pass
+
+    # Respaldo por si `charset-normalizer` no está o no se decide.
+    #
+    # Se prueba sobre el buffer entero y no sobre los primeros 64 bytes: cortar a
+    # ciegas parte por la mitad cualquier carácter multibyte que caiga en la
+    # frontera, y entonces un UTF-8 perfectamente válido fallaba el intento y se
+    # archivaba como latin-1. El orden importa —latin-1 decodifica CUALQUIER
+    # secuencia de bytes sin protestar, así que solo vale como último recurso.
+    muestra = data[:1_000_000]
     for enc in (default, "utf-8", "latin-1"):
         try:
-            data[:64].decode(enc)
+            muestra.decode(enc)
             return enc
         except Exception:
             continue
