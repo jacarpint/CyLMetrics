@@ -7,7 +7,7 @@
 [![Portal en vivo](https://img.shields.io/badge/portal-cylmetrics.vercel.app-0b5cab?style=flat-square)](https://cylmetrics.vercel.app)
 [![Licencia EUPL 1.2](https://img.shields.io/badge/licencia-EUPL--1.2-1a9e5c?style=flat-square)](LICENSE)
 [![Next.js 16](https://img.shields.io/badge/Next.js-16-000?style=flat-square)](https://nextjs.org)
-[![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-3776ab?style=flat-square)](https://www.python.org)
+[![Python 3.12+](https://img.shields.io/badge/Python-3.12%2B-3776ab?style=flat-square)](https://www.python.org)
 
 </div>
 
@@ -76,7 +76,7 @@ Referencia completa en [**/api**](https://cylmetrics.vercel.app/api).
 
 ## Arranque rápido
 
-**Requisitos:** Node.js `^20.19` o `>=22.12` · npm · Python `>=3.10` (solo para ejecutar el análisis).
+**Requisitos:** Node.js `^20.19` o `>=22.12` · npm · Python `>=3.12` (solo para ejecutar el análisis, ver el aviso de abajo).
 
 ```bash
 git clone https://github.com/jacarpint/CyLMetrics.git
@@ -117,11 +117,20 @@ pip install -r requirements-analysis.txt
 python -m src.analysis --check-deps               # ¿está el entorno listo? No descarga ni escribe nada
 python -m src.analysis --limit 0                  # análisis completo
 
-python -m pytest src/analysis/tests -q            # 55 tests del analizador
+python -m pytest src/analysis/tests -q            # 61 tests del analizador
 ```
 
 > [!IMPORTANT]
 > Ejecuta siempre `--check-deps` antes de un análisis largo. Si falta un lector, el informe **no falla**: archiva en silencio como «no analizado» todo lo que no pudo abrir. Ha pasado dos veces, y una llegó a producción con 341 XLSX marcados como ilegibles que estaban perfectos.
+
+> [!IMPORTANT]
+> **Python 3.12 o superior**, y no es una preferencia de estilo. El analizador
+> abre XML que descarga de Internet con `xml.etree.ElementTree`, y la defensa
+> contra la expansión de entidades —*billion laughs*: un documento de 400 bytes
+> que se expande a gigas— la pone el propio intérprete, no este código.
+> Comprobado en 3.12: el ataque rebota con «limit on input amplification factor
+> breached». En versiones anteriores esa protección no está activada por
+> defecto, así que el mismo documento tumbaría el análisis.
 
 > [!CAUTION]
 > `--output` vale `reports/current` por defecto, que es **el informe que publica el portal**. Cualquier ejecución de prueba tiene que apuntar `--output` a otro sitio, o se lo lleva por delante: analiza lo que le pidas y sobrescribe el informe entero con ese puñado de distribuciones.
@@ -157,7 +166,7 @@ src/
     └── report.py        # Agregación del informe
 ```
 
-**Stack:** Next.js 16 (App Router, React 19) · TypeScript · Tailwind CSS 4 · Radix UI · Leaflet · Vitest · Python 3.10+ con Frictionless, openpyxl, pyshp, Pillow e icalendar.
+**Stack:** Next.js 16 (App Router, React 19) · TypeScript · Tailwind CSS 4 · Radix UI · Leaflet · Vitest · Python 3.12+ con Frictionless, openpyxl, pyshp, Pillow e icalendar.
 
 **Un lector por formato.** En el último análisis se abrieron 16: CSV, XLSX, JSON, SHP, XML, GML, KML, RDF, RSS, iCal, ECW, TXT, WMS, WFS, binarios y sin clasificar.
 

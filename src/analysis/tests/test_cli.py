@@ -69,3 +69,55 @@ def test_el_informe_publicado_sigue_siendo_coherente():
         "parece que una ejecución de prueba lo ha sobrescrito"
     )
     assert report["totals"]["distributions"] > 100
+
+
+def test_el_interprete_para_la_expansion_de_entidades():
+    """
+    La defensa contra «billion laughs» no está en este código: la pone el
+    intérprete.
+
+    El analizador abre XML que descarga de Internet con
+    `xml.etree.ElementTree`. Desde Python 3.12 un documento con entidades
+    anidadas rebota con «limit on input amplification factor breached»; en
+    versiones anteriores se expande, y 400 bytes se convierten en gigas.
+
+    Este test no comprueba el número de versión sino el COMPORTAMIENTO, porque es
+    lo que importa y depende también de la libexpat con la que se construyó el
+    intérprete. Si falla, el entorno no sirve para analizar el catálogo por mucho
+    que estén todos los lectores.
+    """
+    from src.analysis.cli import _entity_protection_works
+
+    assert _entity_protection_works() is True
+
+
+def test_check_deps_rechaza_un_interprete_sin_esa_defensa(monkeypatch):
+    """Y no se limita a avisar: aborta, igual que con un lector que falta."""
+    import src.analysis.cli as cli
+
+    monkeypatch.setattr(cli, "_entity_protection_works", lambda: False)
+    assert cli.main(["--check-deps"]) == 2
+
+
+def test_las_entidades_externas_tampoco_se_resuelven():
+    """
+    El otro ataque clásico: `<!ENTITY x SYSTEM "file:///...">`.
+
+    Aquí importa más de lo normal porque el contenido de los ficheros llega al
+    informe —esquema, filas de muestra— y el informe se publica. Una entidad
+    externa resuelta sería un fichero local del que analiza acabando en GitHub.
+    """
+    import tempfile
+    import xml.etree.ElementTree as ET
+    from pathlib import Path
+
+    with tempfile.TemporaryDirectory() as tmp:
+        secreto = Path(tmp) / "secreto.txt"
+        secreto.write_text("CONTENIDO-CONFIDENCIAL", encoding="utf-8")
+        ruta = secreto.as_posix()
+        xxe = f'<?xml version="1.0"?><!DOCTYPE r [<!ENTITY x SYSTEM "file:///{ruta}">]><r><d>&x;</d></r>'
+        try:
+            root = ET.fromstring(xxe)
+            assert "CONFIDENCIAL" not in "".join(root.itertext())
+        except ET.ParseError:
+            pass  # No la resuelve, que es lo que se busca.

@@ -1,4 +1,9 @@
 # Dependencias del análisis de calidad de datos (src/analysis)
+#
+# Requiere Python 3.12 o superior. El analizador abre XML descargado de Internet
+# con `xml.etree.ElementTree`, y la defensa contra la expansion de entidades
+# (billion laughs) la pone el interprete: en 3.12 el ataque rebota con «limit on
+# input amplification factor breached», y en versiones anteriores no.
 # Instalar: python -m venv .venv-analysis && .venv-analysis\Scripts\pip install -r requirements-analysis.txt
 #
 # Comprobar antes de lanzar un análisis:

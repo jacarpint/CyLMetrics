@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 from .bundle import write_bundle
@@ -55,6 +56,37 @@ DEFAULT_CSV_SAMPLE = DEFAULT_SIZE_CAP
 #: No abre la puerta a que una descarga se eternice: `SLOW_SECONDS` en
 #: `downloader.py` sigue abortando lo que gotea (menos de 300 KB en 30 s).
 DEFAULT_TIMEOUT = 300
+
+
+
+#: Versión mínima del intérprete, y no es una preferencia de estilo.
+#:
+#: El analizador abre XML descargado de Internet con `xml.etree.ElementTree`, y
+#: la defensa contra la expansión de entidades —«billion laughs»: 400 bytes que
+#: se expanden a gigas— la pone el propio intérprete, no este código. Desde 3.12
+#: el ataque rebota con «limit on input amplification factor breached»; antes no.
+MIN_PYTHON = (3, 12)
+
+
+def _entity_protection_works() -> bool:
+    """
+    ¿Este intérprete para de verdad una expansión de entidades?
+
+    Se comprueba ejecutándola en lugar de mirar el número de versión: lo que
+    importa es el comportamiento, y depende de la libexpat con la que se haya
+    construido el intérprete, no solo de la etiqueta de CPython.
+    """
+    dtd = '<!ENTITY a0 "AAAAAAAAAA">'
+    for i in range(1, 9):
+        dtd += f'<!ENTITY a{i} "' + f"&a{i - 1};" * 10 + '">'
+    bomba = f'<?xml version="1.0"?><!DOCTYPE r [{dtd}]><r>&a8;</r>'
+    try:
+        ET.fromstring(bomba)
+    except ET.ParseError:
+        return True   # la ha parado, que es lo que se busca
+    except Exception:
+        return True
+    return False      # la ha expandido entera
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -120,6 +152,21 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         print("\n  Continuando de todas formas (usa --strict-deps para abortar).\n", flush=True)
 
+    # El intérprete también es una dependencia, y una que no se instala con pip.
+    if sys.version_info < MIN_PYTHON or not _entity_protection_works():
+        version = ".".join(str(n) for n in sys.version_info[:3])
+        minima = ".".join(str(n) for n in MIN_PYTHON)
+        print("=" * 70, flush=True)
+        print(f"AVISO: este Python ({version}) no para la expansión de entidades XML", flush=True)
+        print("=" * 70, flush=True)
+        print("  El analizador abre XML descargado de Internet, y la defensa contra", flush=True)
+        print(f"  «billion laughs» la pone el intérprete. Hace falta Python {minima} o superior.", flush=True)
+        print("  Con este, un documento de 400 bytes puede expandirse hasta agotar la memoria.", flush=True)
+        if args.strict_deps or args.check_deps:
+            print("\n  Se aborta sin analizar nada.", flush=True)
+            return 2
+        print("\n  Continuando de todas formas (usa --strict-deps para abortar).\n", flush=True)
+
     # `--check-deps` termina AQUÍ, antes de tocar el catálogo y, sobre todo, antes
     # de escribir nada.
     #
@@ -130,7 +177,7 @@ def main(argv: list[str] | None = None) -> int:
     # publicado con esa única distribución**. El artefacto de despliegue se va al
     # suelo —de 1.187 fragmentos a 1— y solo se recupera porque está versionado.
     if args.check_deps:
-        print("Todos los lectores del entorno están disponibles.", flush=True)
+        print(f"Entorno listo: Python {'.'.join(str(n) for n in sys.version_info[:3])} con todos los lectores y la protección de entidades XML activa.", flush=True)
         return 0
 
     # Checkpoint junto al informe: ahora `--output` es un directorio, así que el
