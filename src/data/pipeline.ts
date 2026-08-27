@@ -49,7 +49,7 @@ export const PIPELINE: PipelineStep[] = [
       'Uno a uno, siguiendo redirecciones y respetando límites de tamaño. Aquí ya se descubre lo que ningún inventario de metadatos ve: enlaces caídos y direcciones que devuelven una página en vez del dato.',
     long:
       'Uno a uno. Primero se pregunta cuánto pesa: si declara más del tope, se anota y no se descarga, y queda como «sin analizar» en vez de contarse como fallo. Si cabe, se descarga siguiendo redirecciones y conservando la extensión original, porque los lectores de CSV y Excel deducen el formato de ella.',
-    detail: 'tope 512 MB · 15 s para conectar · 120 s de lectura · 2 reintentos',
+    detail: 'tope 512 MB · 15 s para conectar · 300 s de lectura · 2 reintentos',
   },
   {
     icon: 'lectura',

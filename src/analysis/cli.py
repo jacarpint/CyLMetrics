@@ -37,6 +37,25 @@ DEFAULT_SIZE_CAP = 512 * 1024 * 1024  # 512 MB
 # verdad supera --size-cap (y esos casos quedan marcados como truncados).
 DEFAULT_CSV_SAMPLE = DEFAULT_SIZE_CAP
 
+#: Plazo de lectura por descarga. Eran 120 s, y acusaba en falso.
+#:
+#: Buena parte de los recursos pesados del catálogo se generan al vuelo y llegan
+#: con codificación `chunked`, sin declarar tamaño. Dos shapefiles de incendios
+#: —563 y 618 MB— tardan 130 y 157 s en entregarse: con el plazo en 120 se
+#: cortaban por nuestro lado y se publicaban como «No se pudo descargar», que en
+#: el portal se lee como un fallo del organismo. Comprobado descargándolos solos:
+#: llegan enteros y sin un error.
+#:
+#: Subirlo tiene además un efecto que mejora el diagnóstico. De los quince
+#: recursos que fallaban con esa firma, trece devuelven HTTP 502 a los ~120 s: el
+#: backend se rinde al generarlos. Con el plazo antiguo ganaba nuestro reloj y se
+#: registraba «ReadTimeout», que señala a la red; con 300 s gana el servidor y se
+#: registra «HTTP 502», que es lo que de verdad pasa y de quién es.
+#:
+#: No abre la puerta a que una descarga se eternice: `SLOW_SECONDS` en
+#: `downloader.py` sigue abortando lo que gotea (menos de 300 KB en 30 s).
+DEFAULT_TIMEOUT = 300
+
 
 def main(argv: list[str] | None = None) -> int:
     # Salida robusta a consola (Windows cp1252): evita UnicodeEncodeError
@@ -54,7 +73,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--size-cap", type=int, default=DEFAULT_SIZE_CAP, help="Tope de descarga en bytes (512 MB por defecto)")
     parser.add_argument("--csv-sample", type=int, default=DEFAULT_CSV_SAMPLE,
                         help="Tope de descarga para CSV/TXT (por defecto, el mismo que --size-cap)")
-    parser.add_argument("--timeout", type=int, default=120, help="Timeout de lectura por descarga (segundos)")
+    parser.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT,
+                        help=f"Timeout de lectura por descarga (segundos, {DEFAULT_TIMEOUT} por defecto)")
     parser.add_argument("--retries", type=int, default=2, help="Reintentos por distribución")
     parser.add_argument("--output", default=str(DEFAULT_BUNDLE),
                         help="Directorio del informe (index.json + d/*.json)")

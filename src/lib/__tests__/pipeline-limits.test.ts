@@ -38,9 +38,24 @@ function pythonProduct(source: string, name: string): number {
 
 /** El `default=` de un `add_argument("--nombre", …)` de argparse. */
 function argparseDefault(source: string, flag: string): number {
-  const match = new RegExp(`add_argument\\("${flag}"[^)]*?default=(\\d+)`, 's').exec(source);
+  const match = new RegExp(`add_argument\\("${flag}"[^)]*?default=([A-Za-z_0-9]+)`, 's').exec(source);
   if (!match) throw new Error(`No se encuentra el default de ${flag} en cli.py`);
-  return Number(match[1]);
+
+  // Un literal, como `default=2`.
+  if (/^\d+$/.test(match[1])) return Number(match[1]);
+
+  /*
+   * O una constante del módulo, como `default=DEFAULT_TIMEOUT`.
+   *
+   * Antes solo se aceptaba el número escrito ahí mismo, así que sacar un valor a
+   * una constante con su explicación —que es mejor código— rompía este test sin
+   * que nada estuviera mal. Y el arreglo cómodo habría sido devolver el literal
+   * al `add_argument` y perder la explicación, o sea empeorar el fuente para
+   * contentar a su guardián.
+   */
+  const constante = new RegExp(`^${match[1]}\\s*=\\s*(\\d+)`, 'm').exec(source);
+  if (!constante) throw new Error(`El default de ${flag} es ${match[1]}, que no se resuelve en cli.py`);
+  return Number(constante[1]);
 }
 
 /**
