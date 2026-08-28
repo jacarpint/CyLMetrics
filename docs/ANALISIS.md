@@ -9,6 +9,17 @@ siempre la fecha del que está publicado.
 
 ## Preparar el entorno
 
+> [!IMPORTANT]
+> **Python 3.12 o superior**, y no es una preferencia de estilo. El analizador abre
+> XML que descarga de Internet con `xml.etree.ElementTree`, y la defensa contra la
+> expansión de entidades —*billion laughs*: un documento de 400 bytes que se
+> expande a gigas— la pone el propio intérprete, no este código. Comprobado en
+> 3.12: el ataque rebota con «limit on input amplification factor breached». En
+> versiones anteriores esa protección no está activada por defecto, así que el
+> mismo documento tumbaría el análisis.
+>
+> `--check-deps` lo comprueba junto con los lectores, y aborta si no se cumple.
+
 ```bash
 python -m venv .venv-analysis
 .venv-analysis\Scripts\activate      # Windows
