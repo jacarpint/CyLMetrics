@@ -755,18 +755,29 @@ export default async function MetodologiaPage() {
           <CardContent className="space-y-3">
             <pre className="overflow-x-auto rounded-lg border border-border bg-fill px-4 py-3 font-mono text-xs leading-relaxed text-body">
 {`git clone ${REPO_URL}
+cd CyLMetrics
+
+# El portal, con el informe del último análisis ya incluido
+npm install
+npm run dev
+
+# Rehacer el análisis: primero, comprobar que están todos los lectores
 pip install -r requirements-analysis.txt
+python -m src.analysis --check-deps
 
-# Comprueba primero que están todos los lectores
-python -m src.analysis --limit 1 --strict-deps
+# Una prueba corta, fuera del informe publicado
+python -m src.analysis --limit 20 --output reports/prueba
 
-# El análisis completo
+# El análisis completo: horas y varias decenas de gigas
 python -m src.analysis --limit 0`}
             </pre>
             <p className="max-w-4xl text-xs leading-relaxed text-faint">
-              El primer comando no descarga nada: solo verifica que el entorno sabe abrir todos los
-              formatos del catálogo. Sin él, un lector que falte se convierte en archivos «sin
-              analizar» a mitad de la ejecución.
+              El portal arranca con el informe ya incluido en el repositorio, así que se puede
+              explorar sin ejecutar el análisis. La comprobación de dependencias no descarga nada:
+              solo verifica que el entorno sabe abrir todos los formatos del catálogo, porque un
+              lector que falte no da error — archiva en silencio como «sin analizar» todo lo que no
+              pudo leer. Y las pruebas conviene mandarlas a otro directorio de salida: el valor por
+              defecto es el informe que publica este portal.
             </p>
             <a
               href={REPO_URL}

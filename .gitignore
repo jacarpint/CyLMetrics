@@ -56,6 +56,12 @@ yarn-error.log*
 # fichero después no sirve: el blob viaja igual dentro del commit que lo introdujo.
 /reports/history/
 
+# Salida de las ejecuciones de prueba. Es el `--output` que documentan el README,
+# `docs/ANALISIS.md`, la página de Metodología y los ejemplos de `cli.py`, para que
+# una prueba no sobrescriba `reports/current/`. Va ignorado porque quien clona el
+# repositorio y prueba el análisis no debe encontrarse su copia sucia.
+/reports/prueba/
+
 # artefactos de desarrollo — no se versionan
 /reports/*.log
 /reports/*.pid

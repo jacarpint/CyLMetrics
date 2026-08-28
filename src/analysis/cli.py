@@ -1,10 +1,10 @@
 """CLI del análisis de calidad de datos.
 
 Ejemplos:
-  python -m src.analysis --check-deps                  # ¿está el entorno listo?
-  python -m src.analysis --limit 0                     # todas las distribuciones
-  python -m src.analysis --limit 25                    # primeras 25
-  python -m src.analysis --only-formats CSV,XLSX,SHP   # solo ciertos formatos
+  python -m src.analysis --check-deps                                     # ¿está el entorno listo?
+  python -m src.analysis --limit 0                                        # todas las distribuciones
+  python -m src.analysis --limit 25 --output reports/prueba               # primeras 25
+  python -m src.analysis --only-formats CSV,XLSX --output reports/prueba  # solo ciertos formatos
   python -m src.analysis --limit 0 --workers 16 --output reports/data-analysis.json
 
 Ojo con `--output`: vale `reports/current` por defecto, que es el informe que

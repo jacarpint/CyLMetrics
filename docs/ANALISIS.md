@@ -62,10 +62,10 @@ python -m src.analysis --check-deps
 python -m src.analysis --limit 0
 
 # Analizar las primeras 25 distribuciones
-python -m src.analysis --limit 25
+python -m src.analysis --limit 25 --output reports/prueba
 
 # Solo formatos CSV/XLSX
-python -m src.analysis --only-formats CSV,XLSX
+python -m src.analysis --only-formats CSV,XLSX --output reports/prueba
 
 # Con workers paralelos y tope de descarga
 python -m src.analysis --limit 0 --workers 16 --size-cap 536870912
