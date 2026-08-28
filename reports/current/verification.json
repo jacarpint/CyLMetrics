@@ -1,0 +1,126 @@
+{
+  "verified_at": "2026-08-28T11:20:17.694Z",
+  "report_generated_at": "2026-08-27T16:39:20.151989+00:00",
+  "broken_total": 241,
+  "sample": {
+    "checked": 43,
+    "strategy": "estratificada por causa, con un mínimo de 2 por causa"
+  },
+  "totals": {
+    "confirmado": 40,
+    "discrepa": 1,
+    "inconcluso": 2
+  },
+  "by_cause": [
+    {
+      "cause": "descarga",
+      "label": "Error de descarga",
+      "broken": 181,
+      "checked": 26,
+      "confirmado": 26,
+      "discrepa": 0,
+      "inconcluso": 0
+    },
+    {
+      "cause": "json-invalido",
+      "label": "El archivo JSON no se puede leer",
+      "broken": 23,
+      "checked": 4,
+      "confirmado": 2,
+      "discrepa": 1,
+      "inconcluso": 1
+    },
+    {
+      "cause": "xml-no-bien-formado",
+      "label": "El archivo XML tiene errores de estructura",
+      "broken": 10,
+      "checked": 2,
+      "confirmado": 2,
+      "discrepa": 0,
+      "inconcluso": 0
+    },
+    {
+      "cause": "servicio-error",
+      "label": "El servicio de origen rechaza la descarga del archivo",
+      "broken": 10,
+      "checked": 2,
+      "confirmado": 2,
+      "discrepa": 0,
+      "inconcluso": 0
+    },
+    {
+      "cause": "zip-invalido",
+      "label": "El archivo comprimido (ZIP) está dañado",
+      "broken": 6,
+      "checked": 2,
+      "confirmado": 2,
+      "discrepa": 0,
+      "inconcluso": 0
+    },
+    {
+      "cause": "formato-no-esperado",
+      "label": "El contenido no coincide con el formato declarado",
+      "broken": 5,
+      "checked": 3,
+      "confirmado": 2,
+      "discrepa": 0,
+      "inconcluso": 1
+    },
+    {
+      "cause": "archivo-vacio",
+      "label": "El archivo se descarga vacío (0 bytes)",
+      "broken": 4,
+      "checked": 2,
+      "confirmado": 2,
+      "discrepa": 0,
+      "inconcluso": 0
+    },
+    {
+      "cause": "servicio-no-disponible",
+      "label": "El servicio de mapas no responde",
+      "broken": 1,
+      "checked": 1,
+      "confirmado": 1,
+      "discrepa": 0,
+      "inconcluso": 0
+    },
+    {
+      "cause": "error-fuente",
+      "label": "El servidor de origen devolvió un error",
+      "broken": 1,
+      "checked": 1,
+      "confirmado": 1,
+      "discrepa": 0,
+      "inconcluso": 0
+    }
+  ],
+  "unconfirmed": [
+    {
+      "verdict": "inconcluso",
+      "format": "JSON",
+      "cause": "json-invalido",
+      "label": "El archivo JSON no se puede leer",
+      "dataset": "Actividad de enfermería a nivel de consultorio",
+      "url": "https://datosabiertos.jcyl.es/web/jcyl/risp/es/salud/actividad-enfermeria-consultorio/1285114516383.json",
+      "detail": "545.4 MB en 204 s, por encima del tope para validarlo"
+    },
+    {
+      "verdict": "discrepa",
+      "format": "JSON",
+      "cause": "json-invalido",
+      "label": "El archivo JSON no se puede leer",
+      "dataset": "Denominaciones de Origen Protegidas (DOP) e Indicaciones Geográficas Protegidas (IGP) de Castilla y León",
+      "url": "https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-rural-pesca/dop-igp/1284984571556.json",
+      "detail": "el JSON sí parsea (18.577 B)"
+    },
+    {
+      "verdict": "inconcluso",
+      "format": "XLSX",
+      "cause": "formato-no-esperado",
+      "label": "El contenido no coincide con el formato declarado",
+      "dataset": "Actividad de enfermería a nivel de consultorio",
+      "url": "https://datosabiertos.jcyl.es/web/jcyl/risp/es/salud/actividad-enfermeria-consultorio/1285114516383.xls",
+      "detail": "545.4 MB en 13 s, por encima del tope para validarlo"
+    }
+  ]
+}

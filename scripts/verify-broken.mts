@@ -3,10 +3,10 @@
  *
  *   npx vite-node scripts/verify-broken.mts -- [--census] [--sample N] [--all]
  *
- * El portal acusa públicamente a un par de centenares de archivos de no poder
- * abrirse. Esa afirmación solo vale si sigue siendo cierta cuando alguien la
- * comprueba, así que esto la comprueba: descarga cada uno ENTERO, lo abre cuando
- * la causa es de contenido, y contrasta lo que pasa con lo que el informe dice.
+ * El portal identifica un par de centenares de archivos como no accesibles. Esa
+ * lectura solo vale si sigue siendo cierta cuando alguien la comprueba, así que
+ * esto la comprueba: descarga cada uno ENTERO, lo abre cuando lo que está en
+ * cuestión es el contenido, y contrasta lo que pasa con lo que el informe dice.
  *
  * No usa `/api/proxy` a propósito: el proxy es del portal, y aquí se trata de
  * salir a por el archivo como haría cualquiera desde fuera.
@@ -19,6 +19,7 @@
 import fs from 'node:fs';
 import { XMLValidator } from 'fast-xml-parser';
 import { classifyDelivery, deliveryCause } from '../src/lib/availability';
+import { unzip } from '../src/lib/zip-read';
 import type { QualityReport } from '../src/lib/quality-report';
 
 const REPORT_PATH = 'reports/current/index.json';
@@ -46,6 +47,24 @@ const args = process.argv.slice(2);
 const census = args.includes('--census');
 const all = args.includes('--all');
 const sampleSize = Number(args[args.indexOf('--sample') + 1]) || 30;
+
+/**
+ * Dónde queda el resultado.
+ *
+ * Va dentro de `reports/current/` porque verifica ESE informe y no otro, y porque
+ * el directorio ya se versiona entero: la comprobación queda archivada junto a lo
+ * que comprueba. El portal NO lo lee —la página de Metodología describe el método,
+ * no publica los resultados de una ejecución—, así que tampoco está declarado en
+ * `outputFileTracingIncludes`; si algún día se pinta, habrá que añadirlo.
+ *
+ * `write_bundle` solo vacía el subdirectorio `d/`, así que un análisis nuevo no se
+ * lo lleva. Justo por eso el artefacto guarda el `generated_at` del informe: sin esa
+ * fecha, sobrevivir a un análisis nuevo lo dejaría describiendo una foto que ya no
+ * está publicada, sin forma de notarlo.
+ */
+const outPath = args.includes('--out')
+  ? args[args.indexOf('--out') + 1]
+  : 'reports/current/verification.json';
 
 const report: QualityReport = JSON.parse(fs.readFileSync(REPORT_PATH, 'utf-8'));
 
@@ -144,7 +163,7 @@ const MAX_BYTES = 32 * 1024 * 1024;
  * dijo que no llegara, dijo que no se podía abrir. Esto lo comprueba de verdad,
  * con la misma pregunta que hizo el analizador.
  */
-function validarContenido(item: Broken, buf: Uint8Array, ctype: string): Check {
+async function validarContenido(item: Broken, buf: Uint8Array, ctype: string): Promise<Check> {
   const text = new TextDecoder('utf-8', { fatal: false }).decode(buf);
   const zip = buf[0] === 0x50 && buf[1] === 0x4b; // "PK": todo XLSX es un ZIP
   const ok = (detail: string): Check => ({ item, verdict: 'confirmado', detail });
@@ -185,6 +204,36 @@ function validarContenido(item: Broken, buf: Uint8Array, ctype: string): Check {
       // que diga la extensión ni el content-type.
       if (!zip) return ok(`no es un XLSX: llega ${ctype || 'sin tipo'}, ${buf.byteLength.toLocaleString('es-ES')} B`);
       return no(`sí parece un XLSX (ZIP, ${buf.byteLength.toLocaleString('es-ES')} B)`);
+
+    /*
+     * Añadido después de la primera verificación publicada, y conviene saber por
+     * qué: esta causa NO tenía caso, así que caía al `default` y salía siempre
+     * «inconcluso». O sea que los 6 `zip-invalido` del informe eran
+     * inconfirmables por construcción, y las dos que entraron en la muestra
+     * figuraban como sin confirmar cuando el origen devolvía 2 bytes: un ZIP no
+     * puede pesar eso, le faltan hasta los 4 bytes de la firma.
+     *
+     * Se abre con `unzip`, el lector del propio portal, en vez de mirar los bytes
+     * a mano: lo que se afirma es que el ZIP no se puede abrir, así que la comprobación
+     * honesta es intentar abrirlo. Y se distingue un archivo roto de un formato que
+     * nuestro lector no cubre —ZIP64, cifrado—, que es una limitación nuestra y no
+     * un defecto de quien publica.
+     */
+    case 'zip-invalido': {
+      const copia = buf.slice().buffer;
+      try {
+        const entradas = await unzip(copia);
+        if (entradas.size === 0) return ok('el ZIP abre pero no trae ninguna entrada');
+        const nombres = [...entradas.keys()].slice(0, 3).join(', ');
+        return no(`el ZIP sí abre: ${entradas.size} entradas (${nombres})`);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (/ZIP64|cifrad/i.test(msg)) {
+          return { item, verdict: 'inconcluso', detail: `nuestro lector no cubre este ZIP: ${msg.slice(0, 60)}` };
+        }
+        return ok(`ZIP inválido: ${msg.slice(0, 60)}`);
+      }
+    }
 
     case 'servicio-error':
     case 'error-fuente':
@@ -307,7 +356,7 @@ async function probe(item: Broken): Promise<Check> {
     if (cortado || bytes > MAX_BYTES) {
       return { item, verdict: 'inconcluso', detail: `${cuanto}, por encima del tope para validarlo` };
     }
-    return validarContenido(item, muestra, ctype);
+    return await validarContenido(item, muestra, ctype);
   } catch (err) {
     const name = err instanceof Error ? err.name : 'Error';
     const msg = err instanceof Error ? err.message : String(err);
@@ -345,3 +394,63 @@ console.log('\n─────────────────────�
 console.log(`Confirmados (el origen sigue fallando): ${count('confirmado')}`);
 console.log(`Discrepan   (ahora sí se descarga):     ${count('discrepa')}`);
 console.log(`Inconclusos (llega, falta interpretar): ${count('inconcluso')}`);
+
+/*
+ * El artefacto que publica la página.
+ *
+ * Hasta ahora esto solo se imprimía en consola, así que la comprobación existía y
+ * no se veía: el portal señala cientos de archivos como no accesibles y la
+ * comprobación que lo respalda —haberlos ido a buscar al origen— vivía solo en la
+ * consola de quien ejecutaba el script. Escribirlo la deja como evidencia junto al
+ * informe que verifica.
+ *
+ * Se guarda TODO lo que no se confirmó, con su URL y su motivo, y no solo los
+ * recuentos. Una verificación que solo publica «salió bien» no es verificable, que
+ * es exactamente lo que este proyecto le reprocha a los demás.
+ */
+const perCause = [...byCause.entries()]
+  .map(([cause, list]) => {
+    const checked = results.filter((r) => r.item.cause === cause);
+    return {
+      cause,
+      label: list[0].causeLabel,
+      broken: list.length,
+      checked: checked.length,
+      confirmado: checked.filter((r) => r.verdict === 'confirmado').length,
+      discrepa: checked.filter((r) => r.verdict === 'discrepa').length,
+      inconcluso: checked.filter((r) => r.verdict === 'inconcluso').length,
+    };
+  })
+  .sort((a, b) => b.broken - a.broken);
+
+const verification = {
+  verified_at: new Date().toISOString(),
+  /** El informe que se verificó, para que la página detecte si ya está viejo. */
+  report_generated_at: report.generated_at,
+  broken_total: broken.length,
+  sample: {
+    checked: results.length,
+    strategy: all ? 'todos' : 'estratificada por causa, con un mínimo de 2 por causa',
+  },
+  totals: {
+    confirmado: count('confirmado'),
+    discrepa: count('discrepa'),
+    inconcluso: count('inconcluso'),
+  },
+  by_cause: perCause,
+  /** Lo que NO quedó confirmado, entero: es la parte que hay que poder auditar. */
+  unconfirmed: results
+    .filter((r) => r.verdict !== 'confirmado')
+    .map(({ item, verdict, detail }) => ({
+      verdict,
+      format: item.format,
+      cause: item.cause,
+      label: item.causeLabel,
+      dataset: item.dataset,
+      url: item.url,
+      detail,
+    })),
+};
+
+fs.writeFileSync(outPath, `${JSON.stringify(verification, null, 2)}\n`);
+console.log(`\nEscrito ${outPath}`);

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import {
   ArrowRight, Ban, Database, Download, FileSearch, Gauge, Layers, ListChecks,
-  ScanSearch, Target, Terminal, TriangleAlert,
+  ScanSearch, ShieldCheck, Target, Terminal, TriangleAlert,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { PIPELINE, type PipelineStep } from "@/data/pipeline";
@@ -55,6 +55,7 @@ const SECTIONS = [
   { id: "fallos", label: "Qué cuenta como fallo" },
   { id: "calculos", label: "Cómo se puntúa" },
   { id: "limites", label: "Qué no puede saber" },
+  { id: "verificacion", label: "Comprobación contra el origen" },
   { id: "reproducir", label: "Cómo reproducirlo" },
 ];
 
@@ -768,6 +769,52 @@ export default async function MetodologiaPage() {
         </div>
       </section>
 
+
+      {/* ── Comprobación contra el origen ────────────────────────────────────
+          Aquí se describe el método y no su resultado: esta página explica cómo
+          se mide, y las cifras de cada análisis viven donde se publican, que es
+          el propio portal y la API.
+
+          Tuvo una primera versión con los recuentos de la última comprobación
+          —tabla por causa y lista de lo no confirmado— y estaba fuera de sitio:
+          convertía una página de criterios en un informe. */}
+        <section id="verificacion" className="scroll-mt-24 space-y-4">
+          <div>
+            <h2 className="flex items-center gap-2 text-lg font-bold tracking-tight text-strong">
+              <ShieldCheck className="h-5 w-5 text-faint" aria-hidden />
+              Comprobación contra el origen
+            </h2>
+            <p className="mt-1 max-w-4xl text-sm leading-relaxed text-body">
+              Cuando el análisis identifica un archivo como no accesible, esa lectura se vuelve a
+              comprobar contra el servidor de origen: se pide el archivo otra vez, entero, con un
+              cliente distinto y{" "}
+              <strong className="text-strong">sin pasar por el proxy de este portal</strong>, para
+              que la comprobación no dependa de la misma infraestructura que la hizo. Cuando lo que
+              está en cuestión no es que el archivo llegue sino que se pueda interpretar, se abre
+              con el mismo criterio que aplicó el analizador.
+            </p>
+          </div>
+
+          <Card>
+            <CardContent className="space-y-3">
+              <p className="max-w-4xl text-sm leading-relaxed text-body">
+                La muestra se reparte por causa y no al azar, con un mínimo por cada una: las
+                causas minoritarias son las que más probabilidad tienen de estar mal clasificadas, y
+                una muestra aleatoria las dejaría fuera.
+              </p>
+              <p className="max-w-4xl text-sm leading-relaxed text-body">
+                Una diferencia entre las dos lecturas no implica un error del análisis. El informe
+                es una foto fechada y el catálogo está vivo, así que un archivo puede haberse
+                corregido desde entonces; lo que la comprobación busca es que no haya ninguno que
+                nunca dejara de estar accesible.
+              </p>
+              <p className="max-w-4xl border-t border-border pt-3 text-xs leading-relaxed text-faint">
+                Se ejecuta desde el repositorio con <code className="font-mono">npm run
+                verify:broken</code>, igual que el análisis.
+              </p>
+            </CardContent>
+          </Card>
+        </section>
 
       {/* ── Cómo reproducirlo ────────────────────────────────────────────────
           La pieza que faltaba para que esto sea una metodología y no solo una
