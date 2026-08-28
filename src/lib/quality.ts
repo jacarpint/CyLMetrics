@@ -55,11 +55,41 @@ export interface ScoreInputs {
  */
 export function compositeScore({ metadata, availability, content }: ScoreInputs): number | null {
   if (availability == null) return metadata == null ? null : Math.round(metadata);
-  return Math.round(
+
+  const weighted = Math.round(
     SCORE_WEIGHTS.metadata * (metadata ?? 0) +
       SCORE_WEIGHTS.availability * availability +
       SCORE_WEIGHTS.content * (content ?? 0)
   );
+
+  /*
+   * Para poder ser «Buena», la disponibilidad también tiene que ser «Buena».
+   *
+   * Con la disponibilidad como sumando del 30% y nada más, el portal reproducía
+   * en pequeño el defecto que le reprocha a los demás observatorios: una nota
+   * alta tapando archivos caídos. La aritmética lo permitía sin ningún caso
+   * raro —metadatos 100, disponibilidad 50, contenido 100 da 85, o sea «Buena»
+   * con la mitad del conjunto inservible—, y en el informe del 27 de agosto ya
+   * lo hacía de verdad con 11 conjuntos: 6 con 2 de 3 archivos y 5 con 3 de 4.
+   *
+   * Un eje del que la metodología dice que es BLOQUEANTE no puede quedarse en
+   * sumando, porque un sumando siempre se puede compensar con los otros dos.
+   * Así que actúa además como techo, y solo sobre el tramo alto: es el único
+   * que hace una afirmación tranquilizadora. «Deficiente» y «Mejorable» no
+   * prometen nada, así que ahí no hay nada que la disponibilidad deba impedir.
+   *
+   * El umbral es el mismo `SCORE_THRESHOLDS.ok` a los dos lados de la
+   * comparación, a propósito: la regla se lee «tu disponibilidad tiene que
+   * sacar la nota que tú quieres sacar» y no añade ninguna constante que haya
+   * que justificar aparte.
+   *
+   * Es proporcionada por construcción: se cae quien pierde un tercio o un cuarto
+   * de sus archivos, no quien pierde 1 de 8. Ese caso sigue pudiendo ser «Buena»
+   * —y la ficha del catálogo marca su formato roto igualmente—, lo que queda
+   * declarado en los límites conocidos de la metodología.
+   */
+  if (availability < SCORE_THRESHOLDS.ok) return Math.min(weighted, SCORE_THRESHOLDS.ok - 1);
+  return weighted;
 }
 
 /**

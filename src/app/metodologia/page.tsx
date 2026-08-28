@@ -14,6 +14,18 @@ import { METADATA_WEIGHTS, SCORE_LEVELS, SCORE_WEIGHTS } from "@/lib/quality";
 /** Un peso 0-1 del código, escrito como el porcentaje que se publica. */
 const asPercent = (weight: number) => Math.round(weight * 100);
 
+/**
+ * El tramo alto de la escala, para poder nombrarlo y dar su mínimo sin escribir
+ * ni la etiqueta ni el 80.
+ *
+ * Lo necesitan dos sitios de esta página: la puerta de disponibilidad que se
+ * explica en «Disponibilidad» y el límite que declara que la puerta no alcanza a
+ * todos los casos. Sale de `SCORE_LEVELS`, que ya deriva de `SCORE_THRESHOLDS`:
+ * es el mismo umbral que aplica `compositeScore`, así que moverlo no puede
+ * desalinear el texto.
+ */
+const OK_BAND = SCORE_LEVELS.find((band) => band.level === "ok")!;
+
 /** El mismo repositorio que enlaza el pie. */
 const REPO_URL = "https://github.com/jacarpint/CyLMetrics";
 
@@ -152,6 +164,18 @@ const LIMITES = [
   {
     title: "Un solo organismo declarado",
     text: "Todos los conjuntos de datos del catálogo declaran el mismo publicador, así que no se puede comparar el desempeño entre consejerías ni repartir el trabajo por organismo. Por eso las prioridades se agrupan por formato y por temática.",
+  },
+  {
+    /*
+     * La puerta de disponibilidad topa el tramo alto, pero es proporcional: un
+     * conjunto que pierde 1 de 8 archivos sigue por encima del umbral y puede
+     * quedar en el nivel bueno. Se declara aquí en lugar de endurecer la regla
+     * porque lo contrario —tumbar la nota entera por un enlace de ocho— castiga
+     * igual al que tiene un fallo aislado y al que tiene el proceso roto, que es
+     * justo la distinción que el portal existe para hacer.
+     */
+    title: "Nota buena con algún archivo roto",
+    text: `La disponibilidad topa el índice: para quedar en «${OK_BAND.label.toLowerCase()}» hay que llegar a ${OK_BAND.min} sobre 100 también en ese eje. Pero el tope es proporcional, así que un conjunto de datos que pierde uno de sus ocho archivos puede seguir en ese nivel, y eso es deliberado: un enlace caído aislado no se parece a un proceso de publicación roto. La etiqueta del formato afectado sale marcada en la ficha y en el catálogo, y la lista completa está en Calidad.`,
   },
 ];
 
@@ -504,6 +528,18 @@ export default async function MetodologiaPage() {
               ninguno, se muestra solo el índice de metadatos y se indica. Si se comprobaron y no
               quedó nada legible, el contenido cuenta como cero —no es un dato ausente, es el peor
               resultado posible—.
+            </p>
+            <p className="mt-3 max-w-4xl text-sm leading-relaxed text-body">
+              Además de pesar {asPercent(SCORE_WEIGHTS.availability)} del índice,{" "}
+              <strong className="text-strong">
+                la disponibilidad actúa como techo: para que un conjunto de datos pueda quedar en «
+                {OK_BAND.label.toLowerCase()}», su disponibilidad tiene que alcanzar también ese
+                nivel
+              </strong>{" "}
+              —{OK_BAND.min} sobre 100—. Un eje declarado bloqueante no puede quedarse en sumando,
+              porque un sumando se compensa con los otros dos: sin este techo, un conjunto con la
+              mitad de sus archivos inservibles podía salir con nota buena si la ficha estaba
+              completa y lo que sí abría venía limpio.
             </p>
           </CardContent>
         </Card>
