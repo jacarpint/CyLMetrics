@@ -6,8 +6,6 @@
 
 [![Portal en vivo](https://img.shields.io/badge/portal-cylmetrics.vercel.app-0b5cab?style=flat-square)](https://cylmetrics.vercel.app)
 [![Licencia EUPL 1.2](https://img.shields.io/badge/licencia-EUPL--1.2-1a9e5c?style=flat-square)](LICENSE)
-[![Next.js 16](https://img.shields.io/badge/Next.js-16-000?style=flat-square)](https://nextjs.org)
-[![Python 3.12+](https://img.shields.io/badge/Python-3.12%2B-3776ab?style=flat-square)](https://www.python.org)
 
 </div>
 
@@ -19,21 +17,19 @@ La mayoría de los observatorios de datos abiertos miden **fichas**: cuentan cu�
 
 CyLMetrics hace la comprobación que falta: **descarga cada archivo publicado en el catálogo y lo abre**, con el lector que le corresponde, igual que haría quien quiere reutilizarlo. Después publica el resultado archivo por archivo, con el motivo de cada fallo, la metodología completa y una API abierta para contrastarlo.
 
-En el último análisis eso son **1.662 archivos y 23,5 GB descargados y abiertos uno a uno**.
+En el último análisis eso son **más de mil quinientos archivos y más de 20 GB descargados y abiertos uno a uno**.
 
 ## Qué encuentra
 
-Cifras del análisis del **14 de agosto de 2026**, sobre 822 conjuntos de datos y sus 1.662 archivos:
-
 | | |
 |---|---|
-| **14 %** de los archivos | no se pueden descargar o no se pueden abrir (227 de 1.662) |
-| **127 archivos** | devuelven una página web en lugar del dato |
-| **259 conjuntos** de 822 | tienen al menos un archivo inservible |
-| **90,3 %** de calidad media | sobre los 1.306 archivos que sí abren y tienen contenido que medir |
-| **761 de 836 conjuntos** | no publican `dct:modified`, así que su actualidad no se puede verificar |
+| **uno de cada siete** archivos | no se puede descargar o no se puede abrir |
+| **más de un centenar** de archivos | devuelven una página web en lugar del dato |
+| **casi uno de cada tres** conjuntos | tiene al menos un archivo inservible |
+| **alrededor del 90 %** de calidad media | sobre los archivos que sí abren y tienen contenido que medir |
+| **nueve de cada diez** conjuntos | no publican `dct:modified`, así que su actualidad no se puede verificar |
 
-Cada cifra del portal se calcula desde el informe publicado; ninguna está escrita a mano.
+Cada cifra del **portal** se calcula desde el informe publicado; ninguna está escrita a mano. Aquí van en proporciones a propósito: son estables entre análisis, y así este README no puede quedar desmintiendo al informe que describe. Los recuentos exactos, con su fecha, están en [el portal](https://cylmetrics.vercel.app) y en [`/api/quality`](https://cylmetrics.vercel.app/api/quality).
 
 ## Cómo se mide
 
@@ -42,9 +38,7 @@ Dos preguntas distintas, medidas por separado porque **promediarlas engaña en l
 - **Disponibilidad** — ¿se descarga y se abre el archivo? Es bloqueante.
 - **Calidad de contenido** — ¿está limpio? Encabezados, tipos de dato, celdas vacías. Solo tiene sentido sobre lo que sí abre.
 
-El índice compuesto de cada ficha pondera `40 % metadatos + 30 % disponibilidad + 30 % contenido`, con umbrales ≥80 buena / 50-79 mejorable / <50 deficiente. Los pesos y los umbrales viven en un único módulo (`src/lib/quality.ts`) del que leen la interfaz, la API, el sello y la propia página de metodología, y hay tests que impiden que la documentación publicada contradiga al código.
-
-La metodología completa —alcance, fórmulas, umbrales, límites conocidos y lo que el análisis decide **no** imputar a quien publica— está en [**/metodologia**](https://cylmetrics.vercel.app/metodologia).
+Cada conjunto recibe además un índice compuesto que pesa esas dos preguntas junto con la completitud de su ficha. Los pesos, los umbrales, los límites conocidos y lo que el análisis decide **no** imputar a quien publica están declarados en [**/metodologia**](https://cylmetrics.vercel.app/metodologia).
 
 ## Dos audiencias
 
@@ -76,8 +70,6 @@ Referencia completa en [**/api**](https://cylmetrics.vercel.app/api).
 
 ## Arranque rápido
 
-**Requisitos:** Node.js `^20.19` o `>=22.12` · npm · Python `>=3.12` (solo para ejecutar el análisis, ver el aviso de abajo).
-
 ```bash
 git clone https://github.com/jacarpint/CyLMetrics.git
 cd CyLMetrics
@@ -85,112 +77,27 @@ npm install
 npm run dev          # http://localhost:3000
 ```
 
-El portal arranca con el informe ya versionado en `reports/current/`, así que no hace falta ejecutar el análisis para verlo funcionando.
-
-### Comprobaciones
-
-```bash
-npm run build        # build de producción (~2.500 páginas estáticas)
-npm run lint         # ESLint
-npm run typecheck    # TypeScript sin emitir
-npm test             # Vitest — 523 tests: lógica en node, componentes en jsdom
-npm run check:contrast   # contraste WCAG AA de la paleta, en claro y en oscuro
-npm run verify:broken    # contrasta contra el origen los archivos que el portal da por rotos
-npm run check:wfs-view   # pedir por bbox contra el servicio: cuántas entidades caen en cada encuadre
-```
-
-`verify:broken` existe porque el portal acusa públicamente a 227 archivos de no
-poder abrirse, y esa afirmación solo vale si aguanta que alguien la compruebe:
-coge una muestra estratificada por causa, la descarga del origen y valida el
-contenido con el mismo criterio que el analizador. Con `--census` solo enumera
-las causas; con `--all`, comprueba los 227.
-
-Hay además comprobaciones de extremo a extremo para las piezas delicadas del visor: `check:xlsx`, `check:json`, `check:shp`, `check:geo`, `check:table` y `check:tabular`.
+El portal arranca con el informe del último análisis ya incluido en el repositorio, así que no hace falta ejecutar nada más para verlo funcionando.
 
 ## El análisis
 
-El motor de análisis es Python y **se ejecuta en local**: descarga el catálogo entero, abre cada archivo con su lector y escribe el informe. Solo el resultado viaja al despliegue.
+El motor de análisis es Python y **se ejecuta en local**: descarga el catálogo entero, abre cada archivo con el lector que le corresponde —CSV, XLSX, JSON, shapefiles, XML, GML, KML, RDF, RSS, calendarios, imágenes y servicios WMS y WFS— y escribe el informe. Solo el resultado viaja al despliegue.
 
 ```bash
 pip install -r requirements-analysis.txt
 
-python -m src.analysis --check-deps               # ¿está el entorno listo? No descarga ni escribe nada
-python -m src.analysis --limit 0                  # análisis completo
-
-python -m pytest src/analysis/tests -q            # 61 tests del analizador
+python -m src.analysis --check-deps    # ¿está el entorno listo? No descarga ni escribe nada
+python -m src.analysis --limit 0       # análisis completo
 ```
 
-> [!IMPORTANT]
-> Ejecuta siempre `--check-deps` antes de un análisis largo. Si falta un lector, el informe **no falla**: archiva en silencio como «no analizado» todo lo que no pudo abrir. Ha pasado dos veces, y una llegó a producción con 341 XLSX marcados como ilegibles que estaban perfectos.
-
-> [!IMPORTANT]
-> **Python 3.12 o superior**, y no es una preferencia de estilo. El analizador
-> abre XML que descarga de Internet con `xml.etree.ElementTree`, y la defensa
-> contra la expansión de entidades —*billion laughs*: un documento de 400 bytes
-> que se expande a gigas— la pone el propio intérprete, no este código.
-> Comprobado en 3.12: el ataque rebota con «limit on input amplification factor
-> breached». En versiones anteriores esa protección no está activada por
-> defecto, así que el mismo documento tumbaría el análisis.
+Conviene empezar siempre por `--check-deps`: si falta un lector el informe **no falla**, archiva en silencio como «no analizado» todo lo que no pudo abrir.
 
 > [!CAUTION]
-> `--output` vale `reports/current` por defecto, que es **el informe que publica el portal**. Cualquier ejecución de prueba tiene que apuntar `--output` a otro sitio, o se lo lleva por delante: analiza lo que le pidas y sobrescribe el informe entero con ese puñado de distribuciones.
+> `--output` vale `reports/current` por defecto, que es **el informe que publica el portal**. Cualquier ejecución de prueba tiene que apuntar a otro sitio, o se lo lleva por delante.
 
-Lee **[`docs/ANALISIS.md`](docs/ANALISIS.md)** para el manual completo: opciones del CLI, reanudación desde checkpoint para no volver a descargar 23 GB, formato del informe y los avisos de operación que conviene conocer.
+Cuando el portal identifica un archivo como no accesible, esa lectura se vuelve a comprobar: `npm run verify:broken` pide cada archivo al servidor de origen, entero y **sin pasar por el proxy del portal**, para que la comprobación no dependa de la misma infraestructura que la hizo, y contrasta el resultado con lo que dice el informe. El método está descrito en [**/metodologia#verificacion**](https://cylmetrics.vercel.app/metodologia#verificacion).
 
-## Arquitectura
-
-```
-src/
-├── app/                 # Next.js App Router
-│   ├── page.tsx         # Inicio
-│   ├── catalogo/        # Explorador, ficha de conjunto y ficha de archivo
-│   ├── calidad/         # Para publicadores: prioridades, ficheros, metadatos
-│   ├── metodologia/     # Pesos, umbrales y límites declarados
-│   ├── api/             # quality, catalog, alerts, sello, proxy, ogc
-│   └── sitemap.ts       # ~2.500 URLs
-├── components/
-│   ├── layout/          # Header, Sidebar, buscador, tema
-│   ├── pages/           # Vistas de catálogo y calidad
-│   ├── quality/         # Medidores, explorador de tablas, visores geográficos
-│   └── ui/              # Primitivas (Card, Badge, Sheet…)
-├── lib/                 # Lógica compartida — fuente única de cada criterio
-│   ├── quality.ts       # Pesos 40/30/30 y umbrales
-│   ├── availability.ts  # ¿Se puede abrir el archivo? (eje independiente)
-│   ├── metadata-gaps.ts # Huecos de la ficha DCAT y diagnóstico de actualidad
-│   ├── rdf-catalog.ts   # Parser RDF/XML del catálogo DCAT
-│   └── proxy-allow.ts   # Allowlist de dominios del proxy y de la CSP
-└── analysis/            # Python: descarga, validación y puntuación
-    ├── cli.py           # CLI del análisis
-    ├── engine.py        # Motor de descarga y validación
-    ├── formats/         # Un lector por familia de formato
-    └── report.py        # Agregación del informe
-```
-
-**Stack:** Next.js 16 (App Router, React 19) · TypeScript · Tailwind CSS 4 · Radix UI · Leaflet · Vitest · Python 3.12+ con Frictionless, openpyxl, pyshp, Pillow e icalendar.
-
-**Un lector por formato.** En el último análisis se abrieron 16: CSV, XLSX, JSON, SHP, XML, GML, KML, RDF, RSS, iCal, ECW, TXT, WMS, WFS, binarios y sin clasificar.
-
-### Decisiones que conviene conocer
-
-- **Un solo criterio por pregunta.** Cada regla vive en un módulo y todo lo demás lee de ahí. La completitud de metadatos la define `findMetadataGaps` y la nota deriva de ella; la disponibilidad la define `classifyDelivery` y nada la recalcula por su cuenta. Calcular la nota por un lado y la lista de defectos por otro es exactamente cómo el portal llegó a contradecir su propio criterio publicado.
-- **El catálogo se lee en vivo; el análisis es una foto fechada.** Los dos totales no coinciden y el portal lo explica donde aparecen juntos, en vez de dejar que parezca un error de cuentas.
-- **Accesibilidad.** 92 combinaciones de color verificadas AA en claro y en oscuro (`npm run check:contrast`), el color nunca como único portador de estado, navegación completa por teclado y enlace de salto al contenido.
-- **Seguridad.** CSP restrictiva, y el proxy que salta el CORS del visor tiene una allowlist explícita de dominios de la Junta que **no** se deriva del RDF en tiempo de ejecución: si el catálogo cambiara, el proxy no debe ampliarse solo.
-
-## Despliegue
-
-```bash
-export NEXT_PUBLIC_SITE_URL=https://cylmetrics.vercel.app
-npm run build
-npm start
-```
-
-`NEXT_PUBLIC_SITE_URL` es lo que usan `sitemap.xml`, `robots.txt` y las tarjetas Open Graph para construir URLs absolutas.
-
-`reports/current/` es el artefacto de despliegue y **se versiona**: un índice ligero (`index.json`) más un fragmento por archivo (`d/<id>.json`) con todas las posiciones de cada incidencia, el esquema y filas de muestra. El portal enseña siempre una sola foto, la del informe publicado.
-
-> [!WARNING]
-> Esos ficheros se leen con `fs` desde rutas construidas en tiempo de ejecución, así que el rastreador de Next no las ve y hay que declararlas en `outputFileTracingIncludes` (`next.config.ts`). Sin esa lista el informe no viaja al despliegue, `/api/quality` responde 503 y el portal se renderiza sin datos. En local no se nota.
+Manual completo del análisis en [**`docs/ANALISIS.md`**](docs/ANALISIS.md). Comprobaciones, arquitectura y despliegue, en [**`docs/DESARROLLO.md`**](docs/DESARROLLO.md).
 
 ## Licencia
 

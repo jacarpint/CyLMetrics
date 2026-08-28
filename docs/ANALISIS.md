@@ -60,7 +60,7 @@ Cubren los analizadores de cada formato del catálogo, la agregación del inform
 (`test_report.py`) y el descargador (`test_downloader.py`). Los dos últimos son
 recientes: esos módulos no tenían ni un test, y los dos fallos más serios que ha
 tenido el proyecto —la nota de contenido que descartaba todo lo que puntuaba por
-debajo de 80, y los diez CSV acusados de no descargarse cuando se descargan
+debajo de 80, y los diez CSV señalados como no descargables cuando se descargan
 perfectamente— vivían justo ahí.
 
 ## Ejecutar
