@@ -46,6 +46,21 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json(
     {
+      /*
+       * La fecha del análisis del que sale esta lista.
+       *
+       * Era el único endpoint sin fechar: `/api/quality` devuelve `generated_at`
+       * y `/api/catalog` devuelve `analysis_generated_at`, pero las incidencias
+       * viajaban sueltas. Y son justo las que más lo necesitan, porque una lista
+       * de cosas que arreglar sin fecha no se puede saber si ya está corregida —el
+       * defecto que este portal le señala a las fichas sin `dct:modified`.
+       *
+       * Se llama igual que en `/api/catalog` y no `generated_at` a secas por lo
+       * mismo que allí: la respuesta mezcla el informe con los metadatos del
+       * catálogo, así que el nombre tiene que decir a cuál de los dos pertenece la
+       * fecha. En `/api/quality` no hace falta porque la respuesta ES el informe.
+       */
+      analysis_generated_at: report.generated_at,
       total,
       critical: alerts.filter((a) => a.level === "critical").length,
       warning: alerts.filter((a) => a.level === "warning").length,

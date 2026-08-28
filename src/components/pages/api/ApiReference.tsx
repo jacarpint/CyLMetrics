@@ -140,6 +140,7 @@ const ENDPOINTS: ApiEndpoint[] = [
       { name: "limit", values: "1-500", desc: "Número máximo de alertas. Por defecto 100." },
     ],
     example: `{
+  "analysis_generated_at": "2026-08-27T16:39:20+00:00",
   "total": 555, "critical": 285, "warning": 270,
   "categories": { "availability": 227, "format": 61, "content": 301 },
   "alerts": [
