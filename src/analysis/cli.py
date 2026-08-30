@@ -6,6 +6,7 @@ Ejemplos:
   python -m src.analysis --limit 25 --output reports/prueba               # primeras 25
   python -m src.analysis --only-formats CSV,XLSX --output reports/prueba  # solo ciertos formatos
   python -m src.analysis --limit 0 --workers 16 --output reports/data-analysis.json
+  python -m src.analysis --incremental                                   # solo datasets nuevos/modificados
 
 Ojo con `--output`: vale `reports/current` por defecto, que es el informe que
 publica el portal. Cualquier ejecución de prueba debe pasar `--output` a otro
@@ -114,6 +115,11 @@ def main(argv: list[str] | None = None) -> int:
                         help="Además, escribir el informe completo en un único JSON (formato antiguo)")
     parser.add_argument("--checkpoint", default=None,
                         help="Ruta del checkpoint JSONL para reanudar un análisis a medias (por defecto: reports/checkpoint.jsonl si --output es el default)")
+    parser.add_argument("--incremental", action="store_true",
+                        help="Analizar solo los datasets nuevos o modificados desde la última ejecución. "
+                             "Compara el catálogo de hoy contra el checkpoint y reanaliza únicamente los "
+                             "datasets que no estaban o cuya plantilla de distribuciones cambió; el resto "
+                             "se reutiliza tal cual.")
     parser.add_argument("--progress-every", type=int, default=25, help="Línea de avance cada N distribuciones")
     parser.add_argument("--quiet", action="store_true",
                         help="No mostrar la línea de detalle por archivo (inicio/fin de cada descarga)")
@@ -223,6 +229,30 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Reanudando desde checkpoint: {checkpoint_path} ({len(vistas)} URL ya analizadas, "
               f"{pendientes} pendientes)", flush=True)
 
+    # Modo incremental: solo se tocan los datasets nuevos o modificados.
+    #
+    # El checkpoint por sí solo ya evita descargar lo hecho, pero reutiliza por
+    # URL a ciegas: un dataset que cambió de plantilla (distribución nueva o
+    # retirada, título o formato distinto) se daría por bueno con su resultado
+    # viejo. Con `--incremental` se compara el catálogo de hoy contra el
+    # checkpoint y se fuerzan a reanálisis las URLs de los datasets afectados.
+    force_urls: set[str] = set()
+    if args.incremental:
+        from .incremental import plan_from_checkpoint, print_plan
+
+        if not checkpoint_path.exists():
+            print("AVISO: --incremental sin checkpoint previo: se analizará todo.", flush=True)
+        else:
+            with open(checkpoint_path, encoding="utf-8") as fh:
+                checkpoint_lines = [
+                    json.loads(linea)
+                    for linea in fh
+                    if linea.strip()
+                ]
+            plan = plan_from_checkpoint(items, checkpoint_lines)
+            force_urls = plan["force_urls"]
+            print_plan(plan, items)
+
     results = run_analysis(
         items,
         workers=args.workers,
@@ -233,6 +263,7 @@ def main(argv: list[str] | None = None) -> int:
         progress_every=args.progress_every,
         checkpoint=checkpoint_path,
         verbose=not args.quiet,
+        force_urls=force_urls,
     )
 
     report = aggregate(results)

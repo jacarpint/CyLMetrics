@@ -136,6 +136,48 @@ El checkpoint (`reports/current/analysis.checkpoint.jsonl`, ~100 MB) está en
 Sobre el informe del 13 de agosto: 1.292 resultados reutilizables y 366 a
 re-analizar (341 XLSX, 24 SHP, 1 iCal), o sea **3 GB de descarga en vez de 23,5**.
 
+## Analizar solo lo que es nuevo o ha cambiado
+
+Si lo que quieres no es «completar lo que se quedó a medias» sino «actualizar el
+informe cuando ha pasado un tiempo y el catálogo ha crecido», no quieres re-descargar
+los miles de distribuciones que ya están bien analizadas ni sus gigas. Ahí está
+`--incremental`:
+
+```bash
+python -m src.analysis --incremental
+```
+
+Al arrancar compara el catálogo de hoy contra el checkpoint (lo que ya hay
+analizado) y reanaliza **solo**:
+
+- los **datasets nuevos** que no estaban en la ejecución anterior, y
+- los **datasets modificados**, donde la plantilla de distribuciones cambió: una
+  distribución nueva o retirada, o un dataset que cambió de título o de formato.
+
+Imprime un diagnóstico antes de tocar nada:
+
+```
+==== ANÁLISIS INCREMENTAL ====
+Datasets nuevos: 5 · modificados: 1 · sin cambios: 819
+Distribuciones a analizar: 3 de 1658
+```
+
+Como el catálogo (DCAT) no trae una fecha de modificación fiable por dataset —solo
+75 de 825 lo hacen—, no se puede saber si un archivo cambió de *contenido* sin
+cambiar de URL. Lo que `--incremental` sí detecta con seguridad es cualquier cambio
+en la **plantilla** de distribuciones de un dataset. Un dataset que cambia su
+contenido pero conserva la misma URL y el mismo formato se daría por bueno con su
+resultado anterior (el checkpoint por URL ya tiene ese comportamiento).
+
+El resto del informe se reutiliza tal cual: `aggregate()` recorre el catálogo
+entero mezclando los resultados previos con los recién calculados y escribe un
+bundle coherente, sin fusiones a mano.
+
+Advertencias iguales que en la sección anterior: el plan se calcula sobre el
+checkpoint por defecto (`reports/current/analysis.checkpoint.jsonl`); si trabajas
+en OneDrive, usa `--checkpoint` en disco local, y pasa `--output` a otro sitio salvo
+que quieras sobrescribir el informe publicado.
+
 ## Avisos de operación
 
 > [!CAUTION]

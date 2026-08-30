@@ -388,25 +388,35 @@ def _print_item_done(result: dict, item_index: int | None = None, total: int | N
 
 def run_analysis(items: list[dict], workers: int, size_cap: int, sample_cap: int | None = None,
                  timeout: int = 60, retries: int = 2, progress_every: int = 25,
-                 checkpoint: Path | None = None, verbose: bool = True) -> list[dict]:
+                 checkpoint: Path | None = None, verbose: bool = True,
+                 force_urls: set[str] | None = None) -> list[dict]:
     """Analiza `items`. Si `checkpoint` (JSONL) existe, reanuda saltando lo ya hecho.
 
     Los resultados se indexan por URL de distribución, por lo que reanudar es
     seguro incluso si el catálogo de entrada cambia de orden.
+
+    `force_urls` (opcional) marca URLs que DEBEN re-analizarse aunque ya estén
+    en el checkpoint: son las de los datasets nuevos o modificados que detecta
+    `incremental.plan_incremental`. Sin él, el checkpoint reutiliza por URL a
+    ciegas y un dataset que cambió de plantilla no se vuelve a analizar.
     """
     global _VERBOSE
     _VERBOSE = verbose
+    fuercé = force_urls or set()
     run_dir = make_run_dir()
     ctx = {"run_dir": run_dir, "size_cap": size_cap, "sample_cap": sample_cap or size_cap,
            "timeout": timeout, "retries": retries}
     results: list[dict | None] = [None] * len(items)
 
-    # Reanudación: volcar resultados previos en su posición
+    # Reanudación: volcar resultados previos en su posición (salvo los forzados)
     done_by_url: dict[str, dict] = {}
     if checkpoint is not None:
         done_by_url = _load_checkpoint(checkpoint)
         for idx, item in enumerate(items):
-            prev = done_by_url.get(item.get("url", ""))
+            url = item.get("url", "")
+            if url in fuercé:
+                continue  # se reanaliza: no se reutiliza el resultado viejo
+            prev = done_by_url.get(url)
             if prev is not None:
                 results[idx] = prev
 
