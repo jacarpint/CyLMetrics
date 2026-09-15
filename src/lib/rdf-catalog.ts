@@ -530,15 +530,9 @@ export function computeStats(datasets: Dataset[]): CatalogStats {
 /* Carga del catálogo                                                  */
 /* ------------------------------------------------------------------ */
 
-interface CatalogSource {
-  xml: string;
-  sourceUrl: string;
-  origin: 'remote' | 'local';
-}
-
 const FETCH_TIMEOUT_MS = 15000;
 
-async function loadCatalogXml(): Promise<CatalogSource | null> {
+async function fetchRemoteXml(): Promise<string | null> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
@@ -549,29 +543,52 @@ async function loadCatalogXml(): Promise<CatalogSource | null> {
     });
     if (res.ok) {
       const xml = await res.text();
-      if (xml.trim().length > 0) {
-        return { xml, sourceUrl: RDF_CATALOG_URL, origin: 'remote' };
-      }
+      if (xml.trim().length > 0) return xml;
     }
   } catch {
     // Sin red, timeout o error de jcyl: se usa la copia local.
   } finally {
     clearTimeout(timer);
   }
+  return null;
+}
 
+function readLocalXml(): string | null {
   try {
     if (fs.existsSync(LOCAL_CATALOG_PATH)) {
       const xml = fs.readFileSync(LOCAL_CATALOG_PATH, 'utf-8');
-      if (xml.trim().length > 0) {
-        return { xml, sourceUrl: `file://${LOCAL_CATALOG_PATH}`, origin: 'local' };
-      }
+      if (xml.trim().length > 0) return xml;
     }
   } catch {
-    // Copia local corrupta o ilegible: se devuelve null.
+    // Copia local corrupta o ilegible.
   }
-
   return null;
 }
+
+function tryParse(xml: string, sourceUrl: string, origin: CatalogData['source']['origin']): CatalogData | null {
+  try {
+    return parseCatalog(xml, sourceUrl, new Date().toISOString(), origin);
+  } catch {
+    // XML corrupto o con un esquema no esperado.
+    return null;
+  }
+}
+
+/**
+ * Por debajo de este número de datasets, una respuesta remota se trata como no
+ * fiable —aunque el fetch haya devuelto 200 y XML bien formado— y se cae a la
+ * copia local en su lugar, igual que si el remoto no hubiera respondido.
+ *
+ * Es un suelo absoluto, no relativo al último catálogo bueno: hace falta para
+ * el primer fetch de una instancia recién arrancada (redeploy en Vercel), donde
+ * `cachedCatalog` está vacío y no hay nada contra lo que comparar un recorte.
+ * El 15 de septiembre de 2026 la Junta le sirvió a Vercel un RDF recortado a
+ * 235 de los ~840 datasets reales de forma persistente —no un fallo puntual—,
+ * así que cada redeploy volvía a aceptarlo como si fuera el primero de verdad.
+ * 500 queda cómodamente por debajo del catálogo real (order de 800+) y muy por
+ * encima de ese recorte.
+ */
+const MIN_PLAUSIBLE_DATASETS = 500;
 
 /**
  * Último catálogo servible y cuándo toca volver a intentar refrescarlo.
@@ -624,19 +641,30 @@ function emptyCatalog(): CatalogData {
 /**
  * Intenta obtener un catálogo utilizable, o null si no hay forma.
  *
- * Un parseo "exitoso" que no produce ni un dataset se trata como fallo: casi
- * siempre significa que la fuente devolvió una página de error con código 200.
+ * El remoto se descarta —y se prueba la copia local, igual que si el fetch
+ * hubiera fallado— cuando trae menos de `MIN_PLAUSIBLE_DATASETS` datasets. Eso
+ * cubre tanto una página de error servida con 200 (0 datasets) como un recorte
+ * silencioso como el de la nota de `MIN_PLAUSIBLE_DATASETS`. La copia local no
+ * se somete a ese mismo suelo: basta con que no esté vacía.
  */
 async function refreshCatalog(): Promise<CatalogData | null> {
-  const source = await loadCatalogXml();
-  if (!source) return null;
-  try {
-    const data = parseCatalog(source.xml, source.sourceUrl, new Date().toISOString(), source.origin);
-    return data.datasets.length > 0 ? data : null;
-  } catch {
-    // XML corrupto o con un esquema no esperado.
-    return null;
+  const remoteXml = await fetchRemoteXml();
+  if (remoteXml) {
+    const remote = tryParse(remoteXml, RDF_CATALOG_URL, 'remote');
+    if (remote && remote.datasets.length >= MIN_PLAUSIBLE_DATASETS) {
+      return remote;
+    }
   }
+
+  const localXml = readLocalXml();
+  if (localXml) {
+    const local = tryParse(localXml, `file://${LOCAL_CATALOG_PATH}`, 'local');
+    if (local && local.datasets.length > 0) {
+      return local;
+    }
+  }
+
+  return null;
 }
 
 /**
