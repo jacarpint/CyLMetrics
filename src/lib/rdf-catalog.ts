@@ -584,6 +584,17 @@ let cachedCatalog: { data: CatalogData; nextAttemptAt: number } | null = null;
 /** Reintento corto tras un fallo, en vez de esperar la hora completa. */
 const RETRY_AFTER_FAILURE_MS = 60 * 1000;
 
+/**
+ * Por debajo de esta fracción del último catálogo bueno, un fetch que
+ * "funciona" (200, XML bien formado, con datasets) se trata igual que un
+ * fallo.
+ *
+ * El 15 de septiembre de 2026 la Junta le sirvió a la función de Vercel un RDF
+ * recortado a 235 de los ~840 datasets reales: nada que `datasets.length > 0`
+ * pudiera detectar, así que se coló como bueno y se sirvió una hora entera.
+ */
+const MIN_RETENTION_RATIO = 0.5;
+
 function emptyCatalog(): CatalogData {
   const now = new Date().toISOString();
   return {
@@ -641,6 +652,10 @@ async function refreshCatalog(): Promise<CatalogData | null> {
  *
  * Nunca lanza. Solo devuelve el catálogo vacío si nunca se ha conseguido
  * ninguno, y en ese caso no lo memoriza: el siguiente request vuelve a probar.
+ *
+ * Un refresco que trae muchos menos datasets que el último bueno (ver
+ * `MIN_RETENTION_RATIO`) se descarta igual que un fallo real, salvo que sea el
+ * primero de la vida de la instancia: ahí no hay nada mejor con qué comparar.
  */
 export async function getCatalog(): Promise<CatalogData> {
   const now = Date.now();
@@ -650,8 +665,12 @@ export async function getCatalog(): Promise<CatalogData> {
 
   const fresh = await refreshCatalog();
   if (fresh) {
-    cachedCatalog = { data: fresh, nextAttemptAt: now + REVALIDATE_SECONDS * 1000 };
-    return fresh;
+    const priorCount = cachedCatalog?.data.datasets.length;
+    const isRecorte = priorCount != null && fresh.datasets.length < priorCount * MIN_RETENTION_RATIO;
+    if (!isRecorte) {
+      cachedCatalog = { data: fresh, nextAttemptAt: now + REVALIDATE_SECONDS * 1000 };
+      return fresh;
+    }
   }
 
   if (cachedCatalog) {
@@ -659,5 +678,5 @@ export async function getCatalog(): Promise<CatalogData> {
     return cachedCatalog.data;
   }
 
-  return emptyCatalog();
+  return fresh ?? emptyCatalog();
 }

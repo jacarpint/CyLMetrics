@@ -56,6 +56,34 @@ async function freshModule() {
   return import('../rdf-catalog');
 }
 
+/** RDF con `count` datasets, para probar recortes por tamaño en vez de por vacío. */
+function buildRdf(count: number): string {
+  const datasets = Array.from(
+    { length: count },
+    (_, i) => `
+    <dcat:dataset>
+      <dcat:Dataset rdf:about="https://datosabiertos.jcyl.es/set/es/x/${i}">
+        <dct:title>Dataset ${i}</dct:title>
+        <dct:description>Descripción</dct:description>
+        <dct:issued>2024-01-01</dct:issued>
+        <dcat:distribution>
+          <dcat:Distribution>
+            <dct:format><dct:IMT rdf:value="text/csv"/></dct:format>
+            <dcat:accessURL>https://datosabiertos.jcyl.es/x/${i}.csv</dcat:accessURL>
+          </dcat:Distribution>
+        </dcat:distribution>
+      </dcat:Dataset>
+    </dcat:dataset>`
+  ).join('');
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+         xmlns:dcat="http://www.w3.org/ns/dcat#"
+         xmlns:dct="http://purl.org/dc/terms/">
+  <dcat:Catalog>${datasets}
+  </dcat:Catalog>
+</rdf:RDF>`;
+}
+
 const fetchMock = vi.fn();
 
 beforeEach(() => {
@@ -159,5 +187,42 @@ describe('getCatalog: caché ante fallos', () => {
 
     const segundo = await getCatalog();
     expect(segundo.datasets).toHaveLength(1);
+  });
+
+  it('un recorte del remoto (muchos menos datasets que el último bueno) no sustituye al catálogo bueno', async () => {
+    vi.useFakeTimers();
+    fetchMock.mockResolvedValue(new Response(buildRdf(10), { status: 200 }));
+    const { getCatalog } = await freshModule();
+    const primero = await getCatalog();
+    expect(primero.datasets).toHaveLength(10);
+
+    // La fuente responde 200 con un XML válido, pero recortado a menos de la
+    // mitad de lo que ya se había servido: se descarta como el 235 real.
+    vi.advanceTimersByTime(61 * 60 * 1000);
+    fetchMock.mockResolvedValue(new Response(buildRdf(2), { status: 200 }));
+    const segundo = await getCatalog();
+
+    expect(segundo.datasets).toHaveLength(10);
+  });
+
+  it('un descenso moderado (por encima del umbral) sí se acepta como catálogo nuevo', async () => {
+    vi.useFakeTimers();
+    fetchMock.mockResolvedValue(new Response(buildRdf(10), { status: 200 }));
+    const { getCatalog } = await freshModule();
+    await getCatalog();
+
+    vi.advanceTimersByTime(61 * 60 * 1000);
+    fetchMock.mockResolvedValue(new Response(buildRdf(6), { status: 200 }));
+    const segundo = await getCatalog();
+
+    expect(segundo.datasets).toHaveLength(6);
+  });
+
+  it('sin catálogo previo, acepta el primero aunque sea pequeño: no hay nada con qué compararlo', async () => {
+    fetchMock.mockResolvedValue(new Response(buildRdf(2), { status: 200 }));
+    const { getCatalog } = await freshModule();
+
+    const primero = await getCatalog();
+    expect(primero.datasets).toHaveLength(2);
   });
 });
