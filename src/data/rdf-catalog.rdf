@@ -20,7 +20,7 @@ xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
 <dct:description xml:lang="es">Catálogo de datos públicos abiertos de la Junta de Castilla y León, que se ofrecen en www.datosabiertos.jcyl.es</dct:description>
 <dct:license rdf:resource="https://datosabiertos.jcyl.es/web/es/catalogo-datos/terminos.html" />
 <dct:issued rdf:datatype="http://www.w3.org/2001/XMLSchema#dateTime">2012-03-27T00:00:00</dct:issued>
-<dct:modified rdf:datatype="http://www.w3.org/2001/XMLSchema#dateTime">2026-08-12T03:36:58</dct:modified>
+<dct:modified rdf:datatype="http://www.w3.org/2001/XMLSchema#dateTime">2026-09-15T03:31:45</dct:modified>
 <dc:language>es</dc:language> 
 <dcat:themeTaxonomy rdf:resource="http://datos.gob.es/kos/sector-publico/sector/"/>
 <dcat:dataset>
@@ -55,6 +55,82 @@ Datos correspondientes al periodo del 1 de enero al 15 de junio de 2026 (XI Legi
 </dct:Frequency>
 </dct:accrualPeriodicity>
 <dct:issued rdf:datatype="http://www.w3.org/2001/XMLSchema#date">2026-02-13T00:00:00</dct:issued>
+<dct:spatial rdf:resource="http://datos.gob.es/recurso/sector-publico/territorio/Autonomia/Castilla-Leon"/>
+</dcat:Dataset>
+</dcat:dataset>
+<dcat:dataset>
+<dcat:Dataset rdf:about="https://datosabiertos.jcyl.es/web/jcyl/set/es/seguridad/presas_con_plan_emergencia/1284965968127" dct:identifier="https://datosabiertos.jcyl.es/web/jcyl/set/es/seguridad/presas_con_plan_emergencia/1284965968127" >
+<dct:title xml:lang="es">Presas con Plan de Emergencias de Presa</dct:title>
+<dct:description xml:lang="es">Presas con Planes de Emergencia de Presa (PEP) en Castilla y León</dct:description>
+<dcat:theme rdf:resource="http://datos.gob.es/kos/sector-publico/sector/seguridad"/>
+<dcat:keyword xml:lang="es">Protección Civil</dcat:keyword>
+<dcat:keyword xml:lang="es"> riesgo</dcat:keyword>
+<dcat:keyword xml:lang="es"> inundaciones</dcat:keyword>
+<dcat:keyword xml:lang="es"> presas</dcat:keyword>
+<dct:language>es</dct:language>
+<dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
+<dct:license rdf:resource="https://creativecommons.org/licenses/by/4.0/deed.es_ES"/>
+<dcat:distribution>
+<dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/seguridad/presas_con_plan_emergencia/1284965968127.kml">
+<dct:title xml:lang="es">Presas con Plan de Emergencias de Presa</dct:title>
+<dct:format>
+<dct:IMT rdf:value="application/vnd.google-earth.kml+xml" rdfs:label="KML" />
+</dct:format>
+<dcat:accessURL rdf:datatype="http://www.w3.org/2001/XMLSchema#anyURI"></dcat:accessURL>
+</dcat:Distribution>
+</dcat:distribution>
+<dcat:distribution>
+<dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/seguridad/presas_con_plan_emergencia/1284965968127.shp">
+<dct:title xml:lang="es">Presas con Plan de Emergencias de Presa</dct:title>
+<dct:format>
+<dct:IMT rdf:value="application/x-zipped-shp" rdfs:label="SHP" />
+</dct:format>
+<dcat:accessURL rdf:datatype="http://www.w3.org/2001/XMLSchema#anyURI"></dcat:accessURL>
+</dcat:Distribution>
+</dcat:distribution>
+<dct:accrualPeriodicity>
+<dct:Frequency>
+<rdf:value><time:DurationDescription>
+<time:days rdf:datatype="http://www.w3.org/2001/XMLSchema#decimal">1</time:days>
+</time:DurationDescription></rdf:value>
+</dct:Frequency>
+</dct:accrualPeriodicity>
+<dct:issued rdf:datatype="http://www.w3.org/2001/XMLSchema#date">2012-09-06T00:00:00</dct:issued>
+<dct:spatial rdf:resource="http://datos.gob.es/recurso/sector-publico/territorio/Autonomia/Castilla-Leon"/>
+</dcat:Dataset>
+</dcat:dataset>
+<dcat:dataset>
+<dcat:Dataset rdf:about="https://datosabiertos.jcyl.es/web/jcyl/set/es/sector-publico/viajes-2024/1285476994204" dct:identifier="https://datosabiertos.jcyl.es/web/jcyl/set/es/sector-publico/viajes-2024/1285476994204" >
+<dct:title xml:lang="es">Viajes del Presidente y de los Consejeros de la Comunidad Autónoma 2024</dct:title>
+<dct:description xml:lang="es">Las actividades del Presidente y de los Consejeros de la Junta de Castilla y León pueden implicar desplazamientos fuera del centro de trabajo. Se pueden consultar los los viajes que, por este motivo, realizan el Presidente y los Consejeros de la Junta de Castilla y León, así como los posibles gastos derivados de los mismos.
+
+Datos correspondientes al año 2024.</dct:description>
+<dcat:theme rdf:resource="http://datos.gob.es/kos/sector-publico/sector/sector-publico"/>
+<dcat:keyword xml:lang="es">viajes</dcat:keyword>
+<dcat:keyword xml:lang="es"> presidente</dcat:keyword>
+<dcat:keyword xml:lang="es"> consejeros</dcat:keyword>
+<dcat:keyword xml:lang="es"> comunidad autónoma</dcat:keyword>
+<dcat:keyword xml:lang="es"> 2024</dcat:keyword>
+<dct:language>es</dct:language>
+<dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
+<dct:license rdf:resource="https://creativecommons.org/licenses/by/4.0/deed.es_ES"/>
+<dcat:distribution>
+<dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/sector-publico/viajes-2024/1285476994204.csv">
+<dct:title xml:lang="es">Viajes del Presidente y de los Consejeros de la Comunidad Autónoma 2024</dct:title>
+<dct:format>
+<dct:IMT rdf:value="text/csv" rdfs:label="CSV" />
+</dct:format>
+<dcat:accessURL rdf:datatype="http://www.w3.org/2001/XMLSchema#anyURI">https://datosabiertos.jcyl.es/web/jcyl/risp/es/sector-publico/viajes-2024/1285476994204.csv</dcat:accessURL>
+</dcat:Distribution>
+</dcat:distribution>
+<dct:accrualPeriodicity>
+<dct:Frequency>
+<rdf:value><time:DurationDescription>
+<time:months rdf:datatype="http://www.w3.org/2001/XMLSchema#decimal">1</time:months>
+</time:DurationDescription></rdf:value>
+</dct:Frequency>
+</dct:accrualPeriodicity>
+<dct:issued rdf:datatype="http://www.w3.org/2001/XMLSchema#date">2024-02-01T00:00:00</dct:issued>
 <dct:spatial rdf:resource="http://datos.gob.es/recurso/sector-publico/territorio/Autonomia/Castilla-Leon"/>
 </dcat:Dataset>
 </dcat:dataset>
@@ -2865,6 +2941,55 @@ La información se ordena en los siguientes campos: denominación de entidad, c�
 </dcat:Dataset>
 </dcat:dataset>
 <dcat:dataset>
+<dcat:Dataset rdf:about="https://datosabiertos.jcyl.es/web/jcyl/set/es/energia/auditorias-energeticas/1284990710819" dct:identifier="https://datosabiertos.jcyl.es/web/jcyl/set/es/energia/auditorias-energeticas/1284990710819" >
+<dct:title xml:lang="es">Auditorías energéticas en Castilla y León</dct:title>
+<dct:description xml:lang="es">Resultados de las auditoría energéticas comunicados por las empresas ubicadas en Castilla y León, en cumplimiento del RD 56/2016, de 12 de febrero, que transpone parcialmente la Directiva 2012/27, relativa a la eficiencia energética.</dct:description>
+<dcat:theme rdf:resource="http://datos.gob.es/kos/sector-publico/sector/energia"/>
+<dcat:keyword xml:lang="es">energía</dcat:keyword>
+<dcat:keyword xml:lang="es"> industria</dcat:keyword>
+<dcat:keyword xml:lang="es"> auditoría</dcat:keyword>
+<dcat:keyword xml:lang="es"> EREN</dcat:keyword>
+<dct:language>es</dct:language>
+<dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
+<dct:license rdf:resource="https://creativecommons.org/licenses/by/4.0/deed.es_ES"/>
+<dcat:distribution>
+<dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/energia/auditorias-energeticas/1284990710819.csv">
+<dct:title xml:lang="es">Auditorías energéticas en Castilla y León</dct:title>
+<dct:format>
+<dct:IMT rdf:value="text/csv" rdfs:label="CSV" />
+</dct:format>
+<dcat:accessURL rdf:datatype="http://www.w3.org/2001/XMLSchema#anyURI">https://datosabiertos.jcyl.es/web/jcyl/risp/es/energia/auditorias-energeticas/1284990710819.csv</dcat:accessURL>
+</dcat:Distribution>
+</dcat:distribution>
+<dcat:distribution>
+<dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/energia/auditorias-energeticas/1284990710819.json">
+<dct:title xml:lang="es">Auditorías energéticas en Castilla y León</dct:title>
+<dct:format>
+<dct:IMT rdf:value="application/json" rdfs:label="JSON" />
+</dct:format>
+<dcat:accessURL rdf:datatype="http://www.w3.org/2001/XMLSchema#anyURI">https://datosabiertos.jcyl.es/web/jcyl/risp/es/energia/auditorias-energeticas/1284990710819.json</dcat:accessURL>
+</dcat:Distribution>
+</dcat:distribution>
+<dcat:distribution>
+<dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/energia/auditorias-energeticas/1284990710819.xls">
+<dct:title xml:lang="es">Auditorías energéticas en Castilla y León</dct:title>
+<dct:format>
+<dct:IMT rdf:value="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" rdfs:label="XLS" />
+</dct:format>
+<dcat:accessURL rdf:datatype="http://www.w3.org/2001/XMLSchema#anyURI">https://datosabiertos.jcyl.es/web/jcyl/risp/es/energia/auditorias-energeticas/1284990710819.xls</dcat:accessURL>
+</dcat:Distribution>
+</dcat:distribution>
+<dct:accrualPeriodicity>
+<dct:Frequency>
+<rdf:value><time:DurationDescription>
+<time:months rdf:datatype="http://www.w3.org/2001/XMLSchema#decimal">6</time:months>
+</time:DurationDescription></rdf:value>
+</dct:Frequency>
+</dct:accrualPeriodicity>
+<dct:spatial rdf:resource="http://datos.gob.es/recurso/sector-publico/territorio/Autonomia/Castilla-Leon"/>
+</dcat:Dataset>
+</dcat:dataset>
+<dcat:dataset>
 <dcat:Dataset rdf:about="https://datosabiertos.jcyl.es/web/jcyl/set/es/sector-publico/compatibilidad-sector-publico/1284776916235" dct:identifier="https://datosabiertos.jcyl.es/web/jcyl/set/es/sector-publico/compatibilidad-sector-publico/1284776916235" >
 <dct:title xml:lang="es">Autorización de compatibilidad de empleados públicos para trabajar en el sector público</dct:title>
 <dct:description xml:lang="es">Resoluciones de autorización de compatibilidad que afectan a los empleados públicos desde el 1 de enero de 2014, para trabajar en el sector público.</dct:description>
@@ -3907,6 +4032,52 @@ La información se encuentra estructurada en: año, fecha, mercado, evento y tip
 </dcat:Dataset>
 </dcat:dataset>
 <dcat:dataset>
+<dcat:Dataset rdf:about="https://datosabiertos.jcyl.es/web/jcyl/set/es/medio-ambiente/calidad_aire_en_curso/1285670096378" dct:identifier="https://datosabiertos.jcyl.es/web/jcyl/set/es/medio-ambiente/calidad_aire_en_curso/1285670096378" >
+<dct:title xml:lang="es">Datos calidad del aire en curso</dct:title>
+<dct:description xml:lang="es">Datos en curso de concentración de contaminantes registrados en las estaciones de control de la calidad del aire de la Junta de Castilla y León.
+Frecuencia de actualización: Diario</dct:description>
+<dcat:theme rdf:resource="http://datos.gob.es/kos/sector-publico/sector/medio-ambiente"/>
+<dcat:theme rdf:resource="http://datos.gob.es/kos/sector-publico/sector/medio-ambiente"/>
+<dcat:keyword xml:lang="es">Calidad del aire</dcat:keyword>
+<dcat:keyword xml:lang="es"> medio ambiente</dcat:keyword>
+<dcat:keyword xml:lang="es"> atmosfera</dcat:keyword>
+<dcat:keyword xml:lang="es"> contaminación</dcat:keyword>
+<dcat:keyword xml:lang="es">en curso</dcat:keyword>
+<dct:language>es</dct:language>
+<dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
+<dct:license rdf:resource="https://creativecommons.org/licenses/by/4.0/deed.es_ES"/>
+<dcat:distribution>
+<dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/calidad_aire_en_curso/1285670096378.csv">
+<dct:title xml:lang="es">Datos calidad del aire en curso</dct:title>
+<dct:format>
+<dct:IMT rdf:value="text/csv" rdfs:label="CSV" />
+</dct:format>
+<dcat:accessURL rdf:datatype="http://www.w3.org/2001/XMLSchema#anyURI">https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/calidad_aire_en_curso/1285670096378.csv</dcat:accessURL>
+</dcat:Distribution>
+</dcat:distribution>
+<dcat:distribution>
+<dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/calidad_aire_en_curso/1285670096378.json">
+<dct:title xml:lang="es">Datos calidad del aire en curso</dct:title>
+<dct:format>
+<dct:IMT rdf:value="application/json" rdfs:label="JSON" />
+</dct:format>
+<dcat:accessURL rdf:datatype="http://www.w3.org/2001/XMLSchema#anyURI">https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/calidad_aire_en_curso/1285670096378.json</dcat:accessURL>
+</dcat:Distribution>
+</dcat:distribution>
+<dcat:distribution>
+<dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/calidad_aire_en_curso/1285670096378.xls">
+<dct:title xml:lang="es">Datos calidad del aire en curso</dct:title>
+<dct:format>
+<dct:IMT rdf:value="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" rdfs:label="XLS" />
+</dct:format>
+<dcat:accessURL rdf:datatype="http://www.w3.org/2001/XMLSchema#anyURI">https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-ambiente/calidad_aire_en_curso/1285670096378.xls</dcat:accessURL>
+</dcat:Distribution>
+</dcat:distribution>
+<dct:issued rdf:datatype="http://www.w3.org/2001/XMLSchema#date">2026-08-10T00:00:00</dct:issued>
+<dct:spatial rdf:resource="http://datos.gob.es/recurso/sector-publico/territorio/Autonomia/Castilla-Leon"/>
+</dcat:Dataset>
+</dcat:dataset>
+<dcat:dataset>
 <dcat:Dataset rdf:about="https://datosabiertos.jcyl.es/web/jcyl/set/es/medio-ambiente/calidad_aire_historico/1284212629698" dct:identifier="https://datosabiertos.jcyl.es/web/jcyl/set/es/medio-ambiente/calidad_aire_historico/1284212629698" >
 <dct:title xml:lang="es">Datos históricos diarios de calidad del aire (1997-2020)</dct:title>
 <dct:description xml:lang="es">Datos históricos diarios de concentración de contaminantes registrados en las estaciones de control de la calidad del aire de la Junta de Castilla y León entre enero de 1997 y diciembre de 2020.
@@ -4037,7 +4208,7 @@ La valoración de la aptitud de las aguas de baño se realiza a tenor de lo esta
 <dct:accrualPeriodicity>
 <dct:Frequency>
 <rdf:value><time:DurationDescription>
-<time:years rdf:datatype="http://www.w3.org/2001/XMLSchema#decimal">1</time:years>
+<time:weeks rdf:datatype="http://www.w3.org/2001/XMLSchema#decimal">1</time:weeks>
 </time:DurationDescription></rdf:value>
 </dct:Frequency>
 </dct:accrualPeriodicity>
@@ -5323,46 +5494,6 @@ En cada compromiso se indica a qué eje (bloque) pertenece, las consejerías y �
 </dct:Frequency>
 </dct:accrualPeriodicity>
 <dct:issued rdf:datatype="http://www.w3.org/2001/XMLSchema#date">2020-09-25T00:00:00</dct:issued>
-<dct:spatial rdf:resource="http://datos.gob.es/recurso/sector-publico/territorio/Autonomia/Castilla-Leon"/>
-</dcat:Dataset>
-</dcat:dataset>
-<dcat:dataset>
-<dcat:Dataset rdf:about="https://datosabiertos.jcyl.es/web/jcyl/set/es/sector-publico/consejos-colegios-profesionales/1284973342007" dct:identifier="https://datosabiertos.jcyl.es/web/jcyl/set/es/sector-publico/consejos-colegios-profesionales/1284973342007" >
-<dct:title xml:lang="es">Consejos de colegios profesionales</dct:title>
-<dct:description xml:lang="es">Datos relativos a los consejos de colegios profesionales inscritos en el registro de colegios profesionales y consejos de colegios de Castilla y León.</dct:description>
-<dcat:theme rdf:resource="http://datos.gob.es/kos/sector-publico/sector/sector-publico"/>
-<dcat:keyword xml:lang="es">registro</dcat:keyword>
-<dcat:keyword xml:lang="es"> consejos</dcat:keyword>
-<dcat:keyword xml:lang="es"> colegios profesionales</dcat:keyword>
-<dct:language>es</dct:language>
-<dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://creativecommons.org/licenses/by/4.0/deed.es_ES"/>
-<dcat:distribution>
-<dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/sector-publico/consejos-colegios-profesionales/1284973342007.csv">
-<dct:title xml:lang="es">Consejos de colegios profesionales</dct:title>
-<dct:format>
-<dct:IMT rdf:value="text/csv" rdfs:label="CSV" />
-</dct:format>
-<dcat:accessURL rdf:datatype="http://www.w3.org/2001/XMLSchema#anyURI">https://datosabiertos.jcyl.es/web/jcyl/risp/es/sector-publico/consejos-colegios-profesionales/1284973342007.csv</dcat:accessURL>
-</dcat:Distribution>
-</dcat:distribution>
-<dcat:distribution>
-<dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/sector-publico/consejos-colegios-profesionales/1284973342007.xls">
-<dct:title xml:lang="es">Consejos de colegios profesionales</dct:title>
-<dct:format>
-<dct:IMT rdf:value="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" rdfs:label="XLS" />
-</dct:format>
-<dcat:accessURL rdf:datatype="http://www.w3.org/2001/XMLSchema#anyURI">https://datosabiertos.jcyl.es/web/jcyl/risp/es/sector-publico/consejos-colegios-profesionales/1284973342007.xls</dcat:accessURL>
-</dcat:Distribution>
-</dcat:distribution>
-<dct:accrualPeriodicity>
-<dct:Frequency>
-<rdf:value><time:DurationDescription>
-<time:months rdf:datatype="http://www.w3.org/2001/XMLSchema#decimal">1</time:months>
-</time:DurationDescription></rdf:value>
-</dct:Frequency>
-</dct:accrualPeriodicity>
-<dct:issued rdf:datatype="http://www.w3.org/2001/XMLSchema#date">2020-07-28T00:00:00</dct:issued>
 <dct:spatial rdf:resource="http://datos.gob.es/recurso/sector-publico/territorio/Autonomia/Castilla-Leon"/>
 </dcat:Dataset>
 </dcat:dataset>
@@ -7783,46 +7914,6 @@ Puede consultar el listado de cotos de pesca, escenarios deportivo-sociales, agu
 </dcat:Dataset>
 </dcat:dataset>
 <dcat:dataset>
-<dcat:Dataset rdf:about="https://datosabiertos.jcyl.es/web/jcyl/set/es/sector-publico/delegaciones-colegios-profesionales/1284973342547" dct:identifier="https://datosabiertos.jcyl.es/web/jcyl/set/es/sector-publico/delegaciones-colegios-profesionales/1284973342547" >
-<dct:title xml:lang="es">Delegaciones de colegios profesionales estatales</dct:title>
-<dct:description xml:lang="es">Registro de delegaciones de colegios profesionales estatales en Castilla y León.</dct:description>
-<dcat:theme rdf:resource="http://datos.gob.es/kos/sector-publico/sector/sector-publico"/>
-<dcat:keyword xml:lang="es">registro</dcat:keyword>
-<dcat:keyword xml:lang="es"> delegaciones</dcat:keyword>
-<dcat:keyword xml:lang="es"> colegios profesionales</dcat:keyword>
-<dct:language>es</dct:language>
-<dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
-<dct:license rdf:resource="https://creativecommons.org/licenses/by/4.0/deed.es_ES"/>
-<dcat:distribution>
-<dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/sector-publico/delegaciones-colegios-profesionales/1284973342547.csv">
-<dct:title xml:lang="es">Delegaciones de colegios profesionales estatales</dct:title>
-<dct:format>
-<dct:IMT rdf:value="text/csv" rdfs:label="CSV" />
-</dct:format>
-<dcat:accessURL rdf:datatype="http://www.w3.org/2001/XMLSchema#anyURI">https://datosabiertos.jcyl.es/web/jcyl/risp/es/sector-publico/delegaciones-colegios-profesionales/1284973342547.csv</dcat:accessURL>
-</dcat:Distribution>
-</dcat:distribution>
-<dcat:distribution>
-<dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/sector-publico/delegaciones-colegios-profesionales/1284973342547.xls">
-<dct:title xml:lang="es">Delegaciones de colegios profesionales estatales</dct:title>
-<dct:format>
-<dct:IMT rdf:value="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" rdfs:label="XLS" />
-</dct:format>
-<dcat:accessURL rdf:datatype="http://www.w3.org/2001/XMLSchema#anyURI">https://datosabiertos.jcyl.es/web/jcyl/risp/es/sector-publico/delegaciones-colegios-profesionales/1284973342547.xls</dcat:accessURL>
-</dcat:Distribution>
-</dcat:distribution>
-<dct:accrualPeriodicity>
-<dct:Frequency>
-<rdf:value><time:DurationDescription>
-<time:months rdf:datatype="http://www.w3.org/2001/XMLSchema#decimal">1</time:months>
-</time:DurationDescription></rdf:value>
-</dct:Frequency>
-</dct:accrualPeriodicity>
-<dct:issued rdf:datatype="http://www.w3.org/2001/XMLSchema#date">2020-07-28T00:00:00</dct:issued>
-<dct:spatial rdf:resource="http://datos.gob.es/recurso/sector-publico/territorio/Autonomia/Castilla-Leon"/>
-</dcat:Dataset>
-</dcat:dataset>
-<dcat:dataset>
 <dcat:Dataset rdf:about="https://datosabiertos.jcyl.es/web/jcyl/set/es/medio-rural-pesca/dop-igp/1284984571556" dct:identifier="https://datosabiertos.jcyl.es/web/jcyl/set/es/medio-rural-pesca/dop-igp/1284984571556" >
 <dct:title xml:lang="es">Denominaciones de Origen Protegidas (DOP) e Indicaciones Geográficas Protegidas (IGP) de Castilla y León</dct:title>
 <dct:description xml:lang="es">Las Denominaciones de Origen Protegidas (DOP) e Indicaciones Geográficas Protegidas (IGP) constituyen la herramienta utilizada en la Unión Europea para el reconocimiento de una calidad diferenciada en productos agrícolas y alimenticios, vinos, licores y vinos aromatizados, ayudando a resaltar las cualidades y tradiciones asociadas con ellos y asegurando a los consumidores que son productos genuinos, no imitaciones que buscan beneficiarse del buen nombre y la reputación del original. Los productos que están protegidos por la Denominación de Origen Protegida (DOP) son aquellos cuya calidad o características se deben, fundamentalmente, al medio geográfico con sus factores naturales y humanos y cuya producción, transformación y elaboración se realiza siempre en esa zona geográfica delimitada de la que toman el nombre. Los productos con una Indicación Geográfica Protegida (IGP) poseen alguna cualidad determinada o reputación u otra característica que pueda atribuirse a un origen geográfico y cuya producción, transformación o elaboración se realice en la zona geográfica delimitada de la que también toma su nombre. Se incluyen en el conjunto de datos los nombres, los documentos oficiales y las urls de detalle de todas las DOP e IGP de Castilla y León.</dct:description>
@@ -9752,18 +9843,18 @@ La información se encuentra ordenada en los siguientes campos: N de registro, N
 </dcat:dataset>
 <dcat:dataset>
 <dcat:Dataset rdf:about="https://datosabiertos.jcyl.es/web/jcyl/set/es/sector-publico/cursos-formacion-juvenil/1285617695849" dct:identifier="https://datosabiertos.jcyl.es/web/jcyl/set/es/sector-publico/cursos-formacion-juvenil/1285617695849" >
-<dct:title xml:lang="es">Titulaciones de Formación Juvenil</dct:title>
-<dct:description xml:lang="es">Datos de los cursos de formación juvenil validados y antes de su comienzo correspondientes a escuelas de animación juvenil y tiempo libre en Castilla y León.</dct:description>
+<dct:title xml:lang="es">Próximos Cursos de Formación Juvenil</dct:title>
+<dct:description xml:lang="es">Datos de los próximos cursos de formación juvenil validados y antes de su comienzo correspondientes a escuelas de animación juvenil y tiempo libre en Castilla y León.</dct:description>
 <dcat:theme rdf:resource="http://datos.gob.es/kos/sector-publico/sector/sector-publico"/>
 <dcat:keyword xml:lang="es">cursos</dcat:keyword>
-<dcat:keyword xml:lang="es"> formación</dcat:keyword>
-<dcat:keyword xml:lang="es"> juvenil</dcat:keyword>
+<dcat:keyword xml:lang="es">formación</dcat:keyword>
+<dcat:keyword xml:lang="es">juventud</dcat:keyword>
 <dct:language>es</dct:language>
 <dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
 <dct:license rdf:resource="https://creativecommons.org/licenses/by/4.0/deed.es_ES"/>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/sector-publico/cursos-formacion-juvenil/1285617695849.csv">
-<dct:title xml:lang="es">Titulaciones de Formación Juvenil</dct:title>
+<dct:title xml:lang="es">Próximos Cursos de Formación Juvenil</dct:title>
 <dct:format>
 <dct:IMT rdf:value="text/csv" rdfs:label="CSV" />
 </dct:format>
@@ -9772,7 +9863,7 @@ La información se encuentra ordenada en los siguientes campos: N de registro, N
 </dcat:distribution>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/sector-publico/cursos-formacion-juvenil/1285617695849.json">
-<dct:title xml:lang="es">Titulaciones de Formación Juvenil</dct:title>
+<dct:title xml:lang="es">Próximos Cursos de Formación Juvenil</dct:title>
 <dct:format>
 <dct:IMT rdf:value="application/json" rdfs:label="JSON" />
 </dct:format>
@@ -9781,7 +9872,7 @@ La información se encuentra ordenada en los siguientes campos: N de registro, N
 </dcat:distribution>
 <dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/sector-publico/cursos-formacion-juvenil/1285617695849.xls">
-<dct:title xml:lang="es">Titulaciones de Formación Juvenil</dct:title>
+<dct:title xml:lang="es">Próximos Cursos de Formación Juvenil</dct:title>
 <dct:format>
 <dct:IMT rdf:value="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" rdfs:label="XLS" />
 </dct:format>
@@ -9796,6 +9887,57 @@ La información se encuentra ordenada en los siguientes campos: N de registro, N
 </dct:Frequency>
 </dct:accrualPeriodicity>
 <dct:issued rdf:datatype="http://www.w3.org/2001/XMLSchema#date">2026-03-13T00:00:00</dct:issued>
+<dct:spatial rdf:resource="http://datos.gob.es/recurso/sector-publico/territorio/Autonomia/Castilla-Leon"/>
+</dcat:Dataset>
+</dcat:dataset>
+<dcat:dataset>
+<dcat:Dataset rdf:about="https://datosabiertos.jcyl.es/web/jcyl/set/es/economia/establecimientos-juego/1285109782636" dct:identifier="https://datosabiertos.jcyl.es/web/jcyl/set/es/economia/establecimientos-juego/1285109782636" >
+<dct:title xml:lang="es">Establecimientos en el sector del juego</dct:title>
+<dct:description xml:lang="es">Descripción: Establecimientos en los que el juego o las apuestas se desarrollan como actividad principal, o cuya actividad principal sea otra, pero el juego se desarrolla como actividad complementaria a la principal, tales como los establecimientos de hostelería.
+
+La información se presenta agrupada en las siguientes columnas Tipo, Local, dirección Postal, Municipio, Provincia, Fecha de Autorización, Fecha de Declaración Responsable, Fecha de Apertura, coordenadas.
+
+Nota: La ubicación de los establecimientos de juego NO es oficial, porque esta Administración NO se hace responsable del tratamiento que con ellos pueda hacerse, ni se aconseja que se utilice para solicitar la autorización de apertura de un nuevo establecimiento que pudiese cumplir con las distancias mínimas.</dct:description>
+<dcat:theme rdf:resource="http://datos.gob.es/kos/sector-publico/sector/economia"/>
+<dcat:keyword xml:lang="es">juego</dcat:keyword>
+<dct:language>es</dct:language>
+<dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
+<dct:license rdf:resource="https://creativecommons.org/licenses/by/4.0/deed.es_ES"/>
+<dcat:distribution>
+<dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/economia/establecimientos-juego/1285109782636.csv">
+<dct:title xml:lang="es">Establecimientos en el sector del juego</dct:title>
+<dct:format>
+<dct:IMT rdf:value="text/csv" rdfs:label="CSV" />
+</dct:format>
+<dcat:accessURL rdf:datatype="http://www.w3.org/2001/XMLSchema#anyURI">https://datosabiertos.jcyl.es/web/jcyl/risp/es/economia/establecimientos-juego/1285109782636.csv</dcat:accessURL>
+</dcat:Distribution>
+</dcat:distribution>
+<dcat:distribution>
+<dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/economia/establecimientos-juego/1285109782636.json">
+<dct:title xml:lang="es">Establecimientos en el sector del juego</dct:title>
+<dct:format>
+<dct:IMT rdf:value="application/json" rdfs:label="JSON" />
+</dct:format>
+<dcat:accessURL rdf:datatype="http://www.w3.org/2001/XMLSchema#anyURI">https://datosabiertos.jcyl.es/web/jcyl/risp/es/economia/establecimientos-juego/1285109782636.json</dcat:accessURL>
+</dcat:Distribution>
+</dcat:distribution>
+<dcat:distribution>
+<dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/economia/establecimientos-juego/1285109782636.xls">
+<dct:title xml:lang="es">Establecimientos en el sector del juego</dct:title>
+<dct:format>
+<dct:IMT rdf:value="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" rdfs:label="XLS" />
+</dct:format>
+<dcat:accessURL rdf:datatype="http://www.w3.org/2001/XMLSchema#anyURI">https://datosabiertos.jcyl.es/web/jcyl/risp/es/economia/establecimientos-juego/1285109782636.xls</dcat:accessURL>
+</dcat:Distribution>
+</dcat:distribution>
+<dct:accrualPeriodicity>
+<dct:Frequency>
+<rdf:value><time:DurationDescription>
+<time:years rdf:datatype="http://www.w3.org/2001/XMLSchema#decimal">1</time:years>
+</time:DurationDescription></rdf:value>
+</dct:Frequency>
+</dct:accrualPeriodicity>
+<dct:issued rdf:datatype="http://www.w3.org/2001/XMLSchema#date">2021-11-11T00:00:00</dct:issued>
 <dct:spatial rdf:resource="http://datos.gob.es/recurso/sector-publico/territorio/Autonomia/Castilla-Leon"/>
 </dcat:Dataset>
 </dcat:dataset>
@@ -9914,6 +10056,55 @@ El sistema proporciona correcciones de código y fase para los sistemas de naveg
 </dct:Frequency>
 </dct:accrualPeriodicity>
 <dct:issued rdf:datatype="http://www.w3.org/2001/XMLSchema#date">2021-06-09T00:00:00</dct:issued>
+<dct:spatial rdf:resource="http://datos.gob.es/recurso/sector-publico/territorio/Autonomia/Castilla-Leon"/>
+</dcat:Dataset>
+</dcat:dataset>
+<dcat:dataset>
+<dcat:Dataset rdf:about="https://datosabiertos.jcyl.es/web/jcyl/set/es/cultura-ocio/estadistica-espectaculos-publicos/1285130669459" dct:identifier="https://datosabiertos.jcyl.es/web/jcyl/set/es/cultura-ocio/estadistica-espectaculos-publicos/1285130669459" >
+<dct:title xml:lang="es">Estadística de espectáculos públicos</dct:title>
+<dct:description xml:lang="es">Detalle numérico de la gestión administrativa anual, por provincias, de procedimientos administrativas derivados de la Ley 7/2006, de 2 de octubre, de espectáculos públicos y actividades recreativas de Castilla y León, como son los procedimientos de ampliación de horarios, las autorizaciones de las pruebas deportivas y de espectáculos públicos (excluidos los taurinos que cuentan con su propia estadística).
+
+El conjunto de datos está organizado en los siguientes campos: año, provincia, tipo, subtipo y número de espectáculos.</dct:description>
+<dcat:theme rdf:resource="http://datos.gob.es/kos/sector-publico/sector/cultura-ocio"/>
+<dcat:keyword xml:lang="es">espectáculos públicos</dcat:keyword>
+<dct:language>es</dct:language>
+<dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
+<dct:license rdf:resource="https://creativecommons.org/licenses/by/4.0/deed.es_ES"/>
+<dcat:distribution>
+<dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/cultura-ocio/estadistica-espectaculos-publicos/1285130669459.csv">
+<dct:title xml:lang="es">Estadística de espectáculos públicos</dct:title>
+<dct:format>
+<dct:IMT rdf:value="text/csv" rdfs:label="CSV" />
+</dct:format>
+<dcat:accessURL rdf:datatype="http://www.w3.org/2001/XMLSchema#anyURI">https://datosabiertos.jcyl.es/web/jcyl/risp/es/cultura-ocio/estadistica-espectaculos-publicos/1285130669459.csv</dcat:accessURL>
+</dcat:Distribution>
+</dcat:distribution>
+<dcat:distribution>
+<dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/cultura-ocio/estadistica-espectaculos-publicos/1285130669459.json">
+<dct:title xml:lang="es">Estadística de espectáculos públicos</dct:title>
+<dct:format>
+<dct:IMT rdf:value="application/json" rdfs:label="JSON" />
+</dct:format>
+<dcat:accessURL rdf:datatype="http://www.w3.org/2001/XMLSchema#anyURI">https://datosabiertos.jcyl.es/web/jcyl/risp/es/cultura-ocio/estadistica-espectaculos-publicos/1285130669459.json</dcat:accessURL>
+</dcat:Distribution>
+</dcat:distribution>
+<dcat:distribution>
+<dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/cultura-ocio/estadistica-espectaculos-publicos/1285130669459.xls">
+<dct:title xml:lang="es">Estadística de espectáculos públicos</dct:title>
+<dct:format>
+<dct:IMT rdf:value="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" rdfs:label="XLS" />
+</dct:format>
+<dcat:accessURL rdf:datatype="http://www.w3.org/2001/XMLSchema#anyURI">https://datosabiertos.jcyl.es/web/jcyl/risp/es/cultura-ocio/estadistica-espectaculos-publicos/1285130669459.xls</dcat:accessURL>
+</dcat:Distribution>
+</dcat:distribution>
+<dct:accrualPeriodicity>
+<dct:Frequency>
+<rdf:value><time:DurationDescription>
+<time:years rdf:datatype="http://www.w3.org/2001/XMLSchema#decimal">1</time:years>
+</time:DurationDescription></rdf:value>
+</dct:Frequency>
+</dct:accrualPeriodicity>
+<dct:issued rdf:datatype="http://www.w3.org/2001/XMLSchema#date">2022-01-21T00:00:00</dct:issued>
 <dct:spatial rdf:resource="http://datos.gob.es/recurso/sector-publico/territorio/Autonomia/Castilla-Leon"/>
 </dcat:Dataset>
 </dcat:dataset>
@@ -10379,6 +10570,114 @@ La información se encuentra desglosada en Perfil, red social, Tweets/Post total
 </dct:Frequency>
 </dct:accrualPeriodicity>
 <dct:issued rdf:datatype="http://www.w3.org/2001/XMLSchema#date">2021-10-21T00:00:00</dct:issued>
+<dct:spatial rdf:resource="http://datos.gob.es/recurso/sector-publico/territorio/Autonomia/Castilla-Leon"/>
+</dcat:Dataset>
+</dcat:dataset>
+<dcat:dataset>
+<dcat:Dataset rdf:about="https://datosabiertos.jcyl.es/web/jcyl/set/es/hacienda/impuesto-patrimonio/1285133436693" dct:identifier="https://datosabiertos.jcyl.es/web/jcyl/set/es/hacienda/impuesto-patrimonio/1285133436693" >
+<dct:title xml:lang="es">Estadísticas del impuesto sobre el patrimonio</dct:title>
+<dct:description xml:lang="es">El impuesto sobre el patrimonio es un tributo de devengo anual, que grava el patrimonio neto del que fuesen titulares las personas físicas a 31 de diciembre de cada año, entendiendo por patrimonio neto el conjunto de bienes y derechos de contenido económico pertenecientes a una persona física, con deducción de cargas y gravámenes que disminuyan su valor, así como de las deudas y obligaciones de las que deba responder.
+
+El conjunto de datos se compone de los siguientes campos: año, provincia, número de declaraciones e importe de las mismas.</dct:description>
+<dcat:theme rdf:resource="http://datos.gob.es/kos/sector-publico/sector/hacienda"/>
+<dcat:keyword xml:lang="es">hacienda</dcat:keyword>
+<dcat:keyword xml:lang="es"> impuestos</dcat:keyword>
+<dcat:keyword xml:lang="es"> impuesto patrimonio</dcat:keyword>
+<dct:language>es</dct:language>
+<dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
+<dct:license rdf:resource="https://creativecommons.org/licenses/by/4.0/deed.es_ES"/>
+<dcat:distribution>
+<dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/hacienda/impuesto-patrimonio/1285133436693.csv">
+<dct:title xml:lang="es">Estadísticas del impuesto sobre el patrimonio</dct:title>
+<dct:format>
+<dct:IMT rdf:value="text/csv" rdfs:label="CSV" />
+</dct:format>
+<dcat:accessURL rdf:datatype="http://www.w3.org/2001/XMLSchema#anyURI">https://datosabiertos.jcyl.es/web/jcyl/risp/es/hacienda/impuesto-patrimonio/1285133436693.csv</dcat:accessURL>
+</dcat:Distribution>
+</dcat:distribution>
+<dcat:distribution>
+<dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/hacienda/impuesto-patrimonio/1285133436693.json">
+<dct:title xml:lang="es">Estadísticas del impuesto sobre el patrimonio</dct:title>
+<dct:format>
+<dct:IMT rdf:value="application/json" rdfs:label="JSON" />
+</dct:format>
+<dcat:accessURL rdf:datatype="http://www.w3.org/2001/XMLSchema#anyURI">https://datosabiertos.jcyl.es/web/jcyl/risp/es/hacienda/impuesto-patrimonio/1285133436693.json</dcat:accessURL>
+</dcat:Distribution>
+</dcat:distribution>
+<dcat:distribution>
+<dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/hacienda/impuesto-patrimonio/1285133436693.xls">
+<dct:title xml:lang="es">Estadísticas del impuesto sobre el patrimonio</dct:title>
+<dct:format>
+<dct:IMT rdf:value="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" rdfs:label="XLS" />
+</dct:format>
+<dcat:accessURL rdf:datatype="http://www.w3.org/2001/XMLSchema#anyURI">https://datosabiertos.jcyl.es/web/jcyl/risp/es/hacienda/impuesto-patrimonio/1285133436693.xls</dcat:accessURL>
+</dcat:Distribution>
+</dcat:distribution>
+<dct:accrualPeriodicity>
+<dct:Frequency>
+<rdf:value><time:DurationDescription>
+<time:years rdf:datatype="http://www.w3.org/2001/XMLSchema#decimal">1</time:years>
+</time:DurationDescription></rdf:value>
+</dct:Frequency>
+</dct:accrualPeriodicity>
+<dct:issued rdf:datatype="http://www.w3.org/2001/XMLSchema#date">2022-02-02T00:00:00</dct:issued>
+<dct:spatial rdf:resource="http://datos.gob.es/recurso/sector-publico/territorio/Autonomia/Castilla-Leon"/>
+</dcat:Dataset>
+</dcat:dataset>
+<dcat:dataset>
+<dcat:Dataset rdf:about="https://datosabiertos.jcyl.es/web/jcyl/set/es/hacienda/impuesto-sucesiones-donaciones/1285133403127" dct:identifier="https://datosabiertos.jcyl.es/web/jcyl/set/es/hacienda/impuesto-sucesiones-donaciones/1285133403127" >
+<dct:title xml:lang="es">Estadísticas del impuesto sobre sucesiones y donaciones</dct:title>
+<dct:description xml:lang="es">El impuesto sobre sucesiones y donaciones es un tributo que grava los incrementos de patrimonio obtenidos a título lucrativo por una persona física cuando provengan de:
+
+<ol start="1" style="list-style-type: lower-alpha;">
+	la adquisición de bienes y derechos por herencia, legado o cualquier otro título sucesorio,
+	la adquisición de bienes y derechos por donación u otros negocios jurídicos a título gratuito e intervivos, y
+	la percepción de cantidades por los beneficiarios de contratos de seguros sobre la vida, con ciertas condiciones y excepciones.
+
+
+El conjunto de datos se compone de los siguientes campos: año, provincia, tramitador (el servicio territorial u oficina liquidadora provincial que corresponda), tipo de tramitador (servicio territorial, oficina liquidadora). Tanto para sucesiones como para donaciones se indica las declaraciones entradas en el año, las pendientes del año anterior, las despachadas, y las que quedan pendientes de tramitar a final de año.</dct:description>
+<dcat:theme rdf:resource="http://datos.gob.es/kos/sector-publico/sector/hacienda"/>
+<dcat:keyword xml:lang="es">hacienda</dcat:keyword>
+<dcat:keyword xml:lang="es"> impuestos</dcat:keyword>
+<dcat:keyword xml:lang="es"> impuesto sucesiones y donaciones</dcat:keyword>
+<dct:language>es</dct:language>
+<dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
+<dct:license rdf:resource="https://creativecommons.org/licenses/by/4.0/deed.es_ES"/>
+<dcat:distribution>
+<dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/hacienda/impuesto-sucesiones-donaciones/1285133403127.csv">
+<dct:title xml:lang="es">Estadísticas del impuesto sobre sucesiones y donaciones</dct:title>
+<dct:format>
+<dct:IMT rdf:value="text/csv" rdfs:label="CSV" />
+</dct:format>
+<dcat:accessURL rdf:datatype="http://www.w3.org/2001/XMLSchema#anyURI">https://datosabiertos.jcyl.es/web/jcyl/risp/es/hacienda/impuesto-sucesiones-donaciones/1285133403127.csv</dcat:accessURL>
+</dcat:Distribution>
+</dcat:distribution>
+<dcat:distribution>
+<dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/hacienda/impuesto-sucesiones-donaciones/1285133403127.json">
+<dct:title xml:lang="es">Estadísticas del impuesto sobre sucesiones y donaciones</dct:title>
+<dct:format>
+<dct:IMT rdf:value="application/json" rdfs:label="JSON" />
+</dct:format>
+<dcat:accessURL rdf:datatype="http://www.w3.org/2001/XMLSchema#anyURI">https://datosabiertos.jcyl.es/web/jcyl/risp/es/hacienda/impuesto-sucesiones-donaciones/1285133403127.json</dcat:accessURL>
+</dcat:Distribution>
+</dcat:distribution>
+<dcat:distribution>
+<dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/hacienda/impuesto-sucesiones-donaciones/1285133403127.xls">
+<dct:title xml:lang="es">Estadísticas del impuesto sobre sucesiones y donaciones</dct:title>
+<dct:format>
+<dct:IMT rdf:value="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" rdfs:label="XLS" />
+</dct:format>
+<dcat:accessURL rdf:datatype="http://www.w3.org/2001/XMLSchema#anyURI">https://datosabiertos.jcyl.es/web/jcyl/risp/es/hacienda/impuesto-sucesiones-donaciones/1285133403127.xls</dcat:accessURL>
+</dcat:Distribution>
+</dcat:distribution>
+<dct:accrualPeriodicity>
+<dct:Frequency>
+<rdf:value><time:DurationDescription>
+<time:years rdf:datatype="http://www.w3.org/2001/XMLSchema#decimal">1</time:years>
+</time:DurationDescription></rdf:value>
+</dct:Frequency>
+</dct:accrualPeriodicity>
+<dct:issued rdf:datatype="http://www.w3.org/2001/XMLSchema#date">2022-02-02T00:00:00</dct:issued>
 <dct:spatial rdf:resource="http://datos.gob.es/recurso/sector-publico/territorio/Autonomia/Castilla-Leon"/>
 </dcat:Dataset>
 </dcat:dataset>
@@ -23534,6 +23833,86 @@ Los datos se encuentran estructurados en: Año, Tipo Centro (los valores que se 
 </dcat:Dataset>
 </dcat:dataset>
 <dcat:dataset>
+<dcat:Dataset rdf:about="https://datosabiertos.jcyl.es/web/jcyl/set/es/sector-publico/consejos-colegios-profesionales/1284973342007" dct:identifier="https://datosabiertos.jcyl.es/web/jcyl/set/es/sector-publico/consejos-colegios-profesionales/1284973342007" >
+<dct:title xml:lang="es">Registro de Consejos de colegios profesionales</dct:title>
+<dct:description xml:lang="es">Datos relativos a los consejos de colegios profesionales inscritos en el registro de colegios profesionales y consejos de colegios de Castilla y León.</dct:description>
+<dcat:theme rdf:resource="http://datos.gob.es/kos/sector-publico/sector/sector-publico"/>
+<dcat:keyword xml:lang="es">registro</dcat:keyword>
+<dcat:keyword xml:lang="es"> consejos</dcat:keyword>
+<dcat:keyword xml:lang="es"> colegios profesionales</dcat:keyword>
+<dct:language>es</dct:language>
+<dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
+<dct:license rdf:resource="https://creativecommons.org/licenses/by/4.0/deed.es_ES"/>
+<dcat:distribution>
+<dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/sector-publico/consejos-colegios-profesionales/1284973342007.csv">
+<dct:title xml:lang="es">Registro de Consejos de colegios profesionales</dct:title>
+<dct:format>
+<dct:IMT rdf:value="text/csv" rdfs:label="CSV" />
+</dct:format>
+<dcat:accessURL rdf:datatype="http://www.w3.org/2001/XMLSchema#anyURI">https://datosabiertos.jcyl.es/web/jcyl/risp/es/sector-publico/consejos-colegios-profesionales/1284973342007.csv</dcat:accessURL>
+</dcat:Distribution>
+</dcat:distribution>
+<dcat:distribution>
+<dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/sector-publico/consejos-colegios-profesionales/1284973342007.xls">
+<dct:title xml:lang="es">Registro de Consejos de colegios profesionales</dct:title>
+<dct:format>
+<dct:IMT rdf:value="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" rdfs:label="XLS" />
+</dct:format>
+<dcat:accessURL rdf:datatype="http://www.w3.org/2001/XMLSchema#anyURI">https://datosabiertos.jcyl.es/web/jcyl/risp/es/sector-publico/consejos-colegios-profesionales/1284973342007.xls</dcat:accessURL>
+</dcat:Distribution>
+</dcat:distribution>
+<dct:accrualPeriodicity>
+<dct:Frequency>
+<rdf:value><time:DurationDescription>
+<time:months rdf:datatype="http://www.w3.org/2001/XMLSchema#decimal">1</time:months>
+</time:DurationDescription></rdf:value>
+</dct:Frequency>
+</dct:accrualPeriodicity>
+<dct:issued rdf:datatype="http://www.w3.org/2001/XMLSchema#date">2020-07-28T00:00:00</dct:issued>
+<dct:spatial rdf:resource="http://datos.gob.es/recurso/sector-publico/territorio/Autonomia/Castilla-Leon"/>
+</dcat:Dataset>
+</dcat:dataset>
+<dcat:dataset>
+<dcat:Dataset rdf:about="https://datosabiertos.jcyl.es/web/jcyl/set/es/sector-publico/delegaciones-colegios-profesionales/1284973342547" dct:identifier="https://datosabiertos.jcyl.es/web/jcyl/set/es/sector-publico/delegaciones-colegios-profesionales/1284973342547" >
+<dct:title xml:lang="es">Registro de Delegaciones de colegios profesionales estatales</dct:title>
+<dct:description xml:lang="es">Registro de delegaciones de colegios profesionales estatales en Castilla y León.</dct:description>
+<dcat:theme rdf:resource="http://datos.gob.es/kos/sector-publico/sector/sector-publico"/>
+<dcat:keyword xml:lang="es">registro</dcat:keyword>
+<dcat:keyword xml:lang="es"> delegaciones</dcat:keyword>
+<dcat:keyword xml:lang="es"> colegios profesionales</dcat:keyword>
+<dct:language>es</dct:language>
+<dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
+<dct:license rdf:resource="https://creativecommons.org/licenses/by/4.0/deed.es_ES"/>
+<dcat:distribution>
+<dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/sector-publico/delegaciones-colegios-profesionales/1284973342547.csv">
+<dct:title xml:lang="es">Registro de Delegaciones de colegios profesionales estatales</dct:title>
+<dct:format>
+<dct:IMT rdf:value="text/csv" rdfs:label="CSV" />
+</dct:format>
+<dcat:accessURL rdf:datatype="http://www.w3.org/2001/XMLSchema#anyURI">https://datosabiertos.jcyl.es/web/jcyl/risp/es/sector-publico/delegaciones-colegios-profesionales/1284973342547.csv</dcat:accessURL>
+</dcat:Distribution>
+</dcat:distribution>
+<dcat:distribution>
+<dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/sector-publico/delegaciones-colegios-profesionales/1284973342547.xls">
+<dct:title xml:lang="es">Registro de Delegaciones de colegios profesionales estatales</dct:title>
+<dct:format>
+<dct:IMT rdf:value="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" rdfs:label="XLS" />
+</dct:format>
+<dcat:accessURL rdf:datatype="http://www.w3.org/2001/XMLSchema#anyURI">https://datosabiertos.jcyl.es/web/jcyl/risp/es/sector-publico/delegaciones-colegios-profesionales/1284973342547.xls</dcat:accessURL>
+</dcat:Distribution>
+</dcat:distribution>
+<dct:accrualPeriodicity>
+<dct:Frequency>
+<rdf:value><time:DurationDescription>
+<time:months rdf:datatype="http://www.w3.org/2001/XMLSchema#decimal">1</time:months>
+</time:DurationDescription></rdf:value>
+</dct:Frequency>
+</dct:accrualPeriodicity>
+<dct:issued rdf:datatype="http://www.w3.org/2001/XMLSchema#date">2020-07-28T00:00:00</dct:issued>
+<dct:spatial rdf:resource="http://datos.gob.es/recurso/sector-publico/territorio/Autonomia/Castilla-Leon"/>
+</dcat:Dataset>
+</dcat:dataset>
+<dcat:dataset>
 <dcat:Dataset rdf:about="https://datosabiertos.jcyl.es/web/jcyl/set/es/sector-publico/registro-eliminacion-documentos/1284991748676" dct:identifier="https://datosabiertos.jcyl.es/web/jcyl/set/es/sector-publico/registro-eliminacion-documentos/1284991748676" >
 <dct:title xml:lang="es">Registro de eliminación de documentos</dct:title>
 <dct:description xml:lang="es">Registro donde se asientan las eliminaciones de documentos gestionadas por los responsables de los Archivos Centrales de las Consejerías y de los Archivos de las Delegaciones Territoriales de la Administración de la Junta de Castilla y León según los plazos establecidos en las Reglas de Conservación aprobadas y publicadas en el BOCyL.</dct:description>
@@ -24199,6 +24578,57 @@ El conjunto de datos dispone del listado de puntos de vertido de residuos de con
 </dct:Frequency>
 </dct:accrualPeriodicity>
 <dct:issued rdf:datatype="http://www.w3.org/2001/XMLSchema#date">2021-02-24T00:00:00</dct:issued>
+<dct:spatial rdf:resource="http://datos.gob.es/recurso/sector-publico/territorio/Autonomia/Castilla-Leon"/>
+</dcat:Dataset>
+</dcat:dataset>
+<dcat:dataset>
+<dcat:Dataset rdf:about="https://datosabiertos.jcyl.es/web/jcyl/set/es/medio-rural-pesca/resultados-temporadas-cinegeticas/1285080726502" dct:identifier="https://datosabiertos.jcyl.es/web/jcyl/set/es/medio-rural-pesca/resultados-temporadas-cinegeticas/1285080726502" >
+<dct:title xml:lang="es">Resultados de las temporadas cinegéticas</dct:title>
+<dct:description xml:lang="es">Pendiente
+
+La información se encuentra agrupada en:
+
+Año, Especie, Total Capturas y Provincias.</dct:description>
+<dcat:theme rdf:resource="http://datos.gob.es/kos/sector-publico/sector/medio-rural-pesca"/>
+<dcat:keyword xml:lang="es">caza</dcat:keyword>
+<dct:language>es</dct:language>
+<dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
+<dct:license rdf:resource="https://creativecommons.org/licenses/by/4.0/deed.es_ES"/>
+<dcat:distribution>
+<dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-rural-pesca/resultados-temporadas-cinegeticas/1285080726502.csv">
+<dct:title xml:lang="es">Resultados de las temporadas cinegéticas</dct:title>
+<dct:format>
+<dct:IMT rdf:value="text/csv" rdfs:label="CSV" />
+</dct:format>
+<dcat:accessURL rdf:datatype="http://www.w3.org/2001/XMLSchema#anyURI">https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-rural-pesca/resultados-temporadas-cinegeticas/1285080726502.csv</dcat:accessURL>
+</dcat:Distribution>
+</dcat:distribution>
+<dcat:distribution>
+<dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-rural-pesca/resultados-temporadas-cinegeticas/1285080726502.json">
+<dct:title xml:lang="es">Resultados de las temporadas cinegéticas</dct:title>
+<dct:format>
+<dct:IMT rdf:value="application/json" rdfs:label="JSON" />
+</dct:format>
+<dcat:accessURL rdf:datatype="http://www.w3.org/2001/XMLSchema#anyURI">https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-rural-pesca/resultados-temporadas-cinegeticas/1285080726502.json</dcat:accessURL>
+</dcat:Distribution>
+</dcat:distribution>
+<dcat:distribution>
+<dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-rural-pesca/resultados-temporadas-cinegeticas/1285080726502.xls">
+<dct:title xml:lang="es">Resultados de las temporadas cinegéticas</dct:title>
+<dct:format>
+<dct:IMT rdf:value="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" rdfs:label="XLS" />
+</dct:format>
+<dcat:accessURL rdf:datatype="http://www.w3.org/2001/XMLSchema#anyURI">https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-rural-pesca/resultados-temporadas-cinegeticas/1285080726502.xls</dcat:accessURL>
+</dcat:Distribution>
+</dcat:distribution>
+<dct:accrualPeriodicity>
+<dct:Frequency>
+<rdf:value><time:DurationDescription>
+<time:years rdf:datatype="http://www.w3.org/2001/XMLSchema#decimal">1</time:years>
+</time:DurationDescription></rdf:value>
+</dct:Frequency>
+</dct:accrualPeriodicity>
+<dct:issued rdf:datatype="http://www.w3.org/2001/XMLSchema#date">2021-07-30T00:00:00</dct:issued>
 <dct:spatial rdf:resource="http://datos.gob.es/recurso/sector-publico/territorio/Autonomia/Castilla-Leon"/>
 </dcat:Dataset>
 </dcat:dataset>
@@ -27307,7 +27737,7 @@ En cuanto a las ayudas FEADER, desarrolladas en el Programa de Desarrollo Rural 
 <dcat:dataset>
 <dcat:Dataset rdf:about="https://datosabiertos.jcyl.es/web/jcyl/set/es/urbanismo-infraestructuras/suelo-usoresidencial/1284771887097" dct:identifier="https://datosabiertos.jcyl.es/web/jcyl/set/es/urbanismo-infraestructuras/suelo-usoresidencial/1284771887097" >
 <dct:title xml:lang="es">Parcelas propiedad de la Junta de Castilla y León con un uso urbanístico residencial-viviendas.</dct:title>
-<dct:description xml:lang="es">Terrenos destinados a la construcción de viviendas de protección pública gestionados por la Consejería de Fomento y Medio Ambiente conforme a la Disposición adicional primera de la Ley 11/2006, de 26 de octubre, de Patrimonio de Castilla y León.</dct:description>
+<dct:description xml:lang="es">Terrenos destinados a la construcción de viviendas de protección pública gestionados por la Dirección General de Vivienda y Urbanismo conforme a la Disposición adicional primera de la Ley 11/2006, de 26 de octubre, de Patrimonio de Castilla y León.</dct:description>
 <dcat:theme rdf:resource="http://datos.gob.es/kos/sector-publico/sector/urbanismo-infraestructuras"/>
 <dcat:keyword xml:lang="es">suelo</dcat:keyword>
 <dcat:keyword xml:lang="es"> urbano</dcat:keyword>
@@ -27820,6 +28250,58 @@ Cada registro del conjunto de datos incluye datos del año, provincia, tipo (res
 </dcat:Dataset>
 </dcat:dataset>
 <dcat:dataset>
+<dcat:Dataset rdf:about="https://datosabiertos.jcyl.es/web/jcyl/set/es/medio-rural-pesca/terrenos-cinegeticos-provincias/1285080983368" dct:identifier="https://datosabiertos.jcyl.es/web/jcyl/set/es/medio-rural-pesca/terrenos-cinegeticos-provincias/1285080983368" >
+<dct:title xml:lang="es">Terrenos cinegéticos por provincias</dct:title>
+<dct:description xml:lang="es">Pendiente
+
+La información se encuentra agrupada en:
+
+Año, Tipo, Provincia, Número, Hectáreas.</dct:description>
+<dcat:theme rdf:resource="http://datos.gob.es/kos/sector-publico/sector/medio-rural-pesca"/>
+<dcat:keyword xml:lang="es">caza</dcat:keyword>
+<dcat:keyword xml:lang="es"> cotos</dcat:keyword>
+<dct:language>es</dct:language>
+<dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
+<dct:license rdf:resource="https://creativecommons.org/licenses/by/4.0/deed.es_ES"/>
+<dcat:distribution>
+<dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-rural-pesca/terrenos-cinegeticos-provincias/1285080983368.csv">
+<dct:title xml:lang="es">Terrenos cinegéticos por provincias</dct:title>
+<dct:format>
+<dct:IMT rdf:value="text/csv" rdfs:label="CSV" />
+</dct:format>
+<dcat:accessURL rdf:datatype="http://www.w3.org/2001/XMLSchema#anyURI">https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-rural-pesca/terrenos-cinegeticos-provincias/1285080983368.csv</dcat:accessURL>
+</dcat:Distribution>
+</dcat:distribution>
+<dcat:distribution>
+<dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-rural-pesca/terrenos-cinegeticos-provincias/1285080983368.json">
+<dct:title xml:lang="es">Terrenos cinegéticos por provincias</dct:title>
+<dct:format>
+<dct:IMT rdf:value="application/json" rdfs:label="JSON" />
+</dct:format>
+<dcat:accessURL rdf:datatype="http://www.w3.org/2001/XMLSchema#anyURI">https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-rural-pesca/terrenos-cinegeticos-provincias/1285080983368.json</dcat:accessURL>
+</dcat:Distribution>
+</dcat:distribution>
+<dcat:distribution>
+<dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-rural-pesca/terrenos-cinegeticos-provincias/1285080983368.xls">
+<dct:title xml:lang="es">Terrenos cinegéticos por provincias</dct:title>
+<dct:format>
+<dct:IMT rdf:value="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" rdfs:label="XLS" />
+</dct:format>
+<dcat:accessURL rdf:datatype="http://www.w3.org/2001/XMLSchema#anyURI">https://datosabiertos.jcyl.es/web/jcyl/risp/es/medio-rural-pesca/terrenos-cinegeticos-provincias/1285080983368.xls</dcat:accessURL>
+</dcat:Distribution>
+</dcat:distribution>
+<dct:accrualPeriodicity>
+<dct:Frequency>
+<rdf:value><time:DurationDescription>
+<time:months rdf:datatype="http://www.w3.org/2001/XMLSchema#decimal">1</time:months>
+</time:DurationDescription></rdf:value>
+</dct:Frequency>
+</dct:accrualPeriodicity>
+<dct:issued rdf:datatype="http://www.w3.org/2001/XMLSchema#date">2021-07-30T00:00:00</dct:issued>
+<dct:spatial rdf:resource="http://datos.gob.es/recurso/sector-publico/territorio/Autonomia/Castilla-Leon"/>
+</dcat:Dataset>
+</dcat:dataset>
+<dcat:dataset>
 <dcat:Dataset rdf:about="https://datosabiertos.jcyl.es/web/jcyl/set/es/transporte/intensidad_circulacion/1284733182199" dct:identifier="https://datosabiertos.jcyl.es/web/jcyl/set/es/transporte/intensidad_circulacion/1284733182199" >
 <dct:title xml:lang="es">Intensidades medias diarias de tráfico y velocidades. Red Regional de Carreteras</dct:title>
 <dct:description xml:lang="es">Intensidades medias diarias de tráfico, composición y velocidades de la Red Regional de Castilla y León</dct:description>
@@ -28058,21 +28540,21 @@ Datos desde el 28 de mayo de 2018.</dct:description>
 </dcat:Distribution>
 </dcat:distribution>
 <dcat:distribution>
-<dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/ciencia-tecnologia/tucerticyl-estadisticas-certificaciones/1284957738057.xls">
-<dct:title xml:lang="es">TuCertiCyL – Estadística de certificaciones</dct:title>
-<dct:format>
-<dct:IMT rdf:value="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" rdfs:label="XLS" />
-</dct:format>
-<dcat:accessURL rdf:datatype="http://www.w3.org/2001/XMLSchema#anyURI">https://datosabiertos.jcyl.es/web/jcyl/risp/es/ciencia-tecnologia/tucerticyl-estadisticas-certificaciones/1284957738057.xls</dcat:accessURL>
-</dcat:Distribution>
-</dcat:distribution>
-<dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/ciencia-tecnologia/tucerticyl-estadisticas-certificaciones/1284957738057.json">
 <dct:title xml:lang="es">TuCertiCyL – Estadística de certificaciones</dct:title>
 <dct:format>
 <dct:IMT rdf:value="application/json" rdfs:label="JSON" />
 </dct:format>
 <dcat:accessURL rdf:datatype="http://www.w3.org/2001/XMLSchema#anyURI">https://datosabiertos.jcyl.es/web/jcyl/risp/es/ciencia-tecnologia/tucerticyl-estadisticas-certificaciones/1284957738057.json</dcat:accessURL>
+</dcat:Distribution>
+</dcat:distribution>
+<dcat:distribution>
+<dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/ciencia-tecnologia/tucerticyl-estadisticas-certificaciones/1284957738057.xls">
+<dct:title xml:lang="es">TuCertiCyL – Estadística de certificaciones</dct:title>
+<dct:format>
+<dct:IMT rdf:value="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" rdfs:label="XLS" />
+</dct:format>
+<dcat:accessURL rdf:datatype="http://www.w3.org/2001/XMLSchema#anyURI">https://datosabiertos.jcyl.es/web/jcyl/risp/es/ciencia-tecnologia/tucerticyl-estadisticas-certificaciones/1284957738057.xls</dcat:accessURL>
 </dcat:Distribution>
 </dcat:distribution>
 <dct:accrualPeriodicity>
@@ -28107,21 +28589,21 @@ Datos desde el 28 de mayo de 2018.</dct:description>
 </dcat:Distribution>
 </dcat:distribution>
 <dcat:distribution>
-<dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/ciencia-tecnologia/tucerticyl-usuarios-activos/1284957745058.xls">
-<dct:title xml:lang="es">TuCertiCyL – Usuarios activos</dct:title>
-<dct:format>
-<dct:IMT rdf:value="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" rdfs:label="XLS" />
-</dct:format>
-<dcat:accessURL rdf:datatype="http://www.w3.org/2001/XMLSchema#anyURI">https://datosabiertos.jcyl.es/web/jcyl/risp/es/ciencia-tecnologia/tucerticyl-usuarios-activos/1284957745058.xls</dcat:accessURL>
-</dcat:Distribution>
-</dcat:distribution>
-<dcat:distribution>
 <dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/ciencia-tecnologia/tucerticyl-usuarios-activos/1284957745058.json">
 <dct:title xml:lang="es">TuCertiCyL – Usuarios activos</dct:title>
 <dct:format>
 <dct:IMT rdf:value="application/json" rdfs:label="JSON" />
 </dct:format>
 <dcat:accessURL rdf:datatype="http://www.w3.org/2001/XMLSchema#anyURI">https://datosabiertos.jcyl.es/web/jcyl/risp/es/ciencia-tecnologia/tucerticyl-usuarios-activos/1284957745058.json</dcat:accessURL>
+</dcat:Distribution>
+</dcat:distribution>
+<dcat:distribution>
+<dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/ciencia-tecnologia/tucerticyl-usuarios-activos/1284957745058.xls">
+<dct:title xml:lang="es">TuCertiCyL – Usuarios activos</dct:title>
+<dct:format>
+<dct:IMT rdf:value="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" rdfs:label="XLS" />
+</dct:format>
+<dcat:accessURL rdf:datatype="http://www.w3.org/2001/XMLSchema#anyURI">https://datosabiertos.jcyl.es/web/jcyl/risp/es/ciencia-tecnologia/tucerticyl-usuarios-activos/1284957745058.xls</dcat:accessURL>
 </dcat:Distribution>
 </dcat:distribution>
 <dct:accrualPeriodicity>
@@ -30289,7 +30771,7 @@ La información se encuentra estructurada en: año, mes, Oficina de Turismo, nú
 <dcat:dataset>
 <dcat:Dataset rdf:about="https://datosabiertos.jcyl.es/web/jcyl/set/es/sector-publico/viviendas-proteccion-publica/1284771885795" dct:identifier="https://datosabiertos.jcyl.es/web/jcyl/set/es/sector-publico/viviendas-proteccion-publica/1284771885795" >
 <dct:title xml:lang="es">Viviendas de protección pública y anejos</dct:title>
-<dct:description xml:lang="es">Viviendas de protección pública y anejos gestionados por la Consejería de Fomento y Medio Ambiente conforme a la Disposición adicional primera de la Ley 11/2006, de 26 de octubre, de Patrimonio de Castilla y León.</dct:description>
+<dct:description xml:lang="es">Viviendas de protección pública y anejos gestionados por la Dirección General de Vivienda y Urbanismo conforme a la Disposición adicional primera de la Ley 11/2006, de 26 de octubre, de Patrimonio de Castilla y León.</dct:description>
 <dcat:theme rdf:resource="http://datos.gob.es/kos/sector-publico/sector/sector-publico"/>
 <dcat:theme rdf:resource="http://datos.gob.es/kos/sector-publico/sector/sector-publico"/>
 <dcat:keyword xml:lang="es">viviendas</dcat:keyword>
@@ -32596,6 +33078,193 @@ Los datos disponibles proceden de las inscripciones practicadas como consecuenci
 </dct:Frequency>
 </dct:accrualPeriodicity>
 <dct:issued rdf:datatype="http://www.w3.org/2001/XMLSchema#date">2013-07-03T00:00:00</dct:issued>
+<dct:spatial rdf:resource="http://datos.gob.es/recurso/sector-publico/territorio/Autonomia/Castilla-Leon"/>
+</dcat:Dataset>
+</dcat:dataset>
+<dcat:dataset>
+<dcat:Dataset rdf:about="https://datosabiertos.jcyl.es/web/jcyl/set/es/seguridad/establecimientos_seveso/1284965969047" dct:identifier="https://datosabiertos.jcyl.es/web/jcyl/set/es/seguridad/establecimientos_seveso/1284965969047" >
+<dct:title xml:lang="es">Establecimientos bajo normativa Seveso</dct:title>
+<dct:description xml:lang="es">Tras el grave accidente de Seveso (Italia) y otros similares, la Unión Europea desarrolló una normativa dirigida a prevenir los accidentes en determinados sectores industriales.
+
+	Este es el listado de establecimientos bajo la normativa Seveso (Real Decreto 840/2015) en Castilla y León.</dct:description>
+<dcat:theme rdf:resource="http://datos.gob.es/kos/sector-publico/sector/seguridad"/>
+<dcat:keyword xml:lang="es">Protección Civil</dcat:keyword>
+<dcat:keyword xml:lang="es"> riesgo químico</dcat:keyword>
+<dcat:keyword xml:lang="es"> seveso</dcat:keyword>
+<dct:language>es</dct:language>
+<dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
+<dct:license rdf:resource="https://creativecommons.org/licenses/by/4.0/deed.es_ES"/>
+<dcat:distribution>
+<dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/seguridad/establecimientos_seveso/1284965969047.kml">
+<dct:title xml:lang="es">Establecimientos bajo normativa Seveso</dct:title>
+<dct:format>
+<dct:IMT rdf:value="application/vnd.google-earth.kml+xml" rdfs:label="KML" />
+</dct:format>
+<dcat:accessURL rdf:datatype="http://www.w3.org/2001/XMLSchema#anyURI"></dcat:accessURL>
+</dcat:Distribution>
+</dcat:distribution>
+<dcat:distribution>
+<dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/seguridad/establecimientos_seveso/1284965969047.shp">
+<dct:title xml:lang="es">Establecimientos bajo normativa Seveso</dct:title>
+<dct:format>
+<dct:IMT rdf:value="application/x-zipped-shp" rdfs:label="SHP" />
+</dct:format>
+<dcat:accessURL rdf:datatype="http://www.w3.org/2001/XMLSchema#anyURI"></dcat:accessURL>
+</dcat:Distribution>
+</dcat:distribution>
+<dct:accrualPeriodicity>
+<dct:Frequency>
+<rdf:value><time:DurationDescription>
+<time:days rdf:datatype="http://www.w3.org/2001/XMLSchema#decimal">1</time:days>
+</time:DurationDescription></rdf:value>
+</dct:Frequency>
+</dct:accrualPeriodicity>
+<dct:issued rdf:datatype="http://www.w3.org/2001/XMLSchema#date">2012-09-06T00:00:00</dct:issued>
+<dct:spatial rdf:resource="http://datos.gob.es/recurso/sector-publico/territorio/Autonomia/Castilla-Leon"/>
+</dcat:Dataset>
+</dcat:dataset>
+<dcat:dataset>
+<dcat:Dataset rdf:about="https://datosabiertos.jcyl.es/web/jcyl/set/es/seguridad/riesgo_inundaciones/1284965968307" dct:identifier="https://datosabiertos.jcyl.es/web/jcyl/set/es/seguridad/riesgo_inundaciones/1284965968307" >
+<dct:title xml:lang="es">Municipios con riesgo potencial poblacional de inundaciones</dct:title>
+<dct:description xml:lang="es">Registro de municipios con riesgo potencial poblacional de inundaciones extraído del Plan de Protección Civil ante el Riesgo de Inundaciones en la Comunidad Autónoma de Castilla y León (INUNcyl)
+Frecuencia de actualización: Con la actualización del INUNcyl</dct:description>
+<dcat:theme rdf:resource="http://datos.gob.es/kos/sector-publico/sector/seguridad"/>
+<dcat:keyword xml:lang="es">Protección Civil</dcat:keyword>
+<dcat:keyword xml:lang="es"> riesgo inundaciones</dcat:keyword>
+<dcat:keyword xml:lang="es"> INUNcyl</dcat:keyword>
+<dct:language>es</dct:language>
+<dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
+<dct:license rdf:resource="https://creativecommons.org/licenses/by/4.0/deed.es_ES"/>
+<dcat:distribution>
+<dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/seguridad/riesgo_inundaciones/1284965968307.kml">
+<dct:title xml:lang="es">Municipios con riesgo potencial poblacional de inundaciones</dct:title>
+<dct:format>
+<dct:IMT rdf:value="application/vnd.google-earth.kml+xml" rdfs:label="KML" />
+</dct:format>
+<dcat:accessURL rdf:datatype="http://www.w3.org/2001/XMLSchema#anyURI"></dcat:accessURL>
+</dcat:Distribution>
+</dcat:distribution>
+<dcat:distribution>
+<dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/seguridad/riesgo_inundaciones/1284965968307.shp">
+<dct:title xml:lang="es">Municipios con riesgo potencial poblacional de inundaciones</dct:title>
+<dct:format>
+<dct:IMT rdf:value="application/x-zipped-shp" rdfs:label="SHP" />
+</dct:format>
+<dcat:accessURL rdf:datatype="http://www.w3.org/2001/XMLSchema#anyURI"></dcat:accessURL>
+</dcat:Distribution>
+</dcat:distribution>
+<dct:issued rdf:datatype="http://www.w3.org/2001/XMLSchema#date">2012-09-06T00:00:00</dct:issued>
+<dct:spatial rdf:resource="http://datos.gob.es/recurso/sector-publico/territorio/Autonomia/Castilla-Leon"/>
+</dcat:Dataset>
+</dcat:dataset>
+<dcat:dataset>
+<dcat:Dataset rdf:about="https://datosabiertos.jcyl.es/web/jcyl/set/es/seguridad/merc_peligrosas_carretera/1284965968487" dct:identifier="https://datosabiertos.jcyl.es/web/jcyl/set/es/seguridad/merc_peligrosas_carretera/1284965968487" >
+<dct:title xml:lang="es">Tramos de carretera con riesgo en el transporte de mercancías peligrosas</dct:title>
+<dct:description xml:lang="es">Registro de los tramos de carretera con riesgo en el transporte de mercancías peligrosas por carretera según el Plan Especial de Protección Civil de Mercancias Peligrosas por Carretera y Ferrocarril de la Comunidad Autónoma de Castilla y León (MPCyL)
+Frecuencia de actualización: Con la actualización del MPCyL</dct:description>
+<dcat:theme rdf:resource="http://datos.gob.es/kos/sector-publico/sector/seguridad"/>
+<dcat:keyword xml:lang="es">Protección Civil</dcat:keyword>
+<dcat:keyword xml:lang="es"> riesgo mercancías peligrosas</dcat:keyword>
+<dcat:keyword xml:lang="es"> carretera</dcat:keyword>
+<dcat:keyword xml:lang="es"> MPCyL</dcat:keyword>
+<dct:language>es</dct:language>
+<dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
+<dct:license rdf:resource="https://creativecommons.org/licenses/by/4.0/deed.es_ES"/>
+<dcat:distribution>
+<dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/seguridad/merc_peligrosas_carretera/1284965968487.kml">
+<dct:title xml:lang="es">Tramos de carretera con riesgo en el transporte de mercancías peligrosas</dct:title>
+<dct:format>
+<dct:IMT rdf:value="application/vnd.google-earth.kml+xml" rdfs:label="KML" />
+</dct:format>
+<dcat:accessURL rdf:datatype="http://www.w3.org/2001/XMLSchema#anyURI"></dcat:accessURL>
+</dcat:Distribution>
+</dcat:distribution>
+<dcat:distribution>
+<dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/seguridad/merc_peligrosas_carretera/1284965968487.shp">
+<dct:title xml:lang="es">Tramos de carretera con riesgo en el transporte de mercancías peligrosas</dct:title>
+<dct:format>
+<dct:IMT rdf:value="application/x-zipped-shp" rdfs:label="SHP" />
+</dct:format>
+<dcat:accessURL rdf:datatype="http://www.w3.org/2001/XMLSchema#anyURI"></dcat:accessURL>
+</dcat:Distribution>
+</dcat:distribution>
+<dct:issued rdf:datatype="http://www.w3.org/2001/XMLSchema#date">2012-09-06T00:00:00</dct:issued>
+<dct:spatial rdf:resource="http://datos.gob.es/recurso/sector-publico/territorio/Autonomia/Castilla-Leon"/>
+</dcat:Dataset>
+</dcat:dataset>
+<dcat:dataset>
+<dcat:Dataset rdf:about="https://datosabiertos.jcyl.es/web/jcyl/set/es/seguridad/merc_peligrosas_ferrocarril/1284965968673" dct:identifier="https://datosabiertos.jcyl.es/web/jcyl/set/es/seguridad/merc_peligrosas_ferrocarril/1284965968673" >
+<dct:title xml:lang="es">Tramos de ferrocarril con riesgo en el transporte de mercancías peligrosas</dct:title>
+<dct:description xml:lang="es">Registro de los tramos de ferrocarril con riesgo en el transporte de mercancías peligrosas por ferrocarril según el Plan Especial de Protección Civil de Mercancias Peligrosas por Carretera y Ferrocarril de la Comunidad Autónoma de Castilla y León (MPCyL)
+Frecuencia de actualización: Con la actualización del MPCyL</dct:description>
+<dcat:theme rdf:resource="http://datos.gob.es/kos/sector-publico/sector/seguridad"/>
+<dcat:keyword xml:lang="es">Protección Civil</dcat:keyword>
+<dcat:keyword xml:lang="es"> riesgo mercancías peligrosas</dcat:keyword>
+<dcat:keyword xml:lang="es"> ferrocarril</dcat:keyword>
+<dcat:keyword xml:lang="es"> MPCyL</dcat:keyword>
+<dct:language>es</dct:language>
+<dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
+<dct:license rdf:resource="https://creativecommons.org/licenses/by/4.0/deed.es_ES"/>
+<dcat:distribution>
+<dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/seguridad/merc_peligrosas_ferrocarril/1284965968673.kml">
+<dct:title xml:lang="es">Tramos de ferrocarril con riesgo en el transporte de mercancías peligrosas</dct:title>
+<dct:format>
+<dct:IMT rdf:value="application/vnd.google-earth.kml+xml" rdfs:label="KML" />
+</dct:format>
+<dcat:accessURL rdf:datatype="http://www.w3.org/2001/XMLSchema#anyURI"></dcat:accessURL>
+</dcat:Distribution>
+</dcat:distribution>
+<dcat:distribution>
+<dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/seguridad/merc_peligrosas_ferrocarril/1284965968673.shp">
+<dct:title xml:lang="es">Tramos de ferrocarril con riesgo en el transporte de mercancías peligrosas</dct:title>
+<dct:format>
+<dct:IMT rdf:value="application/x-zipped-shp" rdfs:label="SHP" />
+</dct:format>
+<dcat:accessURL rdf:datatype="http://www.w3.org/2001/XMLSchema#anyURI"></dcat:accessURL>
+</dcat:Distribution>
+</dcat:distribution>
+<dct:issued rdf:datatype="http://www.w3.org/2001/XMLSchema#date">2012-09-06T00:00:00</dct:issued>
+<dct:spatial rdf:resource="http://datos.gob.es/recurso/sector-publico/territorio/Autonomia/Castilla-Leon"/>
+</dcat:Dataset>
+</dcat:dataset>
+<dcat:dataset>
+<dcat:Dataset rdf:about="https://datosabiertos.jcyl.es/web/jcyl/set/es/seguridad/proteccion_civil/1284965968855" dct:identifier="https://datosabiertos.jcyl.es/web/jcyl/set/es/seguridad/proteccion_civil/1284965968855" >
+<dct:title xml:lang="es">Agrupaciones y Asociaciones de voluntariado de protección civil</dct:title>
+<dct:description xml:lang="es">La información representa las agrupaciones y asociaciones de voluntarios de Protección Civil en el territorio de Castilla y León según el Decreto 106/2004.</dct:description>
+<dcat:theme rdf:resource="http://datos.gob.es/kos/sector-publico/sector/seguridad"/>
+<dcat:keyword xml:lang="es">Voluntariado</dcat:keyword>
+<dcat:keyword xml:lang="es"> Protección Civil</dcat:keyword>
+<dcat:keyword xml:lang="es"> agrupaciones</dcat:keyword>
+<dcat:keyword xml:lang="es"> asociaciones</dcat:keyword>
+<dct:language>es</dct:language>
+<dct:publisher rdf:resource="http://datos.gob.es/recurso/sector-publico/org/Organismo/A07002862"/>
+<dct:license rdf:resource="https://creativecommons.org/licenses/by/4.0/deed.es_ES"/>
+<dcat:distribution>
+<dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/seguridad/proteccion_civil/1284965968855.kml">
+<dct:title xml:lang="es">Agrupaciones y Asociaciones de voluntariado de protección civil</dct:title>
+<dct:format>
+<dct:IMT rdf:value="application/vnd.google-earth.kml+xml" rdfs:label="KML" />
+</dct:format>
+<dcat:accessURL rdf:datatype="http://www.w3.org/2001/XMLSchema#anyURI"></dcat:accessURL>
+</dcat:Distribution>
+</dcat:distribution>
+<dcat:distribution>
+<dcat:Distribution rdf:about="https://datosabiertos.jcyl.es/web/jcyl/risp/es/seguridad/proteccion_civil/1284965968855.shp">
+<dct:title xml:lang="es">Agrupaciones y Asociaciones de voluntariado de protección civil</dct:title>
+<dct:format>
+<dct:IMT rdf:value="application/x-zipped-shp" rdfs:label="SHP" />
+</dct:format>
+<dcat:accessURL rdf:datatype="http://www.w3.org/2001/XMLSchema#anyURI"></dcat:accessURL>
+</dcat:Distribution>
+</dcat:distribution>
+<dct:accrualPeriodicity>
+<dct:Frequency>
+<rdf:value><time:DurationDescription>
+<time:days rdf:datatype="http://www.w3.org/2001/XMLSchema#decimal">1</time:days>
+</time:DurationDescription></rdf:value>
+</dct:Frequency>
+</dct:accrualPeriodicity>
+<dct:issued rdf:datatype="http://www.w3.org/2001/XMLSchema#date">2012-09-06T00:00:00</dct:issued>
 <dct:spatial rdf:resource="http://datos.gob.es/recurso/sector-publico/territorio/Autonomia/Castilla-Leon"/>
 </dcat:Dataset>
 </dcat:dataset>

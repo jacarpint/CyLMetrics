@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeQuality } from '../rdf-catalog';
+import { computeQuality, parseCatalog } from '../rdf-catalog';
 import type { DataFormat, License } from '../types';
 
 type ComputeQualityInput = Parameters<typeof computeQuality>[0];
@@ -73,5 +73,50 @@ describe('computeQuality', () => {
   it('freshnessSource is issued when only issued exists', () => {
     const { freshnessSource } = computeQuality({ ...baseInput, modified: '' });
     expect(freshnessSource).toBe('issued');
+  });
+});
+
+/**
+ * El catálogo real, el 15 de septiembre de 2026, traía un dataset («Estadísticas
+ * del impuesto sobre sucesiones y donaciones») cuya `dct:description` incluía un
+ * `<ol>` de una lista pegado como texto plano, sin escapar y sin su `</ol>` de
+ * cierre. El parser no distingue eso de una etiqueta XML real: la da por
+ * abierta, y todo lo que sigue —licencia, tema, distribuciones— acaba colgando
+ * de `description` en vez de ser hermano suyo, así que el dataset se queda sin
+ * formatos y con la licencia sin identificar aunque el RDF sí la declare.
+ */
+describe('parseCatalog: descripciones con HTML suelto sin escapar', () => {
+  const xmlWithStrayOl = `<?xml version="1.0" encoding="UTF-8"?>
+<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+         xmlns:dcat="http://www.w3.org/ns/dcat#"
+         xmlns:dct="http://purl.org/dc/terms/">
+  <dcat:Catalog>
+    <dcat:dataset>
+      <dcat:Dataset rdf:about="https://datosabiertos.jcyl.es/set/es/x/1">
+        <dct:title>Dataset con lista suelta</dct:title>
+        <dct:description>Texto inicial.
+<ol start="1" style="list-style-type: lower-alpha;">
+	primer punto
+	segundo punto
+Texto final sin cerrar la lista.</dct:description>
+        <dct:license rdf:resource="https://creativecommons.org/licenses/by/4.0/deed.es_ES"/>
+        <dct:issued>2024-01-01</dct:issued>
+        <dcat:distribution>
+          <dcat:Distribution>
+            <dct:format><dct:IMT rdf:value="text/csv"/></dct:format>
+            <dcat:accessURL>https://datosabiertos.jcyl.es/x/1.csv</dcat:accessURL>
+          </dcat:Distribution>
+        </dcat:distribution>
+      </dcat:Dataset>
+    </dcat:dataset>
+  </dcat:Catalog>
+</rdf:RDF>`;
+
+  it('reconoce la licencia y las distribuciones aunque la descripción traiga HTML sin cerrar', () => {
+    const { datasets } = parseCatalog(xmlWithStrayOl, 'https://example.org', new Date().toISOString());
+
+    expect(datasets).toHaveLength(1);
+    expect(datasets[0].license).toBe('CC-BY-4.0');
+    expect(datasets[0].formats).toEqual(['CSV']);
   });
 });

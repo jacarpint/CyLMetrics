@@ -357,6 +357,25 @@ const xmlParser = new XMLParser({
   parseTagValue: false,
 });
 
+/**
+ * Algunas descripciones del catálogo real traen HTML suelto sin escapar y sin
+ * cerrar (`<ol>` de una lista pegada como texto plano, sin su `</ol>`). El
+ * parser no distingue eso de una etiqueta XML real: la da por abierta y todo
+ * lo que sigue —licencia, tema, palabras clave, publisher y las tres
+ * distribuciones— acaba colgando de `description` en vez de ser hermano suyo,
+ * así que el dataset entero se queda sin formatos y sin licencia reconocida.
+ * Pasó de verdad el 15 de septiembre de 2026 con «Estadísticas del impuesto
+ * sobre sucesiones y donaciones». Como `dct:description` no anida (no hay
+ * forma de que aparezca un `<dct:description>` real dentro de otro), basta con
+ * escapar cualquier `<`/`>` suelto hasta el primer cierre literal.
+ */
+function sanitizeDescriptions(xml: string): string {
+  return xml.replace(/<dct:description([^>]*)>([\s\S]*?)<\/dct:description>/g, (_match, attrs, content) => {
+    const escaped = content.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return `<dct:description${attrs}>${escaped}</dct:description>`;
+  });
+}
+
 /** Parsea el XML RDF/XML del catálogo y devuelve los datasets normalizados. */
 export function parseCatalog(
   xml: string,
@@ -364,7 +383,7 @@ export function parseCatalog(
   fetchedAt: string,
   origin: CatalogData['source']['origin'] = 'remote'
 ): CatalogData {
-  const doc = xmlParser.parse(xml) as { RDF?: { Catalog?: { dataset?: RawDataset | RawDataset[] } } };
+  const doc = xmlParser.parse(sanitizeDescriptions(xml)) as { RDF?: { Catalog?: { dataset?: RawDataset | RawDataset[] } } };
   const rawDatasets = toArray<RawDataset>(doc?.RDF?.Catalog?.dataset);
   const now = new Date();
 
@@ -532,12 +551,27 @@ export function computeStats(datasets: Dataset[]): CatalogStats {
 
 const FETCH_TIMEOUT_MS = 15000;
 
+/**
+ * jcyl sirve este RDF detrás de una caché propia por Apache (`x-cache: HIT from
+ * www.datosabiertos.jcyl.es`), y esa caché no está sincronizada entre sus
+ * backends: el 15 de septiembre de 2026, pedir la misma URL desde este equipo
+ * devolvía los ~840 datasets reales, mientras que a Vercel le servía —de forma
+ * persistente, no puntual— un objeto cacheado con solo 235. Un parámetro que
+ * cambia en cada intento evita que la petición coincida con esa clave de caché
+ * concreta y fuerza un `MISS` (comprobado: sigue devolviendo 200 con el mismo
+ * catálogo completo). No se usa `next: { revalidate }` a propósito: la cadencia
+ * de refresco ya la controla `cachedCatalog.nextAttemptAt` más abajo, así que
+ * apoyarse también en la caché de datos de Next aquí solo sería una segunda
+ * capa de caché con la que razonar, y potencialmente una fuente más de datos
+ * obsoletos que sobrevivan a un redeploy.
+ */
 async function fetchRemoteXml(): Promise<string | null> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
-    const res = await fetch(RDF_CATALOG_URL, {
-      next: { revalidate: REVALIDATE_SECONDS },
+    const bustCache = `${RDF_CATALOG_URL}?_cb=${Date.now()}`;
+    const res = await fetch(bustCache, {
+      cache: 'no-store',
       headers: { 'User-Agent': 'CyLDataQualityPortal/1.0' },
       signal: controller.signal,
     });
