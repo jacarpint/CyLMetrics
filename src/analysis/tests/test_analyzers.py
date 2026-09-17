@@ -118,6 +118,51 @@ def test_rdf_parse_catalog():
     assert all(i["url"] for i in items)
 
 
+def test_el_html_suelto_en_la_descripcion_no_rompe_el_catalogo():
+    """Una descripción con HTML sin escapar ni cerrar no puede tumbar el parseo.
+
+    Pasó el 15 de septiembre de 2026 con «Estadísticas del impuesto sobre
+    sucesiones y donaciones»: un `<ol>` pegado como texto plano dentro de
+    `dct:description` hacía que licencia, tema y distribuciones colgaran de la
+    descripción, y el dataset se quedaba sin formatos. Paridad con
+    `sanitizeDescriptions` de `src/lib/rdf-catalog.ts`.
+    """
+    from src.analysis.catalog import iter_distributions
+
+    xml = """<?xml version="1.0"?>
+    <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+             xmlns:dcat="http://www.w3.org/ns/dcat#"
+             xmlns:dct="http://purl.org/dc/terms/">
+      <dcat:Catalog><dcat:dataset>
+        <dcat:Dataset rdf:about="https://ejemplo.es/ds/sucesiones">
+          <dct:title>Estadísticas del impuesto sobre sucesiones</dct:title>
+          <dct:description xml:lang="es">Un tributo que grava:
+
+<ol start="1">
+    la adquisición por herencia,
+    la adquisición por donación.
+
+El conjunto se compone de los campos: año, provincia.</dct:description>
+          <dcat:distribution>
+            <dcat:Distribution rdf:about="https://ejemplo.es/ds/sucesiones/csv">
+              <dct:format><dct:IMT rdf:value="text/csv"/></dct:format>
+              <dcat:accessURL rdf:resource="https://ejemplo.es/ds/sucesiones/data.csv"/>
+            </dcat:Distribution>
+          </dcat:distribution>
+        </dcat:Dataset>
+      </dcat:dataset></dcat:Catalog>
+    </rdf:RDF>"""
+
+    items = iter_distributions(xml.encode("utf-8"))
+    assert [(i["dataset_id"], i["format"], i["url"]) for i in items] == [
+        (
+            "https://ejemplo.es/ds/sucesiones",
+            "CSV",
+            "https://ejemplo.es/ds/sucesiones/data.csv",
+        )
+    ]
+
+
 # ---------------------------------------------------------------------------
 # Geo
 # ---------------------------------------------------------------------------

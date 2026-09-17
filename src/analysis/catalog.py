@@ -1,6 +1,7 @@
 """Carga del catálogo RDF/XML (DCAT) y extracción de las distribuciones a auditar."""
 from __future__ import annotations
 
+import re
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from urllib.request import Request, urlopen
@@ -47,9 +48,31 @@ def load_catalog_xml(input_path: str | None = None, url: str | None = None) -> t
         return resp.read(), target
 
 
+_DESCRIPTION_RE = re.compile(r"<dct:description([^>]*)>(.*?)</dct:description>", re.DOTALL)
+
+
+def sanitize_descriptions(xml_text: str) -> str:
+    """Escapa el HTML suelto dentro de `dct:description`.
+
+    Paridad con `sanitizeDescriptions` de `src/lib/rdf-catalog.ts`: algunas
+    descripciones traen HTML sin escapar ni cerrar (`<ol>` pegado como texto
+    plano). El parser lo da por etiqueta XML real y todo lo que sigue —licencia,
+    tema, distribuciones— acaba colgando de `description`, así que el dataset se
+    queda sin formatos. Pasó el 15 de septiembre de 2026 con «Estadísticas del
+    impuesto sobre sucesiones y donaciones». Como `dct:description` no anida,
+    basta con escapar `<`/`>` hasta su primer cierre literal.
+    """
+    return _DESCRIPTION_RE.sub(
+        lambda m: f"<dct:description{m.group(1)}>"
+        f"{m.group(2).replace('<', '&lt;').replace('>', '&gt;')}</dct:description>",
+        xml_text,
+    )
+
+
 def iter_distributions(xml_bytes: bytes) -> list[dict]:
     """Devuelve la lista plana de distribuciones a auditar."""
-    root = ET.fromstring(xml_bytes)
+    xml_text = xml_bytes.decode("utf-8", errors="replace") if isinstance(xml_bytes, bytes) else xml_bytes
+    root = ET.fromstring(sanitize_descriptions(xml_text))
     items: list[dict] = []
     for ds_index, node in enumerate(root.findall(f".//{DCAT}Dataset")):
         title_el = node.find(f"{DCT}title")
