@@ -144,7 +144,11 @@ los miles de distribuciones que ya están bien analizadas ni sus gigas. Ahí est
 `--incremental`:
 
 ```bash
-python -m src.analysis --incremental
+# Ver el plan y escribir en una carpeta de prueba (no toca el informe publicado)
+python -m src.analysis --incremental --output reports/prueba
+
+# Publicar el informe actualizado (sustituye reports/current a propósito)
+python -m src.analysis --incremental --output reports/current
 ```
 
 Al arrancar compara el catálogo de hoy contra el checkpoint (lo que ya hay

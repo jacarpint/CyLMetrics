@@ -6,7 +6,7 @@ Ejemplos:
   python -m src.analysis --limit 25 --output reports/prueba               # primeras 25
   python -m src.analysis --only-formats CSV,XLSX --output reports/prueba  # solo ciertos formatos
   python -m src.analysis --limit 0 --workers 16 --output reports/data-analysis.json
-  python -m src.analysis --incremental                                   # solo datasets nuevos/modificados
+  python -m src.analysis --incremental --output reports/current          # solo datasets nuevos/modificados
 
 Ojo con `--output`: vale `reports/current` por defecto, que es el informe que
 publica el portal. Cualquier ejecución de prueba debe pasar `--output` a otro
