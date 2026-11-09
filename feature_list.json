@@ -1,6 +1,6 @@
 {
   "project": "CyLMetrics",
-  "last_updated": "2026-10-10",
+  "last_updated": "2026-11-09",
   "rules": {
     "single_active_feature": true,
     "passing_requires_evidence": true,
@@ -19,7 +19,7 @@
       "area": "infra",
       "title": "Base portal en verde (lint + typecheck + vitest)",
       "user_visible_behavior": "npm install deja lint, typecheck y vitest en verde sin tocar código.",
-      "status": "in_progress",
+      "status": "passing",
       "verification": [
         ".\\init.ps1 ejecuta npm run lint, npm run typecheck y npm test sin errores",
         "Pegar output resumido en evidence"
@@ -28,22 +28,28 @@
         "2026-10-10: npm install 516 pkgs OK (Node v24.19.0, npm 11.1.0)",
         "2026-10-10: npx eslint exit 0 (sin output)",
         "2026-10-10: npx tsc --noEmit exit 0",
-        "2026-10-10: npm test 555 passed / 1 failed en documented-commands.test.ts (incremental sin --output) — base-001 NO passing hasta fix"
+        "2026-10-10: npm test 555 passed / 1 failed en documented-commands.test.ts (incremental sin --output) — base-001 NO passing hasta fix",
+        "2026-11-09: npm run lint exit 0",
+        "2026-11-09: npm run typecheck exit 0",
+        "2026-11-09: npm test 556 passed / 556 (44 ficheros) tras documentar --incremental con --output"
       ],
-      "notes": "Puerta L06. Banner Next preservado. Fallo real detectado por el propio guard documented-commands: docs/ANALISIS.md:144 + src/analysis/cli.py:9 muestran incremental sin --output."
+      "notes": "Puerta L06 cerrada. Banner Next preservado. El guard documented-commands pasó a verde al añadir --output explícito a los ejemplos de docs/ANALISIS.md y src/analysis/cli.py."
     },
     {
       "id": "base-002",
       "priority": 2,
       "area": "analysis",
       "title": "Motor Python verificable (--check-deps + pytest)",
-      "user_visible_behavior": "python -m src.analysis --check-deps pasa y pytest src/analysis/tests da 47 passed.",
-      "status": "not_started",
+      "user_visible_behavior": "python -m src.analysis --check-deps pasa y pytest src/analysis/tests da 147 passed.",
+      "status": "passing",
       "verification": [
         "python -m src.analysis --check-deps",
         "python -m pytest src/analysis/tests -q"
       ],
-      "evidence": [],
+      "evidence": [
+        "2026-11-09: python -m src.analysis --check-deps → «Entorno listo: Python 3.13.2 con todos los lectores y la protección de entidades XML activa»",
+        "2026-11-09: python -m pytest src/analysis/tests -q → 147 passed, 1 warning (45,95 s)"
+      ],
       "notes": "Requiere Python >=3.12 + requirements-analysis.txt. En OneDrive usar venv fuera de sincronización."
     },
     {

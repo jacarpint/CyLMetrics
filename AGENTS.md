@@ -42,7 +42,7 @@ Objetivo: dejar el repo para que la próxima sesión continúe sin adivinar. El 
 
 ```
 npm run lint && npm run typecheck && npm test          # portal (Vitest)
-python -m pytest src/analysis/tests -q                 # motor (47 tests)
+python -m pytest src/analysis/tests -q                 # motor (147 tests)
 npm run check:contrast                                 # paleta WCAG AA claro+oscuro
 npm run build                                          # estático completo (puede tardar)
 E2E piezas delicadas: check:xlsx, check:json, check:shp, check:geo, check:table, check:tabular

@@ -53,7 +53,7 @@ que no ha podido abrir.
 ## Tests
 
 ```bash
-python -m pytest src/analysis/tests -q     # 47 tests
+python -m pytest src/analysis/tests -q     # 147 tests
 ```
 
 Cubren los analizadores de cada formato del catálogo, la agregación del informe
