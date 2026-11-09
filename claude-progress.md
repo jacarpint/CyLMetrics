@@ -9,6 +9,7 @@
 - Features: `base-001` y `base-002` en `passing`; siguiente prioridad `portal-001`
 - Bloqueador actual: ninguno. Base rápida en verde (lint, typecheck, 556 tests, pytest 147)
 - Informe publicado: `2026-11-09T10:47:32Z` · 854 datasets · 1.728 distribuciones · 990 ok / 609 error / 129 omitidas · 23,5 GB · nota media 91,0 · 1.258 fragmentos
+- Último deploy: Vercel `success` el `2026-11-09T10:53:43Z`; `/api/quality`, portada, `/calidad` y ficha nueva verificados en producción
 
 ## Registro de Sesiones
 
@@ -38,7 +39,9 @@
   - `python -m src.analysis --check-deps` OK · `pytest src/analysis/tests -q` 147 passed.
   - Comprobación de coherencia del bundle (ids de fragmento vs índice) OK.
   - `npm run build` exit 0: 848 rutas de catálogo + 1.720 de distribución prerenderizadas.
+  - Push `79f42ec..ea5b839` → deployment de Vercel `success` (10:53:43Z).
+  - Producción: `/api/quality` devuelve `2026-11-09T10:47:32Z` y 1.728 distribuciones; portada y `/calidad` muestran 854 datasets / 1.728 archivos / 23,50 GB / 9 de noviembre de 2026; ficha nueva `1285687231042` y su CSV sirven el fragmento `d7002d681618aaa9`.
 - Evidencia capturada: resumen del CLI (990 ok / 609 err / 129 skip, 23.503,4 MB, score 91,0) + validación del bundle.
 - Commits: `cf17ddd` (harness + guard) y commit de datos de esta sesión.
 - Riesgo conocido: los CSV de 512 MiB tardan ~35–38 min cada uno; el motor usa hilos y el GIL serializa el parseo. No es falta de RAM (8,6 GB de 31,7 GB).
-- Mejor próximo paso: push a GitHub y comprobar el deployment de Vercel + `/api/quality` publicado.
+- Mejor próximo paso: `portal-001` (smoke de `/catalogo` y ficha sin errores de consola) y `qa-001` (contraste + visores delicados); el análisis ya está publicado y verificado.
