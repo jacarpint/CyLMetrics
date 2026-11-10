@@ -4,6 +4,7 @@
 
 - Qué funciona: 2026-11-10 — lint y typecheck en verde, vitest 556/556, pytest 147/147, build completo y análisis **completo desde cero** publicado (`2026-11-10T02:38:31Z`).
 - Verificación ejecutada: `npm run lint` 0 · `npm run typecheck` 0 · `npm test` 556 passed · `pytest src/analysis/tests -q` 147 passed · `python -m src.analysis --check-deps` OK · `npm run build` 0 · bundle 854 datasets / 1.728 distribuciones / 1.263 fragmentos, 0 faltantes y 0 sobrantes.
+- Producción: Vercel `success` (2026-11-10T02:46:34Z); `/api/quality` con `generated_at=2026-11-10T02:38:31Z` y 979 ok / 694 error / 55 omitidas; portada con 854/1.728/23,64 GB y 10 de noviembre de 2026; RPT laboral con 13.125 filas; ficha SHP con el 404.
 
 ## Cambiado En Esta Sesión
 

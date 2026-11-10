@@ -9,7 +9,7 @@
 - Features: `base-001`, `base-002` y `qa-003` en `passing`; siguiente prioridad `portal-001`
 - Bloqueador actual: ninguno. Base rápida en verde (lint, typecheck, 556 tests, pytest 147)
 - Informe publicado: `2026-11-10T02:38:31Z` · **análisis completo desde cero** · 854 datasets · 1.728 distribuciones · 979 ok / 694 error / 55 omitidas · 23,64 GB · nota media 91,0 · 1.263 fragmentos
-- Último deploy: pendiente de push del informe completo (el anterior, del 9 de noviembre, quedó verificado)
+- Último deploy: Vercel `success` el `2026-11-10T02:46:34Z`; `/api/quality` devuelve `2026-11-10T02:38:31Z` con 979/694/55; portada con 854/1.728/23,64 GB y fecha 10/11; RPT laboral con 13.125 filas; SHP 404 visible en ficha
 
 ## Registro de Sesiones
 
@@ -63,4 +63,5 @@
   - `npm run lint` y `npm run typecheck` verdes · `npm test` 556/556 · `pytest src/analysis/tests -q` 147 passed · `npm run build` exit 0.
   - Bundle: `generated_at=2026-11-10T02:38:31Z`, `source.url` real del catálogo, multiset catálogo↔informe exacto.
 - Riesgo conocido: el GIL serializa el parseo; el análisis completo tardó ~15 h. Los CSV/XLSX con cientos de miles de filas son el cuello.
-- Mejor próximo paso: push, deploy de Vercel y smoke de la web con el informe completo.
+- Deploy: push `1896a8b..6d98a96` → Vercel `success` (02:46:34Z). Producción verificada: `/api/quality` con `generated_at=2026-11-10T02:38:31Z` y 1.728 distribuciones; portada `/` con 854 datasets, 1.728 archivos, 23,64 GB y «10 de noviembre de 2026»; `/calidad` con 854/1.728; RPT laboral con 13.125 filas; ficha SHP mostrando el 404; `/api/alerts` con el nuevo `analysis_generated_at`.
+- Mejor próximo paso: `portal-001` (smoke de `/catalogo` y ficha sin errores de consola) y `qa-001` (contraste + visores delicados).
