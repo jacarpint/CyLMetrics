@@ -2,21 +2,22 @@
 
 ## Verificado Ahora
 
-- Qué funciona: 2026-11-09 — lint y typecheck en verde, vitest 556/556, pytest 147/147, build completo y deploy de Vercel `success` con el informe nuevo en producción.
-- Verificación ejecutada: `npm run lint` 0 · `npm run typecheck` 0 · `npm test` 556 passed · `pytest src/analysis/tests -q` 147 passed · `python -m src.analysis --check-deps` OK · `npm run build` 0 · `/api/quality` en producción devuelve `2026-11-09T10:47:32Z` y 1.728 distribuciones.
+- Qué funciona: 2026-11-10 — lint y typecheck en verde, vitest 556/556, pytest 147/147, build completo y análisis **completo desde cero** publicado (`2026-11-10T02:38:31Z`).
+- Verificación ejecutada: `npm run lint` 0 · `npm run typecheck` 0 · `npm test` 556 passed · `pytest src/analysis/tests -q` 147 passed · `python -m src.analysis --check-deps` OK · `npm run build` 0 · bundle 854 datasets / 1.728 distribuciones / 1.263 fragmentos, 0 faltantes y 0 sobrantes.
 
 ## Cambiado En Esta Sesión
 
 - Código portal (`src/app`, `src/components`, `src/lib`): sin cambios.
-- Motor (`src/analysis/`): docstring de `cli.py` con `--incremental --output` explícito.
-- Harness/docs: base del harness versionada (`cf17ddd`); `ANALISIS.md` con los dos comandos incrementales; `feature_list.json` y `claude-progress.md` actualizados.
-- Datos: `reports/current/` reemplazado por el informe del 9 de noviembre (854 datasets, 1.728 distribuciones, 1.258 fragmentos).
+- Motor (`src/analysis/`): `truststore` inyectado en `__init__.py` para validar el certificado de `opendata.jcyl.es`; docstring de `cli.py` con `--incremental --output`.
+- Harness/docs: `ANALISIS.md` documenta el problema TLS; `feature_list.json` con `qa-003`; `claude-progress.md` con la sesión 003.
+- Datos: `reports/current/` reemplazado por el análisis completo del 10 de noviembre (854 datasets, 1.728 distribuciones, 1.263 fragmentos, 23,64 GB).
 
 ## Roto O Sin Verificar
 
-- Defecto conocido: los CSV de 512 MiB tardan ~35–38 min cada uno porque el motor usa hilos y el GIL serializa el parseo. No es falta de memoria (8,6 GB de 31,7 GB).
+- Defecto del catálogo: **168 SHP devuelven HTTP 404** (17 de ellos abrían en septiembre); los enlaces redirigen a ZIP que ya no existen. No es un fallo del motor.
+- Defecto conocido: el GIL serializa el parseo; el análisis completo tardó ~15 h. Los CSV/XLSX con cientos de miles de filas son el cuello.
 - Ruta sin verificar (visores: xlsx/json/shp/geo/table/tabular): smoke manual de los seis visores.
-- Riesgo despliegue (`reports/current/`, `outputFileTracingIncludes`, `maxDuration`): `outputFileTracingIncludes` incluye `reports/current/d/**`; `/api/quality` responde 200 en producción, así que el bundle viaja.
+- Riesgo despliegue (`reports/current/`, `outputFileTracingIncludes`, `maxDuration`): `outputFileTracingIncludes` incluye `reports/current/d/**`; hay que comprobar `/api/quality` en producción tras el push.
 
 ## Mejor Próximo Paso
 

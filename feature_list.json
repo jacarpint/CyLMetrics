@@ -1,6 +1,6 @@
 {
   "project": "CyLMetrics",
-  "last_updated": "2026-11-09",
+  "last_updated": "2026-11-10",
   "rules": {
     "single_active_feature": true,
     "passing_requires_evidence": true,
@@ -110,6 +110,25 @@
       ],
       "evidence": [],
       "notes": "Una sola definición por pregunta en src/lib (quality.ts, availability.ts, etc.)."
+    },
+    {
+      "id": "qa-003",
+      "priority": 7,
+      "area": "analysis",
+      "title": "Análisis completo desde cero verificado",
+      "user_visible_behavior": "El informe publicado refleja una descarga y un análisis reales de las 1.728 distribuciones, sin resultados reutilizados del checkpoint.",
+      "status": "passing",
+      "verification": [
+        "python -m src.analysis --limit 0 con checkpoint nuevo (2 workers)",
+        "Bundle coherente: 854 datasets, 1.728 distribuciones, 0 faltantes / 0 sobrantes",
+        "Reintento de los 580 fallos de red con truststore"
+      ],
+      "evidence": [
+        "2026-11-10: 979 ok / 694 error / 55 omitidas · 23,64 GB · score 91,0 · 1.263 fragmentos",
+        "2026-11-10: generated_at=2026-11-10T02:38:31Z · source.url real del catálogo",
+        "2026-11-10: SHP 168 HTTP 404 (17 antes OK) y RPT laboral 13.126→13.125 filas detectados por el análisis completo"
+      ],
+      "notes": "El incremental no detecta cambios de contenido con la misma URL; el catálogo solo declara dct:modified en 75/854 datasets. truststore corrige el falso SSLError de opendata.jcyl.es."
     }
   ]
 }
