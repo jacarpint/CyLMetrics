@@ -29,4 +29,10 @@ filetype>=1.2
 geojson>=3.0
 charset-normalizer>=3.0
 requests>=2.31
+# El catálogo redirige a `opendata.jcyl.es`, que no envía la cadena intermedia
+# del certificado. OpenSSL/certifi falla con SSLError; el almacén de Windows sí
+# lo valida. Sin truststore, cientos de distribuciones se archivan como «No se
+# pudo descargar» sin serlo (comprobado el 10 de noviembre de 2026: 444 falsos
+# negativos). src/analysis/__init__.py lo inyecta al arrancar.
+truststore>=0.10
 pytest>=8.0

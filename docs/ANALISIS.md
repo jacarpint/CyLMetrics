@@ -50,6 +50,23 @@ que no ha podido abrir.
 > El intérprete funciona igual desde la raíz del repositorio; `.venv-analysis`
 > está en `.gitignore` para quien no tenga este problema.
 
+## Certificados TLS
+
+`datosabiertos.jcyl.es` redirige muchas descargas a `opendata.jcyl.es`, y ese
+host no envía la cadena intermedia completa del certificado. OpenSSL/certifi no
+la valida, así que `requests` falla con
+`SSLError: CERTIFICATE_VERIFY_FAILED`; el almacén de Windows sí la acepta. El
+motor inyecta `truststore` al arrancar para usar el almacén del sistema.
+
+Sin `truststore` el análisis no se cae: archiva cientos de distribuciones como
+«No se pudo descargar» y el informe las publica como si el catálogo estuviera
+roto. Pasó el 10 de noviembre de 2026 con 444 distribuciones. `truststore` está
+en `requirements-analysis.txt`; si el venv es antiguo, instálalo:
+
+```bash
+pip install "truststore>=0.10"
+```
+
 ## Tests
 
 ```bash

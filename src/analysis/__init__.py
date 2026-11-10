@@ -14,6 +14,19 @@ Uso:
 
 __version__ = "1.0.0"
 
+# El catálogo redirige muchas descargas a `opendata.jcyl.es`, cuyo certificado no
+# envía la cadena intermedia completa. OpenSSL/certifi no la valida y `requests`
+# falla con `SSLError: CERTIFICATE_VERIFY_FAILED`; el almacén de Windows sí. Sin
+# esto, cientos de distribuciones se archivan como «No se pudo descargar» sin
+# serlo. `truststore` es opcional: si no está instalado, se mantiene el
+# comportamiento anterior.
+try:
+    import truststore as _truststore
+
+    _truststore.inject_into_ssl()
+except ImportError:
+    pass
+
 # Frictionless v5 rechaza por seguridad las rutas absolutas ("path is not safe")
 # salvo que el sistema se marque como "trusted". Aquí los ficheros a auditar se
 # descargan siempre a nuestro propio run_dir (ruta absoluta), por lo que es
